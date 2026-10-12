@@ -14,6 +14,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
+import render_demo_docs as rdd  # noqa: E402
 import render_results as rr  # noqa: E402
 import report_text_only as rto  # noqa: E402
 
@@ -42,7 +43,18 @@ def test_render_results_from_the_committed_files():
             assert rr.pct(r["weighted_f1"]) in md
     obs = rr.observations(met)
     assert 3 <= len(obs) <= 6 and all(s.endswith(".") and s.count(". ") == 0 for s in obs)
-    assert not any(";" in line for line in prose(md))
+    assert not any(";" in line for line in prose(md)) and ";" not in md
+
+
+def test_gaps_come_from_the_printed_values():
+    """60.9149 and 60.7651 print as 60.91 and 60.77, so the gap reads 0.14, not 0.15."""
+    assert rr.pts(0.609149, 0.607651) == "0.14" and rr.side(0.609149, 0.607651) == "above"
+    assert rr.side(0.123401, 0.123399) == "level with" and rr.pts(0.123401, 0.123399) == "0.00"
+
+
+def test_table_cells_with_semicolons_become_sentences():
+    assert rr.sentences("Table 8; no WF1 given") == "Table 8. No WF1 given"
+    assert rr.sentences("row (WF1; UA 50.8)") == "row (WF1, UA 50.8)"
 
 
 def test_report_text_only_from_the_committed_files():
@@ -51,3 +63,10 @@ def test_report_text_only_from_the_committed_files():
     sel = man["selected"]["text_ctx"]
     assert rto.pct(sel["dev"]["weighted_f1"]) in md and sel["grid_point"] in md
     assert not any(";" in line for line in prose(md))
+
+
+def test_demo_blocks_match_the_committed_log():
+    """README.md ("The demo") and design 1.8 are what tools/render_demo_docs.py writes from results/demo_log.jsonl."""
+    readme, design = rdd.render(ROOT)
+    assert readme == (ROOT / "README.md").read_text(encoding="utf-8")
+    assert design == (ROOT / "docs/design.md").read_text(encoding="utf-8")

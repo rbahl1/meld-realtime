@@ -1,0 +1,51 @@
+{
+ "generated_at": "2026-10-12T22:10:07Z",
+ "command": "python tools/meld_raw_source.py",
+ "repo": "declare-lab/MELD",
+ "repo_type": "dataset",
+ "file": "MELD.Raw.tar.gz",
+ "pinned_revision": "9abc51ee7903424ffb971297608aa6d3d0de3bfa",
+ "main": {
+  "sha": "9abc51ee7903424ffb971297608aa6d3d0de3bfa",
+  "last_modified": "2022-10-24T04:48:06.000Z",
+  "card_license": "gpl-3.0",
+  "files": [
+   ".gitattributes",
+   "MELD.Features.Models.tar.gz",
+   "MELD.Raw.tar.gz",
+   "README.md"
+  ]
+ },
+ "pinned": {
+  "sha": "9abc51ee7903424ffb971297608aa6d3d0de3bfa",
+  "last_modified": "2022-10-24T04:48:06.000Z",
+  "card_license": "gpl-3.0",
+  "files": [
+   ".gitattributes",
+   "MELD.Features.Models.tar.gz",
+   "MELD.Raw.tar.gz",
+   "README.md"
+  ]
+ },
+ "resolve_main": {
+  "url": "https://huggingface.co/datasets/declare-lab/MELD/resolve/main/MELD.Raw.tar.gz",
+  "status": 302,
+  "x-repo-commit": "9abc51ee7903424ffb971297608aa6d3d0de3bfa",
+  "x-linked-size": 10878146150,
+  "x-linked-etag": "a56b4407d574195cbce470d86f9c9d72fcfea59b0e34502ecd4babee4a5c613e"
+ },
+ "resolve_pinned": {
+  "url": "https://huggingface.co/datasets/declare-lab/MELD/resolve/9abc51ee7903424ffb971297608aa6d3d0de3bfa/MELD.Raw.tar.gz",
+  "status": 302,
+  "x-repo-commit": "9abc51ee7903424ffb971297608aa6d3d0de3bfa",
+  "x-linked-size": 10878146150,
+  "x-linked-etag": "a56b4407d574195cbce470d86f9c9d72fcfea59b0e34502ecd4babee4a5c613e"
+ },
+ "main_serves_pinned_revision": true,
+ "same_file_at_main_and_pinned": true,
+ "container_download": {
+  "url": "https://huggingface.co/datasets/declare-lab/MELD/resolve/main/MELD.Raw.tar.gz",
+  "check": "byte count of the download (stat -c %s) compared with x-linked-size before extraction, equal",
+  "sha256_of_download": "not computed, the archive was deleted after extraction"
+ }
+}
