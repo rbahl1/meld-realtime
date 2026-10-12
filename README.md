@@ -10,9 +10,9 @@ Everything runs locally on the CPU through onnxruntime: Silero VAD for end-point
 ./demo.sh
 ```
 
-The script starts the service, a monitor and the replay client, streams one clip at real-time pace, prints every provisional state, the final state and the reply, and writes every message to [results/demo_log.jsonl](results/demo_log.jsonl). The default clip is `proxy/dev_0001.wav` (made by `tools/make_proxy_clips.py`), else `en.wav` from the SenseVoice release. `THREADS` (4), `ENDPOINT_MS` (400) and `DEMO_LOG` change the settings.
+The script starts the service, a monitor and the replay client, streams one clip at real-time pace, prints every provisional state, the final state and the reply, and writes every message to [results/demo_log.jsonl](results/demo_log.jsonl). The default clip is `proxy/dev_0001.wav` (made by `tools/make_proxy_clips.py`), else `en.wav` from the SenseVoice release. `THREADS` (4), `ENDPOINT_MS` (500) and `DEMO_LOG` change the settings.
 
-The committed log came from `ENDPOINT_MS=500 ./demo.sh models/sensevoice/test_wavs/en.wav`. The script ends with this summary:
+The committed log came from `./demo.sh models/sensevoice/test_wavs/en.wav` at the default endpoint silence of 500 ms. The script ends with this summary:
 
 ```
 5 provisional, 1 final, 1 response, 0 error
@@ -89,7 +89,7 @@ uv run python -m meld_rt.clients.replay --wav models/sensevoice/test_wavs/en.wav
 |---|---|---|
 | `--threads` | 4 | SenseVoice intra-op threads |
 | `--text-threads` | 2 | RoBERTa intra-op threads |
-| `--endpoint-silence-ms` | 400 | silence that ends an utterance |
+| `--endpoint-silence-ms` | 500 | silence that ends an utterance |
 | `--max-segment-s` | 15 | forced endpoint |
 | `--provisional-hz` | 1 | provisional rate in the first window |
 | `--provisional-window-s` | 4 | length of the provisional window |
@@ -99,7 +99,7 @@ uv run python -m meld_rt.clients.replay --wav models/sensevoice/test_wavs/en.wav
 | `--no-prosody`, `--encoder-states`, `--preload` | off | drop prosody, read encoder states, load models at start |
 | `--in-addr`, `--out-addr` | `tcp://127.0.0.1:5555`, `:5556` | sockets |
 
-The endpoint silence is the setting that most changes how the robot feels. The default of 400 ms becomes 13 frames of 32 ms, a 416 ms tail (`vad_tail_ms` in [results/replay_bench_vm.json](results/replay_bench_vm.json)). `en.wav` has a 0.45 s pause between two phrases ([tests/test_service_e2e.py](tests/test_service_e2e.py)), so at 400 ms it ends as two utterances. The demo log and the end-to-end test therefore use 500 ms, a 512 ms tail, which keeps it as one. 600 ms is the patient setting for a speaker who pauses mid-thought. The benches ran at 400 ms and 500 ms only.
+The endpoint silence sets how long the robot waits after the speaker stops before it answers. The default of 500 ms becomes 16 frames of 32 ms, a 512 ms tail (`vad_tail_ms` in [results/replay_bench_vm_long.json](results/replay_bench_vm_long.json)). `tools/pause_stats.py` measured the pauses inside speech on the available audio ([results/pause_stats_available.json](results/pause_stats_available.json)). The longest is the 448 ms pause in `en.wav`, which 400 ms (a 416 ms tail) splits into two utterances and 500 ms keeps as one. The longest pause in a proxy clip is 384 ms. [docs/decisions.md](docs/decisions.md) weighs the splits against the longer wait. Like 500 ms, 600 ms (a 608 ms tail) splits no measured clip, and every turn then waits the longer tail. The benches ran at 400 ms and 500 ms only.
 
 ## Real time
 
@@ -160,11 +160,11 @@ The FunAudioLLM report does not list the corpora behind SenseVoice's emotion lab
 | text-only heads, trained on dev choices and scored once on test | done ([RESULTS.md](RESULTS.md)) |
 | parameter count and container measurements | done ([results/params.md](results/params.md), [results/measurements.md](results/measurements.md)) |
 | one input through to both outputs | done ([results/demo_log.jsonl](results/demo_log.jsonl)) |
+| reply bank of 124 lines | done, tested (`meld_rt/response/bank.yaml`) |
 | audio calibrator, fusion head, discrepancy threshold from dev, and the audio and fused rows | pending: MELD audio was not available in the build environment, and the tools exist |
 | ablations, live ASR condition, disagreement subset, early commit | pending: need MELD audio and code in `tools/evaluate.py` |
 | laptop measurements and a live microphone session | pending, to be run on the laptop ([docs/runbook_laptop.md](docs/runbook_laptop.md)) |
 | listening audit of 50 flagged clips | pending: needs MELD audio and a listener |
-| reply lines | a draft of 124 lines, marked as a draft in `meld_rt/response/bank.yaml` |
 | vision and the three-modality extension | left out |
 | an LLM reply generator | left out |
 | fine-tuning RoBERTa, SenseVoice, wav2vec2 or HuBERT | left out |
@@ -180,6 +180,7 @@ Download `MELD.Raw.tar.gz` (the link is in the MELD repository README), unpack i
 
 ```
 uv run python tools/extract_audio.py --raw /data/MELD.Raw --out audio/ --split train,dev,test --jobs 2
+uv run python tools/pause_stats.py --wavs "audio/dev/*.wav" --label meld_dev --bench results/replay_bench_vm.json
 uv run python tools/edit_sensevoice_graph.py
 uv run python tools/cache_audio_features.py --split train --audio audio/ --out cache/audio_train.npz --prefixes 2,4 --encoder-states
 uv run python tools/cache_audio_features.py --split dev --audio audio/ --out cache/audio_dev.npz --prefixes 2,4 --encoder-states
@@ -195,7 +196,7 @@ uv run python tools/count_params.py --models models/ --heads heads/ --out result
 uv run python tools/render_measurements.py --out results/measurements.md
 ```
 
-`extract_audio.py` writes 16 kHz mono WAV files under `audio/` and lists missing or failed clips in `audio/missing.json`. `cache_audio_features.py` runs the service's own SenseVoice and prosody code on every clip and can resume from a checkpoint. `train_heads.py` without `--text-only` adds the audio calibrators, the fusion head, the fused sentiment head and the dev JSD threshold, and the service then runs in `stacked` mode. The text caches are not committed, so a fresh checkout builds them with `embed_text.py`. [docs/runbook_laptop.md](docs/runbook_laptop.md) describes the listening audit that follows.
+`extract_audio.py` writes 16 kHz mono WAV files under `audio/` and lists missing or failed clips in `audio/missing.json`. `pause_stats.py` measures the pauses inside MELD dev speech, which is the check on the endpoint default ([docs/decisions.md](docs/decisions.md)). `cache_audio_features.py` runs the service's own SenseVoice and prosody code on every clip and can resume from a checkpoint. `train_heads.py` without `--text-only` adds the audio calibrators, the fusion head, the fused sentiment head and the dev JSD threshold, and the service then runs in `stacked` mode. The text caches are not committed, so a fresh checkout builds them with `embed_text.py`. [docs/runbook_laptop.md](docs/runbook_laptop.md) describes the listening audit that follows.
 
 ## Laptop runbook
 

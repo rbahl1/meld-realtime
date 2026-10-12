@@ -26,7 +26,7 @@ The runtime dependencies are in `pyproject.toml`: numpy, onnxruntime, kaldi-nati
 
 ## 1.3 One utterance, start to finish
 
-1. End-pointing. A segment opens after 8 consecutive frames (256 ms) with a speech probability above 0.5. The count is the larger of 3 and `min_speech_ms` (250) divided by 32 ms and rounded up. The segment audio starts 8 frames (256 ms, `preroll_ms` 250 rounded up to whole frames) before the first of those frames, so `t_media_start` lies 256 ms before the speech onset. The segment closes after a run of frames below 0.35 that lasts `--endpoint-silence-ms`, rounded up to whole frames: 13 frames (416 ms) at the default 400 ms and 16 frames (512 ms) at 500 ms. `t_media_end` is the time the speech stopped, and the segment audio keeps the silence tail. A segment that reaches 15 s (`--max-segment-s`) is closed by force, and the next one carries `continued_from`.
+1. End-pointing. A segment opens after 8 consecutive frames (256 ms) with a speech probability above 0.5. The count is the larger of 3 and `min_speech_ms` (250) divided by 32 ms and rounded up. The segment audio starts 8 frames (256 ms, `preroll_ms` 250 rounded up to whole frames) before the first of those frames, so `t_media_start` lies 256 ms before the speech onset. The segment closes after a run of frames below 0.35 that lasts `--endpoint-silence-ms`, rounded up to whole frames: 16 frames (512 ms) at the default 500 ms and 13 frames (416 ms) at 400 ms. `t_media_end` is the time the speech stopped, and the segment audio keeps the silence tail. A segment that reaches 15 s (`--max-segment-s`) is closed by force, and the next one carries `continued_from`.
 2. Provisionals. While a segment is open, a provisional state is computed at most once per second (`--provisional-hz`) and only when the worker is idle and nothing is queued. While the segment is at most 4 s long (`--provisional-window-s`), the whole segment is decoded and `text.partial` holds its transcript. After that, provisionals come at half the rate on the trailing 4 s window, with `window` `"tail"` and no partial text. Provisionals run SenseVoice only. `--provisional-budget-ms` (0, off by default) skips the next provisional when the last one took longer than the budget. Queued provisionals are dropped at the endpoint.
 3. Audio expert. At the endpoint the worker computes the fbank, LFR and CMVN front end and runs SenseVoice-small int8 once over the segment. That one pass gives the greedy CTC transcript, an ASR confidence (the mean of the maximum softmax over the emitted tokens), the language, the softmax over the nine emotion tokens at logit row 1, the softmax over the eleven event tokens at row 2, and the tokens per second. With `--encoder-states` and the edited graph from `tools/edit_sensevoice_graph.py`, the same pass also gives the encoder states, pooled (mean and maximum) to 1024 values. Prosody adds four scalars from parselmouth: the F0 median and the F0 range in semitones, the standard deviation of the intensity in dB, and the speech rate.
 4. Text expert. RoBERTa-base encodes the transcript (at most 64 pieces), and the mean over the non-special positions gives 768 values. It does not run when the ASR failed or its confidence is below 0.3.
@@ -226,7 +226,7 @@ This is the final state of the demo in [results/demo_log.jsonl](../results/demo_
 
 - `audio.emotion` has nine keys: the seven SenseVoice emotion classes under their MELD names, in the MELD README order, then `other` and `unknown`. `text.emotion` and `fused.emotion` have the seven MELD keys in the same order. `audio.events` has the eleven SenseVoice events in `EVENT_KEYS` order (`meld_rt/labels.py`).
 - `fused.mode`, `fused.confidence` and `fused.calibrated` follow 1.6. `fused.sentiment` is one of MELD's three sentiment classes.
-- `timing_ms` is in milliseconds. `vad_tail` is the silence tail inside the segment (512 at the 500 ms setting of the demo). `provisional_in_flight` is how long the final waited for a provisional that was running when the endpoint came. The publisher sets `service_total`.
+- `timing_ms` is in milliseconds. `vad_tail` is the silence tail inside the segment (512 at the default 500 ms, as in the demo). `provisional_in_flight` is how long the final waited for a provisional that was running when the endpoint came. The publisher sets `service_total`.
 - `degraded` lists the failures of 1.4.
 - A provisional state has `kind` `"provisional"`, `window` `"full"` or `"tail"`, `text.partial` (null on the tail window), a uniform `text.emotion` because no text expert runs, a `fused` block that is the audio posterior over the seven named classes, zero prosody except the rate, and `stability`, which is 1 minus the JSD to the previous provisional. It gets no response.
 
@@ -234,7 +234,7 @@ The dataclasses are in `meld_rt/state.py`.
 
 ## 1.9 Replies and grounding
 
-The replies come from `meld_rt/response/bank.yaml`. The bank has 124 lines: 112 in 28 cells of four, 6 `hold_back` lines that make no emotion claim, 2 lines for a failed transcript, and 4 event prefixes. A cell is indexed by the fused label and the discrepancy direction (7 labels × 4 directions), and `mixed` shares the `none` cell. Each cell has `acknowledge` and `ask` lines, and each cell whose direction is not `none` also has `name_the_gap` lines. The loader rejects a line longer than 12 words, a line with a keyphrase slot longer than 8 words, and any exclamation mark. The lines are a draft for the candidate to edit. The first line of the file and its `draft` key say so, and `tests/test_selector.py::test_bank_shape` asserts both, so the marker and those two assertions are removed together.
+The replies come from `meld_rt/response/bank.yaml`. The bank has 124 lines: 112 in 28 cells of four, 6 `hold_back` lines that make no emotion claim, 2 lines for a failed transcript, and 4 event prefixes. A cell is indexed by the fused label and the discrepancy direction (7 labels × 4 directions), and `mixed` shares the `none` cell. Each cell has `acknowledge` and `ask` lines, and each cell whose direction is not `none` also has `name_the_gap` lines. The loader rejects a line longer than 12 words, a line with a keyphrase slot longer than 8 words, and any exclamation mark. The lines address the speaker directly and use no contractions. A `name_the_gap` line says what the words and the tone disagree about (ex. "The words are reasonable. The tone is angry."). `tests/test_selector.py::test_bank_shape` checks the shape: 28 cells, an `acknowledge` and an `ask` line in every cell, `name_the_gap` lines where the direction is not `none`, at least two lines per cell without a slot, unique ids, and ASCII text.
 
 The selection is a pure function of the state and the stream's recent lines.
 
@@ -242,7 +242,7 @@ The selection is a pure function of the state and the stream's recent lines.
 2. A confidence below `low_conf` (0.39 from dev) takes a `hold_back` line.
 3. Otherwise the cell gives the candidates. In the mid bucket the order of preference is `ask`, then `name_the_gap` when the direction is not `none`, then `acknowledge`. In the high bucket (a confidence of at least `high_conf`, 0.73, and `fused.calibrated` true) it is `acknowledge` first, or `name_the_gap` first when the direction is not `none`. An uncalibrated state never reaches the high bucket, and its grounding says `rule=uncalibrated_cap` when the cap changed the bucket.
 4. A line used in the last 5 turns of the stream is avoided. When a cell has no fresh line left, a fresh `hold_back` line is used and the grounding says `rule=no_repeat`.
-5. A line with a `{keyphrase}` slot takes the longest run of up to four content words from the transcript, as an exact substring (`meld_rt/discrepancy.py`).
+5. A line with a `{keyphrase}` slot takes the longest run of up to four content words from the transcript, as an exact substring (`meld_rt/discrepancy.py`). The run can be a clause fragment (ex. `the GR-6 system failed`), so every slot line puts it in single quotes.
 6. When laughter or cry is above 0.5 in `audio.events`, one of two short clauses goes in front.
 
 Ties break by a CRC32 of the utterance id and the line id, so a replay gives the same lines. The `grounding` list names the state fields that licensed the line, with their values (ex. `fused.label=<label>@<confidence>`, `discrepancy.direction=tone_more_negative`, `text.keyphrase='...'`, or `fused.confidence=0.35<0.39` for the demo's hold-back line).
@@ -262,7 +262,7 @@ The robot should react inside the pause after a person stops talking and show th
 | provisionals in the first 4 s of speech | median gap of 1 s, within 0.1 s |
 | sustained compute | at most 0.3 s per second of audio |
 
-Over all three splits, 83.3 % of MELD utterances last at most 5 s, 95.2 % at most 8 s and 99.7 % at most 15 s (subtitle durations, [results/data_stats.md](../results/data_stats.md)). The VAD tail is not compute. It adds 416 ms at the default setting to what the user waits, and it is reported apart from the targets. The assumptions are one speaker near the microphone, 16 kHz mono audio, utterances up to 15 s, 4 CPU cores and no GPU.
+Over all three splits, 83.3 % of MELD utterances last at most 5 s, 95.2 % at most 8 s and 99.7 % at most 15 s (subtitle durations, [results/data_stats.md](../results/data_stats.md)). The VAD tail is not compute. It adds 512 ms at the default setting to what the user waits, and it is reported apart from the targets. The assumptions are one speaker near the microphone, 16 kHz mono audio, utterances up to 15 s, 4 CPU cores and no GPU.
 
 [results/measurements.md](../results/measurements.md) has the container numbers, and every target passes there. On the proxy clips at 400 ms, finals up to 5 s took 173.9 ms at p50 and 261.8 ms at p95 (n 19). On the long clips at 500 ms, finals from 8 to 15 s took 490.8 ms at p50 and 654.0 ms at p95 (n 9). The laptop numbers are pending.
 
@@ -286,6 +286,7 @@ The published rows are the MELD paper's Tables 11 and 13, EmoBERTa's Table 2 and
 
 - `tools/count_params.py` counts the ONNX initializers and the `.npz` head arrays and writes [results/params.md](../results/params.md) and [results/params.json](../results/params.json).
 - `tools/bench_components.py` times each module at 1, 2 and 4 threads on slices and tilings of `en.wav` and writes `results/bench_components_<host>.json`.
+- `tools/pause_stats.py` runs the service's VAD over WAV files and writes `results/pause_stats_<label>.json`: every pause inside speech, and the clips that each endpoint setting splits.
 - `tools/replay_bench.py` streams clips at real-time pace through the real service, with a monitor in the same process, and writes `results/replay_bench_<host>.json`: latency by length bucket, the reply delay, the provisional cadence, the compute per second of audio, RSS and CPU.
 - `tools/render_measurements.py` renders [results/measurements.md](../results/measurements.md) from those files, groups them by the host that ran them, and checks each target.
 
@@ -315,7 +316,7 @@ meld_rt/                   the package
   data.py                  MELD CSV loading and context rows
   metrics.py               F1, ECE, bootstrap intervals
   experts/                 sensevoice.py, text.py, vad.py, prosody.py
-  response/                bank.yaml (124 draft lines), selector.py
+  response/                bank.yaml (124 reply lines), selector.py
   clients/                 replay.py, mic.py, monitor.py
 tools/
   fetch_models.py          download and verify the models, write results/provenance_hashes.json
@@ -334,6 +335,7 @@ tools/
   meld_stats.py            results/data_stats.md
   count_params.py          results/params.md, results/params.json
   bench_components.py      results/bench_components_<host>.json
+  pause_stats.py           results/pause_stats_<label>.json
   replay_bench.py          results/replay_bench_<host>.json
   render_measurements.py   results/measurements.md
 configs/heads.yaml         training grid and threshold rules
