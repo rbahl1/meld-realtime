@@ -1,6 +1,13 @@
 """picks one line from the bank by (fused label, discrepancy direction), the
 confidence bucket, a recency penalty and a keyphrase slot. pure function of
-(state, recent ids, seed): no randomness at run time (design 1.9)."""
+(state, recent ids, seed): no randomness at run time (design 1.9).
+
+buckets: low (< low_conf) takes a hold_back line, mid prefers ask, high
+(>= high_conf) prefers acknowledge or name_the_gap. the thresholds are chosen on
+dev for a calibrated posterior, so a state with fused.calibrated false (the
+poe_uncalibrated fallback, or poe without a fusion head) is capped at mid: it
+can ask but never asserts, and the grounding says rule=uncalibrated_cap when
+the cap changed the bucket."""
 
 from __future__ import annotations
 
@@ -127,10 +134,11 @@ class ResponseSelector:
         if smallest + len(self.hold_back) <= self.no_repeat_turns:
             raise ValueError("bank too small for the no-repeat window")
 
-    def bucket(self, confidence: float) -> str:
+    def bucket(self, confidence: float, calibrated: bool = True) -> str:
+        """low / mid / high by the thresholds; an uncalibrated confidence never reaches high."""
         if confidence < self.low_conf:
             return "low"
-        return "high" if confidence >= self.high_conf else "mid"
+        return "high" if confidence >= self.high_conf and calibrated else "mid"
 
     def _rot(self, utt_id: int, key: str) -> int:
         # deterministic tie-break that rotates with the utterance id
@@ -142,6 +150,7 @@ class ResponseSelector:
     def select(self, state: State, recent_template_ids: list[str] | None = None) -> Response:
         recent = set(list(recent_template_ids or [])[-self.no_repeat_turns:]) if self.no_repeat_turns > 0 else set()
         conf = float(state.fused.confidence)
+        calibrated = bool(state.fused.calibrated)
         degraded = [d for d in state.degraded if d in ASR_DEGRADED]
         kp: str | None = None
         grounding: list[str] = []
@@ -149,15 +158,17 @@ class ResponseSelector:
         if degraded:
             pool, prefs = self.asr_failed, []
             grounding.append(f"degraded={degraded[0]}")
-        elif self.bucket(conf) == "low":
+        elif self.bucket(conf, calibrated) == "low":
             pool, prefs = self.hold_back, []
             grounding.append(f"fused.confidence={conf:.2f}<{self.low_conf:.2f}")
         else:
             label, direction = state.fused.label, state.discrepancy.direction
             pool = self.cells[cell_key(label, direction)]
-            prefs = _style_order(self.bucket(conf), direction != "none")
+            prefs = _style_order(self.bucket(conf, calibrated), direction != "none")
             kp = state.text.keyphrase or keyphrase(state.asr.text or state.text.partial or "") or None
             grounding += [f"fused.label={label}@{conf:.2f}", f"discrepancy.direction={direction}"]
+            if not calibrated and conf >= self.high_conf:
+                grounding.append("rule=uncalibrated_cap")
 
         cands = [l for l in pool if kp or not l.has_slot]
 

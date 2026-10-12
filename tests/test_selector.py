@@ -34,7 +34,8 @@ def poe(p_text7, p_audio9):
     return f / f.sum()
 
 
-def make_state(text7, audio9, transcript, utt_id=1, events=None, conf=None, direction=None):
+def make_state(text7, audio9, transcript, utt_id=1, events=None, conf=None, direction=None, calibrated=True):
+    """calibrated=True stands for a stacked fusion; False is the poe_uncalibrated fallback."""
     st = State.empty("s1", utt_id)
     st.asr.text = transcript
     st.text.emotion = emotion7_dict(text7)
@@ -47,7 +48,8 @@ def make_state(text7, audio9, transcript, utt_id=1, events=None, conf=None, dire
     st.fused.emotion = emotion7_dict(f)
     st.fused.label = EMOTIONS[i]
     st.fused.confidence = float(f[i]) if conf is None else conf
-    st.fused.mode = "poe_uncalibrated"
+    st.fused.mode = "stacked" if calibrated else "poe_uncalibrated"
+    st.fused.calibrated = calibrated
     j, flag, d = discrepancy(text7, audio9, JSD_FLAG)
     st.discrepancy = Discrepancy(j, flag, d if direction is None else direction)
     return st
@@ -63,14 +65,15 @@ def peaked9(label, p=0.7):
     return sv9(**{e: (p if e == label else rest) for e in EMOTIONS})
 
 
-def plain_state(label, direction, conf, transcript="the GR-6 system failed again", utt_id=1, events=None):
-    st = make_state(peaked(label), peaked9(label), transcript, utt_id=utt_id, events=events)
+def plain_state(label, direction, conf, transcript="the GR-6 system failed again", utt_id=1, events=None, calibrated=True):
+    st = make_state(peaked(label), peaked9(label), transcript, utt_id=utt_id, events=events, calibrated=calibrated)
     st.fused.label, st.fused.confidence = label, conf
     st.discrepancy.direction = direction
     st.discrepancy.flag = direction != "none"
     return st
 
 
+# the draft marker on the bank's first line and the two assertions on it below go together: remove both when the bank is rewritten
 def test_bank_shape():
     raw_text = BANK_PATH.read_text(encoding="utf-8")
     assert raw_text.splitlines()[0].strip("# ").startswith(DRAFT_MARK)
@@ -214,6 +217,31 @@ def test_bucket_style_preference():
     # mixed shares the none cell
     r = sel.select(plain_state("joy", "mixed", 0.8), [])
     assert "_none_" in r.template_id and cell_key("joy", "mixed") == "joy|none"
+
+
+def test_uncalibrated_state_never_reaches_the_high_bucket():
+    """fused.calibrated false (poe_uncalibrated, or poe without a fusion head): the
+    thresholds were chosen for a calibrated posterior, so the bucket is capped at
+    mid and the line asks instead of asserting."""
+    sel = ResponseSelector(BANK_PATH)
+    assert sel.bucket(0.9) == "high" and sel.bucket(0.9, calibrated=False) == "mid"
+    assert sel.bucket(0.5, calibrated=False) == "mid" and sel.bucket(0.3, calibrated=False) == "low"
+    for label in EMOTIONS:
+        for direction in CELL_DIRECTIONS:
+            r = sel.select(plain_state(label, direction, 0.95, calibrated=False), [])
+            assert r.style == "ask" and "rule=uncalibrated_cap" in r.grounding, (label, direction, r)
+            assert sel.select(plain_state(label, direction, 0.95, calibrated=True), []).style != "ask"
+            r = sel.select(plain_state(label, direction, 0.55, calibrated=False), [])
+            assert r.style == "ask" and "rule=uncalibrated_cap" not in r.grounding, (label, direction, r)
+    r = sel.select(plain_state("anger", "none", 0.2, calibrated=False), [])
+    assert r.style == "hold_back" and "rule=uncalibrated_cap" not in r.grounding
+    r = sel.select(plain_state("joy", "tone_more_negative", 0.8, calibrated=False), [])
+    assert r.grounding[:3] == ["fused.label=joy@0.80", "discrepancy.direction=tone_more_negative", "rule=uncalibrated_cap"]
+    # the cap does not stop the no-repeat rule: a used-up cell still falls back to hold_back
+    recent = []
+    for turn in range(12):
+        recent.append(sel.select(plain_state("fear", "tone_surprised", 0.9, utt_id=turn, calibrated=False), recent).template_id)
+    assert all(len(set(recent[k:k + 5])) == 5 for k in range(len(recent) - 4))
 
 
 def test_grounding_format():

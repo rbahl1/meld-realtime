@@ -100,7 +100,7 @@ def has_response(stream_id: str):
 
 
 @pytest.mark.parametrize("wav", CLIPS, ids=[p.name for p in CLIPS])
-def test_realtime_replay_gives_provisionals_one_final_and_one_reply(client, wav):
+def test_realtime_replay_gives_provisionals_one_final_and_one_reply(service, client, wav):
     sid = f"e2e-{wav.stem}"
     pcm = load_wav(wav)
     sender = threading.Thread(target=replay, args=(client.push, pcm, sid, True), kwargs={"tail_s": 1.0}, daemon=True)
@@ -133,6 +133,17 @@ def test_realtime_replay_gives_provisionals_one_final_and_one_reply(client, wav)
     r = responses[0]
     assert r["utt_id"] == f["utt_id"] and r["text"].strip() and r["grounding"] and r["template_id"] and r["style"]
     assert 0 <= (r["t_emitted_ns"] - f["t_emitted_ns"]) / 1e6 < REPLY_WITHIN_MS
+
+    # uncalibrated fusion: the confidence is the text head's max, the label the product's argmax,
+    # and the selector never asserts (bucket capped at mid, so ask or hold_back on a fresh stream)
+    fu = f["fused"]
+    if fu["mode"] == "poe_uncalibrated":
+        assert fu["calibrated"] is False
+        assert fu["confidence"] == pytest.approx(max(f["text"]["emotion"].values()), abs=1e-4)
+        assert fu["label"] == max(fu["emotion"], key=fu["emotion"].get)
+    if not fu["calibrated"]:
+        assert r["style"] in ("ask", "hold_back"), r
+        assert (fu["confidence"] >= service.high_conf) == ("rule=uncalibrated_cap" in r["grounding"]), (fu, r, service.high_conf)
 
     for p in provisionals:
         assert p["kind"] == "provisional" and p["utt_id"] == f["utt_id"] and p["window"] in ("full", "tail")

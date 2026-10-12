@@ -15,6 +15,13 @@ of experts, reported as poe_uncalibrated while the expert heads are missing),
 and text_only for text messages. a missing heads/text_ctx.npz gives a uniform
 text posterior with degraded ["no_text_head"].
 
+confidence: fused.confidence is what the selector buckets on. in
+poe_uncalibrated mode it is the calibrated text head's max probability
+(temperature applied), not the max of the fixed product, which sharpens two soft
+posteriors (0.94 from text 0.42 and audio 0.46 on the en.wav demo); fused.emotion
+stays the product and fused.label its argmax, calibrated stays false, and the
+selector never buckets an uncalibrated state above mid (selector.py).
+
 usage: python -m meld_rt.service --models models/ --heads heads/ --threads 4
 """
 
@@ -67,6 +74,16 @@ def _stream_id_of(frames: list[bytes]) -> str:
 def _num(v, default: float) -> float:
     """a manifest value when it is a number (strings such as "pending" keep the default)."""
     return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else float(default)
+
+
+def reported_confidence(mode: str, fused: np.ndarray, p_text: np.ndarray) -> float:
+    """the confidence the selector buckets on: the fused posterior's max, except in
+    poe_uncalibrated mode, where it is the calibrated text head's max probability
+    (temperature applied). the fixed product's max is not a probability of being
+    right. a uniform text posterior (no text head, text_failed) gives 1/7, which
+    the selector holds back on."""
+    p = p_text if mode == "poe_uncalibrated" else fused
+    return float(np.max(np.asarray(p, dtype=np.float64)))
 
 
 @dataclass
@@ -732,7 +749,7 @@ class Service:
         i = int(np.argmax(fused))
         s.fused.emotion, s.fused.mode, s.fused.calibrated = emotion7_dict(fused), mode, bool(calibrated)
         s.fused.label = EMOTIONS[i] if asr_ok else "neutral"
-        s.fused.confidence = round(float(fused[i]), 4) if asr_ok else 0.0
+        s.fused.confidence = round(reported_confidence(mode, fused, p_text), 4) if asr_ok else 0.0
         s.fused.sentiment = self._sentiment(fused, feats, text_x) if asr_ok else "neutral"
         if r is not None and asr_ok and job.kind != "text" and self.mode != "text_only":
             d, flag, direction = discrepancy(p_text, p_audio, self.jsd_flag)
