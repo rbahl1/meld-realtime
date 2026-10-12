@@ -1,6 +1,6 @@
 {
  "host": "vm",
- "generated_at": "2026-10-12T05:10:02Z",
+ "generated_at": "2026-10-12T15:12:46Z",
  "command": "python tools/replay_bench.py --clips proxy/*.wav --n 20 --realtime --out results/replay_bench_vm.json",
  "config": {
   "threads": 4,
@@ -162,7 +162,7 @@
    "mean": 2.63
   }
  },
- "load_s": 2.57,
+ "load_s": 2.98,
  "sent": {
   "frames": 2298,
   "audio_s": 73.536,
@@ -170,37 +170,37 @@
  },
  "finished_cleanly": true,
  "loadavg_start": [
-  0.27,
-  0.42,
-  0.62
+  1.6,
+  0.85,
+  0.63
  ],
  "loadavg_end": [
-  0.62,
-  0.47,
-  0.62
+  1.03,
+  0.85,
+  0.65
  ],
  "memory": {
-  "rss_mb_before_load": 40.8,
-  "rss_mb_after_load": 1117.2,
-  "peak_rss_mb": 1186.8,
-  "health_rss_mb_last": 1186.8
+  "rss_mb_before_load": 39.9,
+  "rss_mb_after_load": 1117.6,
+  "peak_rss_mb": 1187.8,
+  "health_rss_mb_last": 1187.8
  },
  "compute": {
-  "worker_compute_s": 9.433,
+  "worker_compute_s": 8.815,
   "audio_s_streamed": 73.536,
   "speech_s": 52.674,
-  "worker_compute_s_per_audio_s": 0.1283,
-  "worker_compute_s_per_speech_s": 0.1791,
-  "process_cpu_s": 40.51,
-  "process_cpu_s_per_audio_s": 0.5509,
+  "worker_compute_s_per_audio_s": 0.1199,
+  "worker_compute_s_per_speech_s": 0.1674,
+  "process_cpu_s": 41.58,
+  "process_cpu_s_per_audio_s": 0.5654,
   "process_cpu_percent_sampled": {
    "n": 149,
-   "p50": 33.9,
-   "p95": 163.26,
-   "max": 271.9,
-   "mean": 54.02
+   "p50": 51.2,
+   "p95": 156.1,
+   "max": 250.3,
+   "mean": 55.37
   },
-  "wall_s": 75.011,
+  "wall_s": 74.911,
   "target_max": 0.3,
   "rule": "sum of the per-stage worker timings of every final and provisional, divided by the seconds of audio streamed (speech plus tails)",
   "pass": true
@@ -236,7 +236,8 @@
   "service_total_ms is the service-side latency: endpoint frame arrival (t_service_recv_ns) to the final's emission",
   "client_ms is the monitor's arrival time minus the capture time of the endpoint frame, valid because both run here",
   "response_ms is from the endpoint frame arrival to the response's emission",
-  "proxy clips are piper tts: latencies are real, emotion labels are not a result"
+  "proxy clips are piper tts: latencies are real, emotion labels are not a result",
+  "a final is attributed to the clip whose media span holds its t_media_end (the time the speech stopped), 0.25 s past the clip end allowed; the segment start carries the vad pre-roll and is not used"
  ],
  "results": {
   "n_finals": 20,
@@ -244,33 +245,35 @@
   "n_provisionals": 51,
   "n_health": 75,
   "errors": {},
-  "max_queue_s": 0.183,
-  "health_rss_mb_last": 1186.8,
+  "max_queue_s": 0.169,
+  "health_rss_mb_last": 1187.8,
+  "clip_attribution": "t_media_end within [media_start, media_end + 0.25 s]",
   "clips_without_final": [],
   "clips_with_several_finals": [],
+  "finals_unattributed": [],
   "finals_degraded": 0,
   "finals_empty_text": 0,
   "all": {
    "service_total_ms": {
     "n": 20,
-    "p50": 201.81,
-    "p95": 339.35,
-    "max": 367.52,
-    "mean": 201.83
+    "p50": 182.09,
+    "p95": 269.94,
+    "max": 314.96,
+    "mean": 194.87
    },
    "client_ms": {
     "n": 20,
-    "p50": 202.61,
-    "p95": 343.7,
-    "max": 368.45,
-    "mean": 203.09
+    "p50": 184.18,
+    "p95": 270.8,
+    "max": 316.16,
+    "mean": 196.0
    },
    "response_ms": {
     "n": 20,
-    "p50": 202.02,
-    "p95": 339.55,
-    "max": 367.71,
-    "mean": 202.09
+    "p50": 182.35,
+    "p95": 270.22,
+    "max": 315.15,
+    "mean": 195.1
    },
    "segment_s": {
     "n": 20,
@@ -280,11 +283,11 @@
     "mean": 2.71
    },
    "stages_p50_ms": {
-    "frontend": 5.3,
-    "sensevoice": 133.08,
-    "prosody": 8.8,
-    "text_encoder": 42.48,
-    "heads": 0.62
+    "frontend": 5.62,
+    "sensevoice": 115.39,
+    "prosody": 8.02,
+    "text_encoder": 44.66,
+    "heads": 0.71
    }
   },
   "by_bucket": {
@@ -293,38 +296,38 @@
     "n": 19,
     "service_total_ms": {
      "n": 19,
-     "p50": 199.11,
-     "p95": 261.25,
-     "max": 337.87,
-     "mean": 193.11
+     "p50": 173.88,
+     "p95": 261.83,
+     "max": 267.57,
+     "mean": 188.55
     },
     "client_ms": {
      "n": 19,
-     "p50": 200.03,
-     "p95": 262.35,
-     "max": 342.4,
-     "mean": 194.39
+     "p50": 174.41,
+     "p95": 262.71,
+     "max": 268.41,
+     "mean": 189.68
     },
     "response_ms": {
      "n": 19,
-     "p50": 199.33,
-     "p95": 261.42,
-     "max": 338.07,
-     "mean": 193.37
+     "p50": 174.2,
+     "p95": 262.01,
+     "max": 267.86,
+     "mean": 188.78
     },
     "reply_after_final_ms": {
      "n": 19,
-     "p50": 0.21,
-     "p95": 0.45,
-     "max": 0.93,
-     "mean": 0.26
+     "p50": 0.19,
+     "p95": 0.34,
+     "max": 0.42,
+     "mean": 0.23
     },
     "stages_p50_ms": {
-     "frontend": 5.28,
-     "sensevoice": 131.34,
-     "prosody": 8.7,
-     "text_encoder": 42.03,
-     "heads": 0.62
+     "frontend": 5.59,
+     "sensevoice": 112.07,
+     "prosody": 8.01,
+     "text_encoder": 44.25,
+     "heads": 0.68
     },
     "provisional_in_flight_p50_ms": 0.0,
     "segment_s": {
@@ -345,24 +348,24 @@
     "n": 1,
     "service_total_ms": {
      "n": 1,
-     "p50": 367.52,
-     "p95": 367.52,
-     "max": 367.52,
-     "mean": 367.52
+     "p50": 314.96,
+     "p95": 314.96,
+     "max": 314.96,
+     "mean": 314.96
     },
     "client_ms": {
      "n": 1,
-     "p50": 368.45,
-     "p95": 368.45,
-     "max": 368.45,
-     "mean": 368.45
+     "p50": 316.16,
+     "p95": 316.16,
+     "max": 316.16,
+     "mean": 316.16
     },
     "response_ms": {
      "n": 1,
-     "p50": 367.71,
-     "p95": 367.71,
-     "max": 367.71,
-     "mean": 367.71
+     "p50": 315.15,
+     "p95": 315.15,
+     "max": 315.15,
+     "mean": 315.15
     },
     "reply_after_final_ms": {
      "n": 1,
@@ -372,11 +375,11 @@
      "mean": 0.19
     },
     "stages_p50_ms": {
-     "frontend": 11.79,
-     "sensevoice": 266.52,
-     "prosody": 17.33,
-     "text_encoder": 53.54,
-     "heads": 0.61
+     "frontend": 10.02,
+     "sensevoice": 219.46,
+     "prosody": 16.72,
+     "text_encoder": 66.18,
+     "heads": 0.86
     },
     "provisional_in_flight_p50_ms": 0.0,
     "segment_s": {
@@ -390,7 +393,7 @@
      "p50": 350.0,
      "p95": 550.0
     },
-    "pass": false
+    "pass": true
    },
    "le15s": {
     "description": "8 s to the 15 s cap (99.7 % cumulative)",
@@ -421,10 +424,10 @@
   },
   "reply_after_final_ms": {
    "n": 20,
-   "p50": 0.21,
-   "p95": 0.43,
-   "max": 0.93,
-   "mean": 0.26,
+   "p50": 0.19,
+   "p95": 0.33,
+   "max": 0.42,
+   "mean": 0.22,
    "target_p95_ms": 5.0,
    "pass": true
   },
@@ -466,14 +469,14 @@
    "utterances_over_1p5s_with_a_provisional": "14/14",
    "sensevoice_ms": {
     "n": 51,
-    "p50": 93.78,
-    "p95": 184.26,
-    "max": 271.88,
-    "mean": 105.51
+    "p50": 84.11,
+    "p95": 159.29,
+    "max": 176.39,
+    "mean": 95.22
    },
    "stability": {
     "n": 51,
-    "p50": 0.98,
+    "p50": 0.97,
     "p95": 1.0,
     "max": 1.0,
     "mean": 0.95
@@ -482,7 +485,7 @@
    "pass": true,
    "rule": "median media-time gap between consecutive full-window provisionals within 1.0 +- 0.1 s"
   },
-  "worker_compute_s": 9.433
+  "worker_compute_s": 8.815
  },
  "utterances": [
   {
@@ -493,16 +496,16 @@
    "t_media_start": 0.0,
    "segment_s": 2.816,
    "bucket": "le5s",
-   "service_total_ms": 174.24,
-   "client_ms": 175.03,
-   "response_ms": 174.44,
-   "reply_after_final_ms": 0.195,
+   "service_total_ms": 190.3,
+   "client_ms": 193.95,
+   "response_ms": 190.5,
+   "reply_after_final_ms": 0.197,
    "stages_ms": {
-    "frontend": 5.33,
-    "sensevoice": 112.78,
-    "prosody": 9.71,
-    "text_encoder": 44.57,
-    "heads": 0.64
+    "frontend": 5.59,
+    "sensevoice": 121.52,
+    "prosody": 11.81,
+    "text_encoder": 49.03,
+    "heads": 0.88
    },
    "vad_tail_ms": 416.0,
    "provisional_in_flight_ms": 0.0,
@@ -520,12 +523,12 @@
     "full"
    ],
    "prov_sensevoice_ms": [
-    70.65,
-    182.28,
-    107.0
+    65.96,
+    84.11,
+    112.49
    ],
    "asr_text": "oh my god he's lost it he's totally lost it",
-   "asr_conf": 0.9895,
+   "asr_conf": 0.9916,
    "degraded": [],
    "fused_label": "sadness",
    "fused_mode": "poe_uncalibrated",
@@ -539,16 +542,16 @@
    "t_media_start": 3.776,
    "segment_s": 4.448,
    "bucket": "le5s",
-   "service_total_ms": 252.74,
-   "client_ms": 253.46,
-   "response_ms": 252.9,
-   "reply_after_final_ms": 0.159,
+   "service_total_ms": 253.72,
+   "client_ms": 256.7,
+   "response_ms": 253.9,
+   "reply_after_final_ms": 0.18,
    "stages_ms": {
-    "frontend": 6.82,
-    "sensevoice": 193.68,
-    "prosody": 11.06,
-    "text_encoder": 39.34,
-    "heads": 0.62
+    "frontend": 8.38,
+    "sensevoice": 181.64,
+    "prosody": 16.55,
+    "text_encoder": 45.08,
+    "heads": 0.67
    },
    "vad_tail_ms": 416.0,
    "provisional_in_flight_ms": 0.0,
@@ -568,13 +571,13 @@
     "tail"
    ],
    "prov_sensevoice_ms": [
-    96.94,
-    182.17,
-    215.0,
-    113.36
+    64.41,
+    76.99,
+    125.22,
+    154.98
    ],
    "asr_text": "or or we could go to the bank close our accounts and cut them off at the source",
-   "asr_conf": 0.9724,
+   "asr_conf": 0.9725,
    "degraded": [],
    "fused_label": "neutral",
    "fused_mode": "poe_uncalibrated",
@@ -588,16 +591,16 @@
    "t_media_start": 9.12,
    "segment_s": 0.992,
    "bucket": "le5s",
-   "service_total_ms": 144.5,
-   "client_ms": 145.36,
-   "response_ms": 144.65,
-   "reply_after_final_ms": 0.146,
+   "service_total_ms": 133.08,
+   "client_ms": 133.94,
+   "response_ms": 133.32,
+   "reply_after_final_ms": 0.245,
    "stages_ms": {
-    "frontend": 2.61,
-    "sensevoice": 82.95,
-    "prosody": 4.83,
-    "text_encoder": 51.82,
-    "heads": 0.63
+    "frontend": 2.59,
+    "sensevoice": 74.45,
+    "prosody": 8.03,
+    "text_encoder": 46.14,
+    "heads": 0.61
    },
    "vad_tail_ms": 416.0,
    "provisional_in_flight_ms": 0.0,
@@ -611,7 +614,7 @@
     "full"
    ],
    "prov_sensevoice_ms": [
-    65.89
+    57.15
    ],
    "asr_text": "you're a genius",
    "asr_conf": 0.997,
@@ -628,16 +631,16 @@
    "t_media_start": 11.136,
    "segment_s": 2.848,
    "bucket": "le5s",
-   "service_total_ms": 214.98,
-   "client_ms": 215.67,
-   "response_ms": 215.16,
-   "reply_after_final_ms": 0.181,
+   "service_total_ms": 173.88,
+   "client_ms": 174.41,
+   "response_ms": 174.2,
+   "reply_after_final_ms": 0.32,
    "stages_ms": {
-    "frontend": 5.28,
-    "sensevoice": 151.73,
-    "prosody": 8.56,
-    "text_encoder": 47.66,
-    "heads": 0.61
+    "frontend": 6.12,
+    "sensevoice": 118.71,
+    "prosody": 8.32,
+    "text_encoder": 38.76,
+    "heads": 0.76
    },
    "vad_tail_ms": 416.0,
    "provisional_in_flight_ms": 0.0,
@@ -655,14 +658,14 @@
     "full"
    ],
    "prov_sensevoice_ms": [
-    49.46,
-    76.55,
-    99.48
+    63.67,
+    83.1,
+    159.69
    ],
-   "asr_text": "or man now we won't be back buddies",
-   "asr_conf": 0.8855,
+   "asr_text": "o man now we won't be back buddies",
+   "asr_conf": 0.9003,
    "degraded": [],
-   "fused_label": "anger",
+   "fused_label": "neutral",
    "fused_mode": "poe_uncalibrated",
    "continued_from": null
   },
@@ -674,19 +677,19 @@
    "t_media_start": 14.976,
    "segment_s": 1.664,
    "bucket": "le5s",
-   "service_total_ms": 229.27,
-   "client_ms": 234.75,
-   "response_ms": 229.48,
-   "reply_after_final_ms": 0.212,
+   "service_total_ms": 216.18,
+   "client_ms": 217.04,
+   "response_ms": 216.48,
+   "reply_after_final_ms": 0.304,
    "stages_ms": {
-    "frontend": 3.69,
-    "sensevoice": 131.34,
-    "prosody": 5.84,
-    "text_encoder": 31.81,
-    "heads": 0.58
+    "frontend": 3.57,
+    "sensevoice": 82.07,
+    "prosody": 8.01,
+    "text_encoder": 45.88,
+    "heads": 0.62
    },
    "vad_tail_ms": 416.0,
-   "provisional_in_flight_ms": 54.9,
+   "provisional_in_flight_ms": 74.9,
    "n_provisionals": 2,
    "n_full": 2,
    "n_tail": 0,
@@ -699,11 +702,11 @@
     "full"
    ],
    "prov_sensevoice_ms": [
-    53.56,
-    90.92
+    55.78,
+    101.98
    ],
-   "asr_text": "now there's two reasons",
-   "asr_conf": 0.8769,
+   "asr_text": "nno there's two reasons",
+   "asr_conf": 0.8672,
    "degraded": [],
    "fused_label": "neutral",
    "fused_mode": "poe_uncalibrated",
@@ -717,16 +720,16 @@
    "t_media_start": 17.664,
    "segment_s": 4.384,
    "bucket": "le5s",
-   "service_total_ms": 199.11,
-   "client_ms": 200.03,
-   "response_ms": 199.33,
-   "reply_after_final_ms": 0.219,
+   "service_total_ms": 235.54,
+   "client_ms": 236.33,
+   "response_ms": 235.69,
+   "reply_after_final_ms": 0.144,
    "stages_ms": {
-    "frontend": 6.84,
-    "sensevoice": 134.82,
-    "prosody": 10.73,
-    "text_encoder": 44.84,
-    "heads": 0.55
+    "frontend": 8.66,
+    "sensevoice": 172.03,
+    "prosody": 14.23,
+    "text_encoder": 38.45,
+    "heads": 0.67
    },
    "vad_tail_ms": 416.0,
    "provisional_in_flight_ms": 0.0,
@@ -746,10 +749,10 @@
     "tail"
    ],
    "prov_sensevoice_ms": [
-    139.38,
-    82.97,
-    102.96,
-    147.38
+    62.82,
+    81.22,
+    133.31,
+    176.39
    ],
    "asr_text": "oh you guys remember that cute client i told you about i bit him",
    "asr_conf": 0.9958,
@@ -766,16 +769,16 @@
    "t_media_start": 22.976,
    "segment_s": 0.864,
    "bucket": "le5s",
-   "service_total_ms": 126.1,
-   "client_ms": 127.29,
-   "response_ms": 126.34,
-   "reply_after_final_ms": 0.241,
+   "service_total_ms": 130.63,
+   "client_ms": 131.67,
+   "response_ms": 130.79,
+   "reply_after_final_ms": 0.158,
    "stages_ms": {
-    "frontend": 3.02,
-    "sensevoice": 70.13,
-    "prosody": 2.78,
-    "text_encoder": 47.66,
-    "heads": 0.92
+    "frontend": 2.42,
+    "sensevoice": 67.47,
+    "prosody": 3.32,
+    "text_encoder": 54.34,
+    "heads": 0.94
    },
    "vad_tail_ms": 416.0,
    "provisional_in_flight_ms": 0.0,
@@ -789,10 +792,10 @@
     "full"
    ],
    "prov_sensevoice_ms": [
-    58.98
+    67.26
    ],
    "asr_text": "on the touchy",
-   "asr_conf": 0.9771,
+   "asr_conf": 0.9769,
    "degraded": [],
    "fused_label": "neutral",
    "fused_mode": "poe_uncalibrated",
@@ -806,16 +809,16 @@
    "t_media_start": 24.8,
    "segment_s": 1.088,
    "bucket": "le5s",
-   "service_total_ms": 158.56,
-   "client_ms": 159.87,
-   "response_ms": 158.96,
-   "reply_after_final_ms": 0.402,
+   "service_total_ms": 137.97,
+   "client_ms": 138.88,
+   "response_ms": 138.24,
+   "reply_after_final_ms": 0.266,
    "stages_ms": {
-    "frontend": 3.16,
-    "sensevoice": 106.64,
-    "prosody": 6.8,
-    "text_encoder": 39.63,
-    "heads": 0.69
+    "frontend": 3.73,
+    "sensevoice": 82.59,
+    "prosody": 4.44,
+    "text_encoder": 45.26,
+    "heads": 0.68
    },
    "vad_tail_ms": 416.0,
    "provisional_in_flight_ms": 0.0,
@@ -829,10 +832,10 @@
     "full"
    ],
    "prov_sensevoice_ms": [
-    52.35
+    66.24
    ],
    "asr_text": "no i know",
-   "asr_conf": 0.9957,
+   "asr_conf": 0.9953,
    "degraded": [],
    "fused_label": "neutral",
    "fused_mode": "poe_uncalibrated",
@@ -846,16 +849,16 @@
    "t_media_start": 26.784,
    "segment_s": 5.056,
    "bucket": "le8s",
-   "service_total_ms": 367.52,
-   "client_ms": 368.45,
-   "response_ms": 367.71,
-   "reply_after_final_ms": 0.186,
+   "service_total_ms": 314.96,
+   "client_ms": 316.16,
+   "response_ms": 315.15,
+   "reply_after_final_ms": 0.193,
    "stages_ms": {
-    "frontend": 11.79,
-    "sensevoice": 266.52,
-    "prosody": 17.33,
-    "text_encoder": 53.54,
-    "heads": 0.61
+    "frontend": 10.02,
+    "sensevoice": 219.46,
+    "prosody": 16.72,
+    "text_encoder": 66.18,
+    "heads": 0.86
    },
    "vad_tail_ms": 416.0,
    "provisional_in_flight_ms": 0.0,
@@ -875,13 +878,13 @@
     "tail"
    ],
    "prov_sensevoice_ms": [
-    125.77,
-    271.88,
-    172.97,
-    155.5
+    59.2,
+    93.85,
+    121.09,
+    149.74
    ],
    "asr_text": "i am sorry but the moment i touch him i just want to throw out my old oath and take a you dirty one",
-   "asr_conf": 0.9692,
+   "asr_conf": 0.9653,
    "degraded": [],
    "fused_label": "joy",
    "fused_mode": "poe_uncalibrated",
@@ -895,19 +898,19 @@
    "t_media_start": 32.832,
    "segment_s": 3.776,
    "bucket": "le5s",
-   "service_total_ms": 337.87,
-   "client_ms": 342.4,
-   "response_ms": 338.07,
-   "reply_after_final_ms": 0.201,
+   "service_total_ms": 267.57,
+   "client_ms": 268.41,
+   "response_ms": 267.86,
+   "reply_after_final_ms": 0.288,
    "stages_ms": {
-    "frontend": 7.3,
-    "sensevoice": 178.88,
-    "prosody": 17.6,
-    "text_encoder": 39.22,
-    "heads": 0.64
+    "frontend": 7.21,
+    "sensevoice": 147.61,
+    "prosody": 13.82,
+    "text_encoder": 47.74,
+    "heads": 0.9
    },
    "vad_tail_ms": 416.0,
-   "provisional_in_flight_ms": 92.9,
+   "provisional_in_flight_ms": 49.2,
    "n_provisionals": 4,
    "n_full": 3,
    "n_tail": 1,
@@ -924,13 +927,13 @@
     "tail"
    ],
    "prov_sensevoice_ms": [
-    77.74,
-    113.65,
-    112.7,
-    186.24
+    58.83,
+    108.07,
+    123.68,
+    136.32
    ],
    "asr_text": "well next time you're massaging him you should try and distract yourself",
-   "asr_conf": 0.9966,
+   "asr_conf": 0.9967,
    "degraded": [],
    "fused_label": "neutral",
    "fused_mode": "poe_uncalibrated",
@@ -944,16 +947,16 @@
    "t_media_start": 37.472,
    "segment_s": 4.896,
    "bucket": "le5s",
-   "service_total_ms": 228.22,
-   "client_ms": 228.82,
-   "response_ms": 228.37,
-   "reply_after_final_ms": 0.153,
+   "service_total_ms": 261.19,
+   "client_ms": 262.08,
+   "response_ms": 261.36,
+   "reply_after_final_ms": 0.165,
    "stages_ms": {
-    "frontend": 7.9,
-    "sensevoice": 158.53,
-    "prosody": 17.99,
-    "text_encoder": 42.03,
-    "heads": 0.6
+    "frontend": 8.44,
+    "sensevoice": 193.98,
+    "prosody": 13.84,
+    "text_encoder": 42.07,
+    "heads": 0.65
    },
    "vad_tail_ms": 416.0,
    "provisional_in_flight_ms": 0.0,
@@ -973,13 +976,13 @@
     "tail"
    ],
    "prov_sensevoice_ms": [
-    53.65,
-    90.58,
-    107.37,
-    147.02
+    63.98,
+    94.32,
+    152.36,
+    161.38
    ],
    "asr_text": "yep yep yep like like when i'm doing something exciting and i don't want to get",
-   "asr_conf": 0.9527,
+   "asr_conf": 0.9529,
    "degraded": [],
    "fused_label": "joy",
    "fused_mode": "poe_uncalibrated",
@@ -993,16 +996,16 @@
    "t_media_start": 43.296,
    "segment_s": 1.056,
    "bucket": "le5s",
-   "service_total_ms": 117.61,
-   "client_ms": 118.32,
-   "response_ms": 117.85,
-   "reply_after_final_ms": 0.237,
+   "service_total_ms": 129.32,
+   "client_ms": 130.34,
+   "response_ms": 129.46,
+   "reply_after_final_ms": 0.14,
    "stages_ms": {
-    "frontend": 2.68,
-    "sensevoice": 72.09,
-    "prosody": 6.03,
-    "text_encoder": 35.08,
-    "heads": 0.59
+    "frontend": 3.99,
+    "sensevoice": 79.25,
+    "prosody": 9.48,
+    "text_encoder": 33.85,
+    "heads": 1.41
    },
    "vad_tail_ms": 416.0,
    "provisional_in_flight_ms": 0.0,
@@ -1016,10 +1019,10 @@
     "full"
    ],
    "prov_sensevoice_ms": [
-    53.41
+    79.67
    ],
    "asr_text": "thank you joey",
-   "asr_conf": 0.9818,
+   "asr_conf": 0.9778,
    "degraded": [],
    "fused_label": "joy",
    "fused_mode": "poe_uncalibrated",
@@ -1033,16 +1036,16 @@
    "t_media_start": 45.408,
    "segment_s": 1.28,
    "bucket": "le5s",
-   "service_total_ms": 148.09,
-   "client_ms": 148.82,
-   "response_ms": 148.3,
-   "reply_after_final_ms": 0.217,
+   "service_total_ms": 140.64,
+   "client_ms": 141.52,
+   "response_ms": 140.82,
+   "reply_after_final_ms": 0.181,
    "stages_ms": {
-    "frontend": 2.83,
-    "sensevoice": 84.58,
-    "prosody": 4.49,
-    "text_encoder": 54.51,
-    "heads": 0.62
+    "frontend": 3.03,
+    "sensevoice": 88.22,
+    "prosody": 3.44,
+    "text_encoder": 43.91,
+    "heads": 0.74
    },
    "vad_tail_ms": 416.0,
    "provisional_in_flight_ms": 0.0,
@@ -1056,10 +1059,10 @@
     "full"
    ],
    "prov_sensevoice_ms": [
-    55.99
+    57.78
    ],
    "asr_text": "no no thank you",
-   "asr_conf": 0.9937,
+   "asr_conf": 0.9918,
    "degraded": [],
    "fused_label": "neutral",
    "fused_mode": "poe_uncalibrated",
@@ -1073,16 +1076,16 @@
    "t_media_start": 47.776,
    "segment_s": 1.376,
    "bucket": "le5s",
-   "service_total_ms": 127.54,
-   "client_ms": 128.75,
-   "response_ms": 128.47,
-   "reply_after_final_ms": 0.93,
+   "service_total_ms": 149.7,
+   "client_ms": 150.83,
+   "response_ms": 149.93,
+   "reply_after_final_ms": 0.235,
    "stages_ms": {
-    "frontend": 4.19,
-    "sensevoice": 76.57,
-    "prosody": 8.7,
-    "text_encoder": 36.12,
-    "heads": 0.69
+    "frontend": 4.14,
+    "sensevoice": 96.81,
+    "prosody": 5.92,
+    "text_encoder": 39.93,
+    "heads": 1.1
    },
    "vad_tail_ms": 416.0,
    "provisional_in_flight_ms": 0.0,
@@ -1096,10 +1099,10 @@
     "full"
    ],
    "prov_sensevoice_ms": [
-    62.22
+    57.18
    ],
    "asr_text": "heyestelle listen",
-   "asr_conf": 0.9306,
+   "asr_conf": 0.9231,
    "degraded": [],
    "fused_label": "neutral",
    "fused_mode": "poe_uncalibrated",
@@ -1113,16 +1116,16 @@
    "t_media_start": 50.112,
    "segment_s": 4.64,
    "bucket": "le5s",
-   "service_total_ms": 245.17,
-   "client_ms": 245.91,
-   "response_ms": 245.35,
-   "reply_after_final_ms": 0.183,
+   "service_total_ms": 259.96,
+   "client_ms": 260.87,
+   "response_ms": 260.14,
+   "reply_after_final_ms": 0.188,
    "stages_ms": {
-    "frontend": 7.59,
-    "sensevoice": 187.39,
-    "prosody": 12.71,
-    "text_encoder": 35.75,
-    "heads": 0.58
+    "frontend": 11.38,
+    "sensevoice": 189.65,
+    "prosody": 14.08,
+    "text_encoder": 42.6,
+    "heads": 0.6
    },
    "vad_tail_ms": 416.0,
    "provisional_in_flight_ms": 0.0,
@@ -1142,13 +1145,13 @@
     "tail"
    ],
    "prov_sensevoice_ms": [
-    53.58,
-    77.98,
-    151.43,
-    162.06
+    53.27,
+    100.39,
+    119.16,
+    158.89
    ],
    "asr_text": "well well well joey tribuni so you came back huh they",
-   "asr_conf": 0.8765,
+   "asr_conf": 0.8875,
    "degraded": [],
    "fused_label": "neutral",
    "fused_mode": "poe_uncalibrated",
@@ -1162,16 +1165,16 @@
    "t_media_start": 55.648,
    "segment_s": 3.904,
    "bucket": "le5s",
-   "service_total_ms": 204.51,
-   "client_ms": 205.18,
-   "response_ms": 204.71,
-   "reply_after_final_ms": 0.196,
+   "service_total_ms": 218.62,
+   "client_ms": 219.59,
+   "response_ms": 218.81,
+   "reply_after_final_ms": 0.189,
    "stages_ms": {
-    "frontend": 7.69,
-    "sensevoice": 145.31,
-    "prosody": 8.91,
-    "text_encoder": 39.31,
-    "heads": 2.02
+    "frontend": 10.21,
+    "sensevoice": 150.9,
+    "prosody": 7.56,
+    "text_encoder": 47.09,
+    "heads": 1.02
    },
    "vad_tail_ms": 416.0,
    "provisional_in_flight_ms": 0.0,
@@ -1191,10 +1194,10 @@
     "tail"
    ],
    "prov_sensevoice_ms": [
-    71.23,
-    85.89,
-    118.54,
-    130.91
+    64.38,
+    75.42,
+    115.21,
+    138.73
    ],
    "asr_text": "what are you talking about i never left you you've always been my agent",
    "asr_conf": 0.9932,
@@ -1211,16 +1214,16 @@
    "t_media_start": 60.448,
    "segment_s": 1.888,
    "bucket": "le5s",
-   "service_total_ms": 150.44,
-   "client_ms": 151.01,
-   "response_ms": 150.77,
-   "reply_after_final_ms": 0.335,
+   "service_total_ms": 167.46,
+   "client_ms": 168.38,
+   "response_ms": 167.64,
+   "reply_after_final_ms": 0.185,
    "stages_ms": {
-    "frontend": 5.05,
-    "sensevoice": 96.94,
-    "prosody": 3.79,
-    "text_encoder": 42.92,
-    "heads": 0.62
+    "frontend": 4.76,
+    "sensevoice": 112.07,
+    "prosody": 7.25,
+    "text_encoder": 40.95,
+    "heads": 0.85
    },
    "vad_tail_ms": 416.0,
    "provisional_in_flight_ms": 0.0,
@@ -1236,11 +1239,11 @@
     "full"
    ],
    "prov_sensevoice_ms": [
-    57.36,
-    71.77
+    67.02,
+    88.67
    ],
    "asr_text": "oh well no harm no foul",
-   "asr_conf": 0.9518,
+   "asr_conf": 0.9301,
    "degraded": [],
    "fused_label": "neutral",
    "fused_mode": "poe_uncalibrated",
@@ -1254,16 +1257,16 @@
    "t_media_start": 63.168,
    "segment_s": 1.76,
    "bucket": "le5s",
-   "service_total_ms": 130.11,
-   "client_ms": 130.85,
-   "response_ms": 130.38,
-   "reply_after_final_ms": 0.266,
+   "service_total_ms": 136.84,
+   "client_ms": 137.49,
+   "response_ms": 137.17,
+   "reply_after_final_ms": 0.33,
    "stages_ms": {
-    "frontend": 3.49,
-    "sensevoice": 78.15,
-    "prosody": 7.16,
-    "text_encoder": 39.6,
-    "heads": 0.6
+    "frontend": 4.41,
+    "sensevoice": 81.62,
+    "prosody": 8.0,
+    "text_encoder": 41.05,
+    "heads": 0.63
    },
    "vad_tail_ms": 416.0,
    "provisional_in_flight_ms": 0.0,
@@ -1279,11 +1282,11 @@
     "full"
    ],
    "prov_sensevoice_ms": [
-    67.04,
-    87.82
+    54.32,
+    80.11
    ],
    "asr_text": "okay you guys free tonight",
-   "asr_conf": 0.9838,
+   "asr_conf": 0.9851,
    "degraded": [],
    "fused_label": "joy",
    "fused_mode": "poe_uncalibrated",
@@ -1297,16 +1300,16 @@
    "t_media_start": 65.952,
    "segment_s": 2.976,
    "bucket": "le5s",
-   "service_total_ms": 249.91,
-   "client_ms": 250.9,
-   "response_ms": 250.11,
-   "reply_after_final_ms": 0.192,
+   "service_total_ms": 212.05,
+   "client_ms": 212.76,
+   "response_ms": 212.48,
+   "reply_after_final_ms": 0.425,
    "stages_ms": {
-    "frontend": 10.56,
-    "sensevoice": 168.22,
-    "prosody": 8.91,
-    "text_encoder": 59.79,
-    "heads": 0.83
+    "frontend": 5.64,
+    "sensevoice": 152.43,
+    "prosody": 7.97,
+    "text_encoder": 44.25,
+    "heads": 0.6
    },
    "vad_tail_ms": 416.0,
    "provisional_in_flight_ms": 0.0,
@@ -1324,12 +1327,12 @@
     "full"
    ],
    "prov_sensevoice_ms": [
-    67.56,
-    93.78,
-    110.83
+    73.44,
+    87.31,
+    116.34
    ],
    "asr_text": "tonight you didn't say it was going to be at night on",
-   "asr_conf": 0.9536,
+   "asr_conf": 0.9482,
    "degraded": [],
    "fused_label": "neutral",
    "fused_mode": "poe_uncalibrated",
@@ -1343,16 +1346,16 @@
    "t_media_start": 69.92,
    "segment_s": 2.432,
    "bucket": "le5s",
-   "service_total_ms": 230.12,
-   "client_ms": 230.93,
-   "response_ms": 230.39,
-   "reply_after_final_ms": 0.274,
+   "service_total_ms": 167.84,
+   "client_ms": 168.66,
+   "response_ms": 168.0,
+   "reply_after_final_ms": 0.153,
    "stages_ms": {
-    "frontend": 10.37,
-    "sensevoice": 162.56,
-    "prosody": 11.49,
-    "text_encoder": 43.46,
-    "heads": 0.79
+    "frontend": 7.08,
+    "sensevoice": 103.07,
+    "prosody": 7.43,
+    "text_encoder": 48.38,
+    "heads": 0.61
    },
    "vad_tail_ms": 416.0,
    "provisional_in_flight_ms": 0.0,
@@ -1368,11 +1371,11 @@
     "full"
    ],
    "prov_sensevoice_ms": [
-    86.59,
-    112.85
+    53.94,
+    99.49
    ],
    "asr_text": "yes yes how can i help you",
-   "asr_conf": 0.9983,
+   "asr_conf": 0.9981,
    "degraded": [],
    "fused_label": "neutral",
    "fused_mode": "poe_uncalibrated",

@@ -122,7 +122,7 @@
   }
  ],
  "cap": 6000000000,
- "generated_at": "2026-10-12T04:58:09Z",
- "wall_s": 1.09,
+ "generated_at": "2026-10-12T15:15:32Z",
+ "wall_s": 5.61,
  "command": "python tools/count_params.py --models models --heads heads --out results/params.md"
 }

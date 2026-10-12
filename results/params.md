@@ -1,6 +1,6 @@
 # Parameter count (recomputed from the files on disk)
 
-Written by `python tools/count_params.py --models models --heads heads` on 2026-10-12T04:58:09Z. ONNX rows sum the element counts of the graph initializers (an int8 initializer counts one parameter per element, its dequantized count); head rows sum the weight and bias arrays of the `.npz` files (the standardizer mean and scale are not parameters and are listed in the note). Constant-node tensors are not initializers and are not counted.
+Written by `python tools/count_params.py --models models --heads heads` on 2026-10-12T15:15:32Z. ONNX rows sum the element counts of the graph initializers (an int8 initializer counts one parameter per element, its dequantized count); head rows sum the weight and bias arrays of the `.npz` files (the standardizer mean and scale are not parameters and are listed in the note). Constant-node tensors are not initializers and are not counted.
 
 | Component | Role | File | Params | Trained | Note |
 |---|---|---|---|---|---|
