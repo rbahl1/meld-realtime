@@ -1,5 +1,5 @@
 # draft: every line to be edited by me before submission
-# reply bank (design 1.9). cells are "<fused label>|<discrepancy direction>";
+# reply bank (design 1.9). cells are "<fused label>|<discrepancy direction>".
 # direction mixed shares the none cell. styles: acknowledge, ask, name_the_gap.
 # rules: at most 12 words, slot templates at most 8 words, first person,
 # no exclamation marks, no emoji, no therapy-speak. {keyphrase} is filled from
@@ -155,7 +155,7 @@ cells:
     - {id: anger_surp_03, style: name_the_gap, text: "Your words blame {keyphrase}. Your voice sounds stunned."}
     - {id: anger_surp_04, style: ask, text: "Did that come out of nowhere?"}
 
-# no emotion claim; used when fused confidence is below low_conf
+# no emotion claim. used when fused confidence is below low_conf
 hold_back:
   - {id: hold_back_01, text: "Go on, I am listening."}
   - {id: hold_back_02, text: "Say a bit more about that."}

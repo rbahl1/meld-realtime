@@ -1,137 +1,149 @@
 # Decisions
 
-One entry per decision: what I decided, what else I considered, why, and what would make me change it. Published comparison numbers are cited with their source. Anything measured in this repository is cited from results/ rather than typed here. The system itself is described in docs/design.md.
+Each entry gives the decision, the alternatives that were considered, the reasons, and what would change it. Numbers measured here are cited from the file a script wrote. Published numbers are cited with their source. [docs/design.md](design.md) describes the system itself.
 
-## Track: text and audio, not text and vision
+## Track
 
-**Decision.** The primary track is Text + Audio. Vision is not used.
+The primary track is text and audio. Vision is not used.
 
-**Alternatives.** Text + Vision; all three modalities as the optional extension.
+Alternatives considered: text and vision, or all three modalities as the optional extension.
 
-**Why.** The MELD authors left visual features out of their own baselines because picking the speaker's face in a multi-party frame is an open problem (MELD paper, Section 4.1). The raw video was not reachable from my build environment and the machine has no camera. The lamp's camera would see one person up close, which sitcom frames do not resemble. Audio carries tone, laughter and timing, which is the part of the challenge's premise I can test on MELD.
+The MELD authors left visual features out of their own baselines, "as video-based speaker identification and localization is an open problem" (MELD paper, Section 4.1). The raw video was not reachable from the build environment, and the build machine has no camera. A robot's camera would see one person up close, which multi-party sitcom frames do not resemble. Audio carries tone, laughter and timing, which is the part of the challenge's premise that MELD can test.
 
-**What would change it.** A reachable video source plus a single-face camera feed at the lamp. A face-expression expert would then slot in as a third posterior next to text and audio, through the same fusion head.
+What would change it: a reachable video source and a single-face camera at the robot. A face-expression expert would then be a third posterior next to text and audio, through the same fusion head.
 
-## Audio features: read SenseVoice directly
+## Audio expert
 
-**Decision.** I run SenseVoice-small int8 through onnxruntime with my own front end and read its logits directly: the transcript, the nine-way emotion posterior, the eleven-way audio-event posterior and, with a one-tensor edit of the ONNX graph, a 512-d encoder sequence from the same pass.
+SenseVoice-small int8 runs through onnxruntime behind the front end in `meld_rt/experts/sensevoice.py`, and its logits are read directly: the transcript, the 9-way emotion posterior, the 11-way event posterior and, with one added graph output, the encoder states of the same pass.
 
-**Alternatives.** Fine-tune wav2vec2 or HuBERT (published sizes roughly 95 M to 316 M) on MELD audio. Run Whisper for the transcript plus a separate emotion model. Call SenseVoice through the sherpa-onnx wrapper at runtime.
+Alternatives considered: fine-tuning wav2vec2 or HuBERT on MELD audio, Whisper for the transcript plus a separate emotion model, or SenseVoice through the sherpa-onnx wrapper at run time.
 
-**Why.** One frozen 234 M model (recomputed by `tools/count_params.py`) gives everything in one pass, and its emotion classes map one-to-one onto MELD's seven. Its published MELD weighted F1 without target-domain fine-tuning is 57.7 (FunAudioLLM report, arXiv 2407.04051, Table 8), on par with the MELD paper's text baselines (text-CNN 55.02, bcLSTM text 56.44; MELD paper, Table 11), so the audio branch is a real expert rather than a weak side channel. Fine-tuning an audio encoder on four CPU cores for the two to three points that the MELD paper reports from adding audio (Table 11) would take most of the timebox and could not be rerun by a reviewer. The sherpa-onnx wrapper hides the logit rows I need, so I keep it as a dev dependency for the transcript parity test only. The report does not list the SER training corpora, so overlap with MELD cannot be excluded; I state that in PROVENANCE.md and never call the audio number zero-shot. The encoder-state readout is a measured ablation: if it does not beat the slot posterior on dev, the deployed calibrator keeps its 24 inputs.
+One frozen model of 234.000 M parameters ([results/params.md](../results/params.md)) gives everything in one pass, and seven of its emotion classes map one to one onto MELD's seven. The FunAudioLLM report gives it a MELD weighted F1 of 57.7 without fine-tuning on the target domain (Table 8). That is above the best text-only row of the MELD paper, DialogueRNN at 57.03 (Table 11). On published numbers, the audio expert alone is at the level of the text baselines. Fine-tuning an audio encoder on four CPU cores would take most of the timebox, and a reviewer could not rerun it. The sherpa-onnx wrapper does not expose the logit rows, so sherpa-onnx stays a dev dependency for the transcript parity test (`tests/test_sensevoice.py`) and the Piper proxy clips. The report does not list the corpora behind SenseVoice's emotion labels ([PROVENANCE.md](../PROVENANCE.md) quotes it), so the audio-only number is never called zero-shot. The encoder-state readout is an ablation: calibrator B against calibrator A on dev, pending MELD audio.
 
-**What would change it.** Evidence that MELD was in SenseVoice's SER training data. The audio-only rows would then be marked contaminated and the only defensible audio branch would be a different model. A GPU and time budget that make a wav2vec2 fine-tune reproducible would also reopen it.
+What would change it: evidence that MELD audio is in SenseVoice's emotion training data. The audio-only rows would then be marked as possibly seen, and the defensible audio branch would be another model. A GPU budget that makes a wav2vec2 fine-tune reproducible would also reopen the choice.
 
-## Text encoder: frozen RoBERTa-base from the ONNX zoo
+## Text expert
 
-**Decision.** The text expert is `roberta-base-11.onnx` from the ONNX model zoo, frozen, mean-pooled to 768-d, with the tokenizer extracted from the spaCy `en_core_web_trf` wheel.
+The text expert is `roberta-base-11.onnx` from the ONNX model zoo, frozen and mean-pooled to 768 values, with the tokenizer taken from the spaCy `en_core_web_trf` wheel.
 
-**Alternatives.** Fine-tune RoBERTa-base or RoBERTa-large on MELD text. Use the transformer weights inside the spaCy wheel. Static word vectors.
+Alternatives considered: fine-tuning RoBERTa-base or RoBERTa-large on MELD text, the transformer weights inside the spaCy wheel, or static word vectors.
 
-**Why.** Frozen features train in minutes, keep the runtime onnxruntime-only and are reproducible by anyone. The cost is a few points against fine-tuned numbers, which I state and bound with the EmoBERTa rows (RoBERTa-large, no context: 63.46 weighted F1; arXiv 2108.12009, Table 2). The spaCy wheel's transformer weights drifted during OntoNotes training (its `meta.json` lists the tagger, parser and NER pipeline), so they are not the published encoder and I do not use them. Static vectors lose too much.
+Frozen features train in minutes, keep the run time onnxruntime-only and are reproducible. Their cost is measured, not assumed: the frozen head scores 59.62 weighted F1 on test ([RESULTS.md](../RESULTS.md)), and EmoBERTa's fine-tuned RoBERTa-large without context reports 63.46 (Table 2). The spaCy wheel's transformer was trained further inside its pipeline (its `meta.json` lists OntoNotes 5 as a training source and roberta-base as the starting point), so those weights are not the published encoder and are not used. Static vectors lose word order.
 
-**What would change it.** The fine-tune is a planned experiment with a fixed budget: one timed epoch first, then the full run only if it fits. It exports back to ONNX and is served through the same `TextExpert` interface, so nothing in the runtime changes and the parameter count stays the same. If it beats the frozen head on dev by more than the bootstrap CI, it becomes the deployed text expert. If the Hugging Face Hub stays blocked, the zoo graph's HF-style initializer names let me build the torch model locally.
+What would change it: a fine-tune that beats the frozen head on dev by more than the bootstrap interval. It was planned as a timed experiment and was not run, and the `finetune` extra in `pyproject.toml` is unused. A fine-tuned encoder exported to ONNX would go through the same `TextExpert` interface with the same parameter count.
 
-## Fusion: a stacked logistic regression over calibrated experts
+## Tokenizer
 
-**Decision.** A 140-parameter multinomial logistic regression (recomputed by `tools/count_params.py`) over both log-posteriors, their entropies, ASR confidence, laughter probability and the unknown mass, trained on cross-fitted expert predictions and temperature-scaled on dev. Product of experts with one dev-chosen weight is the ablation.
+`vocab.json` and `merges.txt` come from the `byte_bpe_processor` attribute inside the `en_core_web_trf-3.8.0` wheel, extracted with msgpack by `tools/extract_tokenizer.py` and committed under `assets/roberta_tokenizer/`.
 
-**Alternatives.** A concatenation MLP over the raw 768-d and 1024-d embeddings. Cross-attention over audio frames and text tokens. A single product-of-experts weight.
+Alternatives considered: waiting for the Hugging Face Hub, running the spaCy pipeline at run time, or rebuilding the merges from GPT-2.
 
-**Why.** MELD's training set (size in results/data_stats.md) does not support a large fusion model trained on CPU. The stacked model gives inspectable per-modality weights and a calibrated confidence, which the reply selector needs for its hold-back rule. Until MELD audio exists the live path uses a fixed product of experts and says so in the state (`fused.mode` `"poe_uncalibrated"`), so the demo never claims a calibration it does not have.
+The Hub was not reachable from the build environment. The attribute holds the byte-level BPE vocabulary (50265 pieces) and its 50000 merges, and the ids match the published roberta-base tokenizer: `<s>` 0, `</s>` 2, `Hello` 31414, `Ġworld` 232 (`tools/extract_tokenizer.py`). Extraction needs only msgpack, not spaCy and not torch. `tests/test_tokenizer.py` asserts the known ids and runs a decode and encode round trip on MELD sentences.
 
-**What would change it.** If product of experts matches the stacked model on dev within the CI, the simpler rule is deployed. If the disagreement-subset row shows no gain over text alone, the fusion claim comes out of the write-up.
+What would change it: access to the Hub. The files would then be compared byte for byte with the published tokenizer, and a mismatch would replace them.
 
-## Context: a causal window, not a recurrent model
+## Fusion
 
-**Decision.** The text head sees the current utterance and up to two previous utterance embeddings with same-speaker flags; k in {0, 1, 2} is chosen on dev.
+The fusion head is a multinomial logistic regression over both 7-way log posteriors, their entropies, the ASR confidence, the laughter probability and the unknown mass (19 inputs), trained on cross-fitted expert posteriors and temperature-scaled on dev. It waits for MELD audio. A product of experts with one dev-chosen weight is its comparison. Until MELD audio exists, the live path uses a fixed product of the text posterior and the raw SenseVoice posterior, and the state says so (`fused.mode` `poe_uncalibrated`, `calibrated` false).
 
-**Alternatives.** A GRU over the dialogue. A dialogue transformer. No context at all.
+Alternatives considered: a concatenation MLP over the 768-value and 1024-value embeddings, cross-attention between audio frames and text tokens, or a single product-of-experts weight.
 
-**Why.** EmoBERTa bounds the gain from past context at about one point (64.55 with past utterances versus 63.46 without; Table 2). A window head captures most of that, needs no torch at runtime and is strictly causal. The lamp sees one speaker and MELD is multi-party, so I also evaluate the same head with the window restricted to the same speaker's previous utterances and report both rows. The robot's own lines are never fed back, because MELD has no such lines to train on.
+MELD's train split has 9989 utterances ([results/data_stats.md](../results/data_stats.md)), which does not support a large fusion model trained on a CPU. The stacked model has per-modality weights that can be read, and a calibrated confidence, which the selector needs. The fixed product keeps both modalities on the live path before MELD audio exists.
 
-**What would change it.** If k = 0 wins on dev, the head shrinks to 0.20 M parameters and context leaves the runtime path. A lamp with several users would need speaker continuity, which I left out.
+The fixed product needed its own confidence rule. The maximum of a product of two soft posteriors is sharp, and it is not a probability of being right. Reported as the confidence, it let the selector speak as if it were sure. So in `poe_uncalibrated` mode the reported confidence is the text head's temperature-scaled probability of the fused label, the only calibrated number on that path, and the selector never puts an uncalibrated state above the mid bucket (`reported_confidence` in `meld_rt/service.py`, `tests/test_service_rules.py`, `tests/test_selector.py`). In the demo the product's label is neutral, the text head gives neutral 0.3467, below `low_conf`, and the selector holds back ([results/demo_log.jsonl](../results/demo_log.jsonl)).
 
-## Replies: a bank indexed by the state, not a generator
+What would change it: if the product of experts matches the stacked model on dev within the interval, the simpler rule is deployed. If the disagreement subset shows no gain over text alone, the fusion claim comes out of the write-up.
 
-**Decision.** The reply is one of about 100 lines I wrote, indexed by fused label and discrepancy direction, with a confidence rule that forces a no-claim line when the posterior is weak, a keyphrase slot filled from the transcript, and a `grounding` list naming the state fields that licensed the line.
+## Context
 
-**Alternatives.** A small instruct LLM of 0.5 to 1.5 B parameters. GPT-2 small from the ONNX zoo fine-tuned on MELD next lines. Retrieval of MELD next utterances.
+The text head sees the current utterance and up to two previous utterance embeddings with same-speaker flags, and k (0, 1 or 2) is chosen on dev. Dev chose k = 0.
 
-**Why.** An LLM would add a large fraction of a second per turn on CPU (my estimate, not measured), is nondeterministic, cannot have its grounding unit-tested, has its weights on a host I could not reach, and is the default answer. Retrieval returns copyrighted sitcom dialogue that is not grounded in the audio. The bank answers in under a millisecond, deterministically, with tests that can fail: every cell has at least three variants, changing only the audio posterior changes the line on a fixed set of cases, low confidence always yields `hold_back`, and no line repeats within five turns. The `grounding` list makes every reply auditable in the demo log.
+Alternatives considered: a GRU over the dialogue, a dialogue transformer, or no context at all.
 
-**What would change it.** A requirement for open-ended dialogue rather than a reaction, or a GPU. An LLM would then take the state as its prompt and the grounding list would become a post-check on its output.
+EmoBERTa puts the gain from past context at about one point (64.55 with past utterances against 63.46 without, Table 2). A window head can capture that, needs no torch at run time and is causal. The robot hears one speaker while MELD is multi-party, so the same head is also scored with the window restricted to the same speaker's earlier utterances. On dev, the best k = 1 and k = 2 points reached 56.14 and 55.75 weighted F1 against 57.56 at k = 0 ([results/01_text_only.md](../results/01_text_only.md)). The deployed head is therefore the k = 0 head of 0.200 M parameters, and context leaves the run-time path except for the turn-index flags.
 
-## Streaming: ZeroMQ with a media clock
+What would change it: a fine-tuned encoder whose dev score rises with context, or a robot that talks to several users, which would also need speaker continuity.
 
-**Decision.** PUSH/PULL for audio in, PUB/SUB for state out, raw PCM16 frames with a small JSON header, a media clock in every state field, and two wall-clock domains that are never compared. Provisionals are bounded to a 4 s window and run only when the worker is idle; audio frames are never dropped, provisionals are.
+## Replies
 
-**Alternatives.** FastAPI with WebSocket JSON. gRPC. A single process with an in-memory queue.
+The reply is one of the 124 lines in `meld_rt/response/bank.yaml`, chosen by fused label and discrepancy direction, with a confidence rule that forces a line without an emotion claim when the posterior is weak, a keyphrase slot filled from the transcript, and a `grounding` list that names the state fields that licensed the line. The high bucket, which asserts a feeling or names the gap, needs a calibrated confidence. The lines are a draft for the candidate to edit.
 
-**Why.** An HTTP layer buys nothing here and would put base64 or text frames and transport time inside the latency I report. gRPC means codegen for no gain at this size. A single process could not show one input travelling through the system to two outputs over a real socket. PUB/SUB lets a monitor, a logger and a robot body subscribe at once without the service knowing. The bounded provisional policy means a final never waits behind a long provisional.
+Alternatives considered: a small instruct LLM, GPT-2 small from the ONNX zoo fine-tuned on MELD next lines, or retrieval of MELD next utterances.
 
-**What would change it.** A remote client. I would keep ZeroMQ inside and add a WebSocket bridge at the edge, reported as a separate cost. A need for request-reply semantics would argue for a REQ/REP control channel beside the stream.
+An LLM would add latency on a CPU, would be nondeterministic, could not have its grounding unit-tested, and had its weights on a host the build environment could not reach. Retrieval would return copyrighted sitcom lines that are not grounded in the audio. The selector takes 0.009 ms at p50 at 4 threads ([results/bench_components_vm.json](../results/bench_components_vm.json)), and the reply followed the final state within 0.330 ms at p95 on the proxy clips ([results/replay_bench_vm.json](../results/replay_bench_vm.json)). Its behavior is tested: every cell has at least three variants, changing only the audio posterior changes the line on a fixed set of cases, a low confidence always gives `hold_back`, no line repeats within five turns, and an uncalibrated state never reaches the high bucket (`tests/test_selector.py`).
 
-## Real time: turn-level targets by utterance length
+What would change it: a need for open-ended dialogue rather than a reaction, or a GPU. An LLM would then take the state as its prompt, and the grounding list would become a check on its output.
 
-**Decision.** Real time is defined at the turn level with three length buckets: final state within 250 ms median and 400 ms p95 after the endpoint for utterances up to 5 s, 350 and 550 ms up to 8 s, 700 and 1000 ms up to the 15 s cap, plus the reply within 5 ms, provisionals at 1 Hz for the first 4 s and sustained compute below 0.3 s per second of audio. Whether the targets are met is in results/measurements.md.
+## Streaming
 
-**Alternatives.** One number for all lengths. Frame-level latency. A real-time factor alone.
+Audio goes in over PUSH/PULL and the state comes out over PUB/SUB, as raw PCM16 frames with a small JSON header. A media clock sits in every state field, and the two wall clocks are never compared. Provisionals are bounded to a 4 s window and run only when the worker is idle. Audio frames are never dropped, while provisionals are.
 
-**Why.** SenseVoice's cost grows with the clip (see results/measurements.md), so a single target would be false for the longest utterances. The buckets follow the MELD duration distribution (results/data_stats.md). The 400 ms VAD tail is a choice, not compute, so it is reported separately. The laptop column stays empty until the user runs the bench there; nothing is typed from memory.
+Alternatives considered: FastAPI with WebSocket JSON, gRPC, or a single process with an in-memory queue.
 
-**What would change it.** A bench showing a bucket is missed at 2 threads would lower the 15 s cap or shrink the tail window. A product decision on how patient the lamp should feel would change the tail flag.
+An HTTP layer would put base64 or text frames and transport time inside the latency that is reported. gRPC means code generation for no gain at this size. A single process could not show one input travelling through the system to two outputs over a real socket. PUB/SUB lets a monitor, a logger and a robot body subscribe at once without the service knowing about them. The bounded provisional policy limits how long a final can wait behind a provisional to one SenseVoice pass over at most 4 s of audio.
 
-## Evaluation: weighted F1, plus what the selector needs
+What would change it: a remote client. ZeroMQ would stay inside, and a WebSocket bridge at the edge would be measured as a separate cost.
 
-**Decision.** Weighted F1 is primary; macro F1, per-class F1, bootstrap CIs over dialogues and ECE are reported beside it. Gold-text and ASR-text conditions are separate rows, with an early-commit row, a disagreement subset and ablations that remove the features most likely to be dataset artifacts. Selection is on dev only; test runs once per condition.
+## Real time
 
-**Alternatives.** Accuracy alone. Macro F1 as primary. Selecting on test.
+Real time is defined per turn: three latency targets by utterance length (design 1.10), the reply within 5 ms, provisionals at 1 Hz during the first 4 s of speech, and sustained compute below 0.3 s per second of audio.
 
-**Why.** Weighted F1 is what every published MELD row uses (MELD paper, EmoBERTa), so it is the only number that is comparable. The selector consumes confidence, so calibration has to be measured. The laugh track and subtitle cuts in MELD can leak into event and prosody features, so those ablations are the artifact check. Class weighting is chosen on dev by weighted F1 and the macro-F1 cost of that choice is recorded.
+Alternatives considered: one latency number for all lengths, frame-level latency, or a real-time factor alone.
 
-**What would change it.** Nothing about the protocol. The deployed class-weight scheme is whatever dev picks.
+SenseVoice's cost grows with the clip. At 4 threads its call takes 83.3 ms at p50 on 2 s of audio and 420.9 ms on 15 s ([results/measurements.md](../results/measurements.md)), so a single target would be false for the longest utterances or loose for the short ones. The buckets follow the MELD duration distribution ([results/data_stats.md](../results/data_stats.md)). The VAD tail is a setting, not compute, so it is reported apart.
 
-## Runtime: onnxruntime only
+What would change it: a laptop bench that misses a bucket at 2 threads, which would lower the 15 s cap or shrink the provisional window.
 
-**Decision.** Every model runs through onnxruntime; the heads are numpy forward passes from `.npz` files; torch exists only in the optional fine-tune extra.
+## End-pointing
 
-**Alternatives.** Torch at runtime. sherpa-onnx as the runtime wrapper.
+Silero VAD v4 opens a segment after 8 frames (256 ms) above 0.5 and keeps 256 ms of pre-roll. It closes the segment after a run of frames below 0.35 set by `--endpoint-silence-ms`, 400 ms by default, which is 13 frames or 416 ms. It forces an endpoint at 15 s.
 
-**Why.** One dependency behaves the same in the container and on the laptop, int8 paths are available, and inference needs no large install. sherpa-onnx stays a dev dependency for the transcript parity test and optional Piper TTS.
+Alternatives considered: the endpoint of a streaming ASR model, energy-based end-pointing, or fixed-length chunks.
 
-**What would change it.** A failure of the parity test that I could not fix in my own front end. The transcript would then come from sherpa-onnx and the encoder-state readout would be lost.
+A streaming ASR model would be a second model doing a job the VAD already does. Energy fails with background noise. Fixed chunks cut words. The start rule takes the larger of three frames and `min_speech_ms` (250), so a click or a short noise does not open a segment. The right tail depends on how patient the robot should feel, so it is a flag. `en.wav` from the SenseVoice release has a 0.45 s pause ([tests/test_service_e2e.py](../tests/test_service_e2e.py)), which the 416 ms tail splits into two utterances, so the demo and the end-to-end test use 500 ms (512 ms of tail). 600 ms is the patient setting. The benches ran at 400 ms on the proxy clips and at 500 ms on the long clips. 600 ms was not benched.
 
-## Tokenizer: extracted from the spaCy wheel
+What would change it: the user's preference after the live demo, or a bench showing that 400 ms splits too many MELD utterances.
 
-**Decision.** I extract `vocab.json` and `merges.txt` from the `byte_bpe_processor` attribute inside the `en_core_web_trf-3.8.0` wheel with `msgpack`, commit them to `assets/roberta_tokenizer/`, and test known ids.
+## Discrepancy threshold
 
-**Alternatives.** Wait for the Hugging Face Hub. Run the spaCy pipeline at runtime. Rebuild the merges from GPT-2.
+Until MELD audio exists, the flag threshold is the service default of 0.2 (`--jsd-flag`). Once audio is cached, `tools/train_heads.py` sets it to the 0.8 quantile of the dev JSD, and the service reads it from `heads/manifest.json`. That quantile is taken against the raw SenseVoice posterior, while the service compares against the calibrated one once it exists ([docs/design.md](design.md), section 1.6), so one of the two has to change before the dev value is used.
 
-**Why.** The attribute holds the original byte-level BPE vocab and merges, and the ids match the published roberta-base tokenizer (`<s>` 0, `</s>` 2, `Hello` 31414, `Ġworld` 232). Extraction needs only `msgpack`, not spaCy and not torch. The ids are asserted in tests and a decode-encode round trip is run on MELD sentences, so this is a tested fact, not a spot check.
+Alternatives considered: a threshold tuned on the proxy clips, or no flag until audio exists.
 
-**What would change it.** If the Hub opens, the files are compared byte for byte with the published tokenizer and the result recorded in PROVENANCE.md. A mismatch would replace the files.
+The proxy clips are affectless TTS, so their JSD says nothing about real speech. The flag picks the reply cell, so the live path needs some threshold. A fixed default that is named as a default ([results/01_text_only.md](../results/01_text_only.md), [RESULTS.md](../RESULTS.md)) is the plain choice.
 
-## End-pointing: Silero VAD with a silence tail
+What would change it: the dev quantile, as soon as MELD audio is cached, and the disagreement audit ([docs/runbook_laptop.md](runbook_laptop.md)).
 
-**Decision.** Silero VAD v4 with a 400 ms silence tail, 250 ms pre-roll and a 15 s cap; the tail is a CLI flag with 600 ms shown as the patient setting.
+## Evaluation
 
-**Alternatives.** The endpoint of a streaming ASR model. Energy-based end-pointing. Fixed-length chunks.
+Weighted F1 is primary, with macro F1, per-class F1, bootstrap intervals over dialogues and ECE beside it. Gold-text and ASR-text conditions are separate rows, with an early-commit row, a disagreement subset and ablations of the features most likely to be dataset artifacts. Selection is on dev only, and test runs once per condition. Class weights are chosen on dev by weighted F1, and the macro-F1 cost is recorded.
 
-**Why.** A streaming ASR model would be a second model doing a job VAD does well. Energy fails with background noise. Fixed chunks cut words. The right tail depends on how the lamp should feel, so it is a flag and both values are benched.
+Alternatives considered: accuracy alone, macro F1 as primary, or selection on test.
 
-**What would change it.** The user's preference after the demo, or a bench showing the 400 ms tail splits too many MELD utterances.
+Weighted F1 is what every published MELD row uses (MELD paper, EmoBERTa), so it is the only number that can be compared. The selector consumes the confidence, so calibration has to be measured. The laugh track and the subtitle cuts in MELD can leak into the event and prosody features, so those ablations are the artifact check. On dev, choosing by weighted F1 picked no class weights and cost 0.90 macro-F1 points against the best macro-F1 point ([results/01_text_only.md](../results/01_text_only.md)).
 
-## Reinforcement learning: out of the core
+What would change it: nothing in the protocol. Four of its conditions still need code in `tools/evaluate.py` ([RESULTS.md](../RESULTS.md), "Pending rows").
 
-**Decision.** No RL in the core. The one candidate, when to commit the label while the person is still talking, is a gated extension built only if the core is finished and measured by the end of day 2.
+## Runtime
 
-**Alternatives.** A reply-style bandit. RL inside the core from the start.
+Every model runs through onnxruntime, and the heads are numpy forward passes from `.npz` files.
 
-**Why.** The only reward MELD offers is label correctness, and the only sequential decision in this system is when to commit. That is an optimal-stopping problem: EMIT or WAIT at each provisional tick, reward one if the label is correct minus a cost per elapsed second, trainable offline by fitted Q-iteration on logged prefixes and comparable with three baselines (emit at the endpoint, at a fixed time, or when the maximum probability passes a threshold). A reply-style bandit has no reward. The prefix features are a long CPU run (estimate) and the challenge prefers a finished small system. If the policy is built and loses to the threshold rule, that is reported and the rule stays.
+Alternatives considered: torch at run time, or sherpa-onnx as the run-time wrapper.
 
-**What would change it.** The core done and measured with time left on day 2.
+One dependency behaves the same in the container and on the laptop, int8 kernels are available, and inference needs no large install. sherpa-onnx stays a dev dependency for the transcript parity test and the Piper proxy clips.
 
-## Compared with the default stack
+What would change it: a failure of the parity test that the front end could not fix. The transcript would then come from sherpa-onnx, and the encoder-state readout would be lost.
 
-The design most reviewers expect is fine-tuned RoBERTa plus fine-tuned wav2vec2 or HuBERT with late fusion, a small LLM for the reply, and FastAPI. It would score about the same on MELD (published fine-tuned text-only rows sit at 63 to 65 weighted F1, and audio adds one to three points) and every piece is expensive where I am constrained: two fine-tuning jobs on four CPU cores, weights on a blocked host, a generator that adds nondeterminism to every turn, and a transport that puts serialization inside the numbers I have to report. Mine reads emotion, events and an embedding from one frozen ASR model in one pass, stacks two calibrated experts with a few hundred parameters, puts the words-versus-tone relation in the state as a field, selects an auditable reply, and streams over ZeroMQ with a media clock. Each piece is cheaper, deterministic or more testable than the default, and each is measured.
+## Reinforcement learning
+
+There is no RL. The one candidate, when to commit the label while the person is still talking, was not built.
+
+Alternatives considered: a reply-style bandit, or RL in the core from the start.
+
+The only reward MELD offers is label correctness, and the only sequential decision in this system is when to commit. That is an optimal-stopping problem: EMIT or WAIT at each provisional tick, a reward of one for a correct label minus a cost per elapsed second, trained offline by fitted Q-iteration on logged prefixes, and compared with three baselines (emit at the endpoint, at a fixed time, or when the maximum probability passes a threshold). It needs the 2 s and 4 s prefix features of MELD audio, which are not cached yet. A reply-style bandit has no reward at all.
+
+What would change it: cached MELD audio with its prefixes, and time left after the pending audio rows.
+
+## Compared with the usual stack
+
+The usual design is a fine-tuned RoBERTa and a fine-tuned wav2vec2 or HuBERT with late fusion, a small LLM for the reply, and FastAPI. Published fine-tuned text rows reach 63.46 to 65.61 weighted F1 (EmoBERTa, Table 2). This system reads emotion, events and a transcript from one frozen ASR model in one pass, stacks two small expert heads, keeps the relation between words and tone in the state as a field, selects a reply that can be audited, and streams over ZeroMQ with a media clock. Each part is cheaper to run, deterministic, or easier to test than its usual counterpart. The frozen text head scores 59.62 ([RESULTS.md](../RESULTS.md)), so the price of not fine-tuning is measured against those rows. The audio side of the comparison waits for MELD audio.
