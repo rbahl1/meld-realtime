@@ -30,11 +30,11 @@ uv run python tools/replay_bench.py --clips "bench_clips/long/*.wav" --n 0 --rep
 
 | step | container time | where it was recorded |
 |---|---|---|
-| `count_params.py` | 1.2 s | `wall_s` in [results/params.json](../results/params.json) |
+| `count_params.py` | 1.15 s | `wall_s` in [results/params.json](../results/params.json) |
 | `bench_components.py` | 78.8 s | `wall_s` in [results/bench_components_vm.json](../results/bench_components_vm.json) |
-| `replay_bench.py` on the proxy clips | 2.98 s to load the models, then 73.504 s to stream 73.536 s of audio | `load_s` and `sent` in [results/replay_bench_vm.json](../results/replay_bench_vm.json) |
+| `replay_bench.py` on the proxy clips | 2.67 s to load the models, then 73.504 s to stream 73.536 s of audio | `load_s` and `sent` in [results/replay_bench_vm.json](../results/replay_bench_vm.json) |
 | `bench_components.py --build-only` | not timed | |
-| `replay_bench.py` on the long clips | 2.93 s to load the models, then 138.4 s to stream 138.432 s of audio | `load_s` and `sent` in [results/replay_bench_vm_long.json](../results/replay_bench_vm_long.json) |
+| `replay_bench.py` on the long clips | 2.56 s to load the models, then 138.4 s to stream 138.432 s of audio | `load_s` and `sent` in [results/replay_bench_vm_long.json](../results/replay_bench_vm_long.json) |
 
 The replay benches stream in real time, so they cannot finish faster than their audio. `count_params.py` should reproduce the same counts, because it reads the same files. A different total means a different model file, and the hashes in [results/provenance_hashes.json](../results/provenance_hashes.json) will show which one.
 
@@ -61,15 +61,24 @@ uv run python tools/render_measurements.py --out results/measurements.md
 
 The renderer reads every `results/bench_components_*.json` and `results/replay_bench_*.json`. Files whose recorded host is the build container (`vm`, set by `--container-host`) go under the container heading. Files from any other host replace the "not yet measured" table under the laptop heading, followed by `results/laptop_notes.md`. The first block of the file describes the machine that rendered it. Commit the new JSON files, `results/laptop_notes.md`, `results/params.md`, `results/params.json` and `results/measurements.md` together.
 
-## 5. Disagreement audit, once MELD audio exists
+## 5. Disagreement audit
 
-First run the steps in [README.md](../README.md) under "Once MELD audio exists". None of them has been timed. Then:
+The MELD audio steps are done in the build container: the WAV extraction, the feature caches, the audio heads and every audio row ([README.md](../README.md), "How the audio results were produced"). The audit is the step that needs a person. It reads `audio/test/`, `cache/audio_test.npz` and `cache/text_test.npy`, and none of them is committed, so the laptop rebuilds them for the test split first:
 
 ```
+curl -L -o MELD.Raw.tar.gz https://huggingface.co/datasets/declare-lab/MELD/resolve/9abc51ee7903424ffb971297608aa6d3d0de3bfa/MELD.Raw.tar.gz
+tar -xzf MELD.Raw.tar.gz MELD.Raw/test.tar.gz
+tar -xzf MELD.Raw/test.tar.gz -C MELD.Raw
+uv run python tools/extract_audio.py --raw MELD.Raw --out audio/ --split test --jobs 4
+uv run python tools/edit_sensevoice_graph.py
+uv run python tools/cache_audio_features.py --split test --audio audio/ --out cache/audio_test.npz --prefixes 2,4 --encoder-states --threads 4
+uv run python tools/embed_text.py --split test --out cache/text_test.npy
 uv run python tools/audit_disagreement.py sample --n 50
 ```
 
-This scores every test clip as the service would, draws 50 of the clips that the discrepancy rule flags (seed 0), and writes `cache/audit_disagreement.csv`. The file holds MELD text, so it stays in `cache/`, which is not committed. Each row gives the key, the WAV path, the speaker, the utterance, the gold label, the text and audio labels, the JSD, the threshold, the direction and the laughter probability, followed by three empty columns.
+None of these steps was timed on the laptop, and their container times are not in a committed file. The archive is 10878146150 bytes (`x-linked-size` in [results/meld_raw_source.json](../results/meld_raw_source.json)).
+
+`audit_disagreement.py sample` scores every test clip, draws 50 of the clips that the discrepancy rule flags (seed 0) at the dev threshold from `heads/manifest.json`, and writes `cache/audit_disagreement.csv`. The file holds MELD text, so it stays in `cache/`, which is not committed. Each row gives the key, the WAV path, the speaker, the utterance, the gold label, the text and audio labels, the JSD, the threshold, the direction and the laughter probability, followed by three empty columns.
 
 For each row, play the clip (ex. `ffplay -nodisp -autoexit <wav>`) and fill in:
 
@@ -83,4 +92,4 @@ Then count the marks:
 uv run python tools/audit_disagreement.py tally
 ```
 
-This writes results/disagreement_audit.md with counts only, by direction, and the threshold that was used. Read [docs/design.md](design.md) (section 1.6) on the threshold before drawing the sample: the dev threshold and the service do not use the same audio posterior yet, and `--threshold` sets one by hand.
+This writes results/disagreement_audit.md with counts only, by direction, and the threshold that was used. `--threshold` sets the threshold by hand.

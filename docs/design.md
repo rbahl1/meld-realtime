@@ -30,8 +30,8 @@ The runtime dependencies are in `pyproject.toml`: numpy, onnxruntime, kaldi-nati
 2. Provisionals. While a segment is open, a provisional state is computed at most once per second (`--provisional-hz`) and only when the worker is idle and nothing is queued. While the segment is at most 4 s long (`--provisional-window-s`), the whole segment is decoded and `text.partial` holds its transcript. After that, provisionals come at half the rate on the trailing 4 s window, with `window` `"tail"` and no partial text. Provisionals run SenseVoice only. `--provisional-budget-ms` (0, off by default) skips the next provisional when the last one took longer than the budget. Queued provisionals are dropped at the endpoint.
 3. Audio expert. At the endpoint the worker computes the fbank, LFR and CMVN front end and runs SenseVoice-small int8 once over the segment. That one pass gives the greedy CTC transcript, an ASR confidence (the mean of the maximum softmax over the emitted tokens), the language, the softmax over the nine emotion tokens at logit row 1, the softmax over the eleven event tokens at row 2, and the tokens per second. With `--encoder-states` and the edited graph from `tools/edit_sensevoice_graph.py`, the same pass also gives the encoder states, pooled (mean and maximum) to 1024 values. Prosody adds four scalars from parselmouth: the F0 median and the F0 range in semitones, the standard deviation of the intensity in dB, and the speech rate.
 4. Text expert. RoBERTa-base encodes the transcript (at most 64 pieces), and the mean over the non-special positions gives 768 values. It does not run when the ASR failed or its confidence is below 0.3.
-5. Heads. The TextContextHead gives the text posterior. The AudioCalibrator gives the audio posterior when `heads/audio_cal.npz` exists. Until then the audio posterior is the SenseVoice posterior renormalized over its seven named classes. How the fused posterior is made depends on `fused.mode` (1.6). The SentimentHead gives the sentiment.
-6. Discrepancy. `discrepancy.jsd` is the Jensen-Shannon divergence in bits between the 7-way text and audio posteriors. The flag is set when it exceeds a threshold. The threshold is `jsd_flag` from `heads/manifest.json` when that is a number. It is null until MELD audio exists, so the service uses `--jsd-flag`, whose default is 0.2. The direction is `none` when the flag is off. Otherwise it is `tone_surprised` when the audio gives surprise more than 0.4 and the text less than 0.2. Failing that, it is `tone_more_negative` or `tone_more_positive` when the expected valence of the audio posterior differs from that of the text posterior by more than 0.1, and `mixed` when it does not. Valence is 1 for joy, 0 for neutral and surprise, and -1 for sadness, anger, disgust and fear (`meld_rt/labels.py`).
+5. Heads. The TextContextHead gives the text posterior. The AudioCalibrator gives the audio posterior when `heads/audio_cal.npz` exists. Without that file the audio posterior is the SenseVoice posterior renormalized over its seven named classes. How the fused posterior is made depends on `fused.mode` (1.6). The SentimentHead gives the sentiment.
+6. Discrepancy. `discrepancy.jsd` is the Jensen-Shannon divergence in bits between the 7-way text posterior and the raw SenseVoice posterior renormalized over its seven named classes (1.6). The flag is set when it exceeds a threshold. The threshold is `jsd_flag` from `heads/manifest.json`, 0.3831 from dev. A manifest without that value leaves the service at `--jsd-flag`, whose default is 0.2. The direction is `none` when the flag is off. Otherwise it is `tone_surprised` when the audio gives surprise more than 0.4 and the text less than 0.2. Failing that, it is `tone_more_negative` or `tone_more_positive` when the expected valence of the audio posterior differs from that of the text posterior by more than 0.1, and `mixed` when it does not. Valence is 1 for joy, 0 for neutral and surprise, and -1 for sadness, anger, disgust and fear (`meld_rt/labels.py`).
 7. Dialogue. Each stream keeps its last 8 finals. The state reports the turn index, the previous label, whether the label changed and the last five labels.
 8. Reply. The selector picks one line (1.9).
 9. Publish. The publisher sends `state.final` and then `response`.
@@ -74,20 +74,20 @@ Models load on the first message, or at start with `--preload`. A stream closed 
 | SenseVoice-small int8 | transcript, emotion and event posteriors | `sensevoice/model.int8.onnx` | the segment's fbank | 234.000 M | frozen |
 | RoBERTa-base | text embedding | `roberta-base-11.onnx` | up to 64 pieces | 124.646 M | frozen |
 | TextContextHead, MLP 772-256-7 | text posterior | `heads/text_ctx.npz` | 768 × (k + 1) + 4 values, k = 0 | 0.200 M | trained |
-| AudioCalibrator, LR 24-7 or 1048-7 | audio posterior | `heads/audio_cal.npz` | 9 log probabilities, 11 events, 4 prosody scalars, optionally 1024 encoder values | pending | trained |
-| Fusion, LR 19-7 | fused posterior | `heads/fusion.npz` | two 7-way log posteriors, their entropies, ASR confidence, laughter, unknown mass | pending | trained |
-| SentimentHead, LR 772-3 | sentiment | `heads/sentiment.npz` | the text head's inputs (`text_only` variant), or the 19 fusion inputs (19-3) once audio exists | 0.002 M | trained |
+| AudioCalibrator A, LR 24-7 | audio posterior | `heads/audio_cal.npz` | 9 log probabilities, 11 events, 4 prosody scalars (variant B adds 1024 encoder values and was not chosen) | 175 | trained |
+| Fusion, LR 19-7 | fused posterior | `heads/fusion.npz` | two 7-way log posteriors, their entropies, ASR confidence, laughter, unknown mass | 140 | trained |
+| SentimentHead, LR 19-3 | sentiment | `heads/sentiment.npz` | the 19 fusion inputs (`fused` variant, deployed), or the text head's inputs (772-3, `text_only` variant) without audio heads | 60 | trained |
 | prosody, discrepancy, selector | rules | | | 0 | none |
 
-The total on the inference path is 359.003 M, 5.98 % of the 6 B cap ([results/params.md](../results/params.md), written by `tools/count_params.py` from the files on disk). It leaves out the two pending heads, which do not exist yet. Piper en_US-lessac-medium (15.651 M) synthesizes the proxy clips offline and is not on the inference path. The latency of each component is in [results/measurements.md](../results/measurements.md).
+The total on the inference path is 359.001 M, 5.98 % of the 6 B cap ([results/params.md](../results/params.md), written by `tools/count_params.py` from the files on disk). The three logistic-regression heads are listed there as 0.000 M each, and their exact counts are the ones above. Piper en_US-lessac-medium (15.651 M) synthesizes the proxy clips offline and is not on the inference path. The latency of each component is in [results/measurements.md](../results/measurements.md).
 
 ## 1.6 Trained heads and fusion modes
 
 `tools/train_heads.py` trains the heads from cached features with the settings in `configs/heads.yaml`. Every choice is made on dev by weighted F1, and test is never read.
 
-The text stage is done. The TextContextHead is an MLP with 256 hidden units, trained over a grid of k (0, 1, 2), class weights (MELD README, balanced, none) and learning rate (0.001, 0.0003, 0.0001), with early stopping on dev (patience 6, at most 60 epochs). Dev picked k = 0, no class weights and a learning rate of 0.0001, and a temperature of 1.2228 fitted on dev calibrates the head ([heads/manifest.json](../heads/manifest.json)). The selector thresholds come from the calibrated dev predictions. An isotonic fit of correctness on the confidence gives the dev accuracy as a rising function of the confidence. `low_conf` is the smallest confidence, on a grid of 0.01, at which that accuracy reaches one half (0.39), so below it a label claim is more often wrong than right. `high_conf` is where it reaches 70 % (0.73). With `--text-only`, a logistic regression over the same text features gives the sentiment head (C 0.1, no class weights, temperature 1.4197). The grid took 326.6 s and the whole run 335.9 s ([heads/manifest.json](../heads/manifest.json)). [results/01_text_only.md](../results/01_text_only.md) has the grid.
+The text stage is done. The TextContextHead is an MLP with 256 hidden units, trained over a grid of k (0, 1, 2), class weights (MELD README, balanced, none) and learning rate (0.001, 0.0003, 0.0001), with early stopping on dev (patience 6, at most 60 epochs). Dev picked k = 0, no class weights and a learning rate of 0.0001, and a temperature of 1.2228 fitted on dev calibrates the head ([heads/manifest.json](../heads/manifest.json)). The selector thresholds come from the calibrated dev predictions. An isotonic fit of correctness on the confidence gives the dev accuracy as a rising function of the confidence. `low_conf` is the smallest confidence, on a grid of 0.01, at which that accuracy reaches one half (0.39), so below it a label claim is more often wrong than right. `high_conf` is where it reaches 70 % (0.73). The audio stage applies the same rule to the fusion head's calibrated dev predictions, which gives 0.47 and 0.73, and the service uses those (`thresholds` in [heads/manifest.json](../heads/manifest.json)). With `--text-only`, a logistic regression over the same text features gives a text-only sentiment head (C 0.1, no class weights, temperature 1.4197, [results/01_text_only.md](../results/01_text_only.md)). The text grid took 316.7 s and the whole run, with the audio stage, 435.8 s ([heads/manifest.json](../heads/manifest.json)). [results/01_text_only.md](../results/01_text_only.md) has the grid.
 
-The audio stage is pending until MELD audio exists. It trains two AudioCalibrators, A on the 24 slot, event and prosody inputs and B with the 1024 encoder values added, and keeps the better one on dev. Both expert heads are refit in 5 folds split by dialogue, so the fusion head trains on out-of-fold posteriors only. The fusion head is then temperature-scaled on dev. The same stage picks the product-of-experts weight from 0.25, 0.5, 0.75 and 1.0, fits a fused sentiment head on the 19 fusion inputs, and sets `jsd_flag` to the 0.8 quantile of the dev JSD between the text posterior and the raw SenseVoice posterior. CSV rows without a cached clip are left out of this stage and counted in the manifest. The service computes the run-time JSD against the same raw SenseVoice posterior, so the threshold and the run-time JSD come from the same audio posterior.
+The audio stage ran on MELD audio. It trains two AudioCalibrators, A on the 24 slot, event and prosody inputs and B with the 1024 encoder values added, and keeps the better one on dev. Both expert heads are refit in 5 folds split by dialogue, so the fusion head trains on out-of-fold posteriors only. The fusion head is then temperature-scaled on dev. The same stage picks the product-of-experts weight from 0.25, 0.5, 0.75 and 1.0, fits a fused sentiment head on the 19 fusion inputs, and sets `jsd_flag` to the 0.8 quantile of the dev JSD between the text posterior and the raw SenseVoice posterior. CSV rows without a cached clip are left out of this stage and counted in the manifest (one in train and one in dev). The service computes the run-time JSD against the same raw SenseVoice posterior, so the threshold and the run-time JSD come from the same audio posterior. On dev, calibrator A scores 45.96 weighted F1 against 44.43 for B, so A is kept. The fusion head scores 57.95 on dev, the product of experts 55.56 at its chosen weight of 0.75, and the fused sentiment head 67.79. `jsd_flag` comes out at 0.3831 ([RESULTS.md](../RESULTS.md), "Choices made on dev"). The stacked fusion scores higher on dev than the product of experts, so it is deployed.
 
 `fused.mode` says how the fused posterior was made, and `fused.calibrated` says whether its confidence is calibrated.
 
@@ -95,12 +95,12 @@ The audio stage is pending until MELD audio exists. It trains two AudioCalibrato
 |---|---|---|---|---|
 | `stacked` | `heads/fusion.npz` exists | the fusion head | its maximum | true |
 | `poe` | no fusion head, both expert heads present | product of the text and calibrated audio posteriors | its maximum | false |
-| `poe_uncalibrated` | an expert head is missing, which today means the audio calibrator | product of the text posterior and the raw SenseVoice posterior | the text head's probability of the fused label | false |
+| `poe_uncalibrated` | an expert head is missing, in practice the audio calibrator | product of the text posterior and the raw SenseVoice posterior | the text head's probability of the fused label | false |
 | `text_only` | a text message, or `--fusion-mode text_only` | the text posterior | its maximum | true when the text head exists |
 
-The product raises the audio posterior to a power w. Before the audio stage has run, w is 0.5. After it, the service reads the dev-chosen w from `audio_fusion.poe.weight` in the manifest (`poe_weight_from` in `meld_rt/service.py`).
+The product raises the audio posterior to a power w. Without an audio stage in the manifest, w is 0.5. With it, the service reads the dev-chosen w (0.75) from `audio_fusion.poe.weight` in the manifest (`poe_weight_from` in `meld_rt/service.py`).
 
-In `poe_uncalibrated` mode the maximum of the product is not a probability of being right, because two soft posteriors multiply into a sharp one. So the reported confidence is the calibrated text head's probability of the fused label. `fused.emotion` and `fused.label` stay the product and its argmax. In the demo (1.8) the text head's top class is joy, the product's label is neutral, and the text head gives neutral 0.3467, which is below `low_conf`, so the selector holds back. The selector also caps every state with `calibrated` false at the mid bucket (1.9), so such a state can ask but never asserts.
+In `poe_uncalibrated` mode the maximum of the product is not a probability of being right, because two soft posteriors multiply into a sharp one. So the reported confidence is the calibrated text head's probability of the fused label. `fused.emotion` and `fused.label` stay the product and its argmax. `tests/test_service_rules.py` checks this rule. The committed demo (1.8) runs in `stacked` mode and does not use it. The selector also caps every state with `calibrated` false at the mid bucket (1.9), so such a state can ask but never asserts.
 
 ## 1.7 Conversational context
 
@@ -110,7 +110,7 @@ The evaluation has a runtime-regime row for that difference: the same head with 
 
 ## 1.8 State schema
 
-This is the final state of the demo in [results/demo_log.jsonl](../results/demo_log.jsonl), without the three fields the monitor adds when it logs (`topic`, `t_recv_ns`, `latency_client_ms`):
+This is the final state of the demo in [results/demo_log.jsonl](../results/demo_log.jsonl), without the three fields the monitor adds when it logs (`topic`, `t_recv_ns`, `latency_client_ms`). `tools/render_demo_docs.py` copies it from the log:
 
 ```json
 {
@@ -123,9 +123,9 @@ This is the final state of the demo in [results/demo_log.jsonl](../results/demo_
  ],
  "t_media_start": 0.832,
  "t_media_end": 6.464,
- "t_speech_end_capture_ns": 5697676059315,
- "t_service_recv_ns": 5697680112696,
- "t_emitted_ns": 5698136805066,
+ "t_speech_end_capture_ns": 8222443854187,
+ "t_service_recv_ns": 8222452139315,
+ "t_emitted_ns": 8222875437256,
  "window": "full",
  "continued_from": null,
  "asr": {
@@ -183,19 +183,19 @@ This is the final state of the demo in [results/demo_log.jsonl](../results/demo_
  },
  "fused": {
   "emotion": {
-   "neutral": 0.935781761916961,
-   "surprise": 0.00021973849837607988,
-   "fear": 0.0001826222123707147,
-   "sadness": 0.006219462140109823,
-   "joy": 0.05193871198636549,
-   "disgust": 0.0034108129244094796,
-   "anger": 0.0022468903214074463
+   "neutral": 0.5519663536873755,
+   "surprise": 0.007264129753390723,
+   "fear": 0.008743568897943612,
+   "sadness": 0.08765835523628694,
+   "joy": 0.29297454569028947,
+   "disgust": 0.021315230124747026,
+   "anger": 0.030077816609966734
   },
   "label": "neutral",
-  "confidence": 0.3467,
+  "confidence": 0.552,
   "sentiment": "neutral",
-  "mode": "poe_uncalibrated",
-  "calibrated": false
+  "mode": "stacked",
+  "calibrated": true
  },
  "discrepancy": {
   "jsd": 0.4213,
@@ -212,13 +212,13 @@ This is the final state of the demo in [results/demo_log.jsonl](../results/demo_
  },
  "timing_ms": {
   "vad_tail": 512.0,
-  "frontend": 14.48,
-  "sensevoice": 175.17,
-  "prosody": 30.64,
-  "text_encoder": 36.65,
-  "heads": 0.73,
-  "service_total": 456.69,
-  "provisional_in_flight": 197.6
+  "frontend": 9.37,
+  "sensevoice": 210.81,
+  "prosody": 30.34,
+  "text_encoder": 31.31,
+  "heads": 0.74,
+  "service_total": 423.3,
+  "provisional_in_flight": 139.2
  },
  "degraded": []
 }
@@ -239,13 +239,13 @@ The replies come from `meld_rt/response/bank.yaml`. The bank has 124 lines: 112 
 The selection is a pure function of the state and the stream's recent lines.
 
 1. A failed or low-confidence transcript takes one of the two "did not catch that" lines.
-2. A confidence below `low_conf` (0.39 from dev) takes a `hold_back` line.
+2. A confidence below `low_conf` (0.47, from the fusion head's dev predictions) takes a `hold_back` line.
 3. Otherwise the cell gives the candidates. In the mid bucket the order of preference is `ask`, then `name_the_gap` when the direction is not `none`, then `acknowledge`. In the high bucket (a confidence of at least `high_conf`, 0.73, and `fused.calibrated` true) it is `acknowledge` first, or `name_the_gap` first when the direction is not `none`. An uncalibrated state never reaches the high bucket, and its grounding says `rule=uncalibrated_cap` when the cap changed the bucket.
 4. A line used in the last 5 turns of the stream is avoided. When a cell has no fresh line left, a fresh `hold_back` line is used and the grounding says `rule=no_repeat`.
 5. A line with a `{keyphrase}` slot takes the longest run of up to four content words from the transcript, as an exact substring (`meld_rt/discrepancy.py`). The run can be a clause fragment (ex. `the GR-6 system failed`), so every slot line puts it in single quotes.
 6. When laughter or cry is above 0.5 in `audio.events`, one of two short clauses goes in front.
 
-Ties break by a CRC32 of the utterance id and the line id, so a replay gives the same lines. The `grounding` list names the state fields that licensed the line, with their values (ex. `fused.label=<label>@<confidence>`, `discrepancy.direction=tone_more_negative`, `text.keyphrase='...'`, or `fused.confidence=0.35<0.39` for the demo's hold-back line).
+Ties break by a CRC32 of the utterance id and the line id, so a replay gives the same lines. The `grounding` list names the state fields that licensed the line, with their values (ex. `fused.label=neutral@0.55` and `discrepancy.direction=tone_more_negative` for the demo's line, `text.keyphrase='...'`, or `fused.confidence=` with the confidence, `<` and `low_conf` for a hold-back line).
 
 MELD clips come from a sitcom with a laugh track, so a laughter event there can be the audience rather than the speaker. In front of the robot it would be the user's own laughter. The event features can therefore learn a signal that only MELD has, and the event ablation and the disagreement audit are the checks (1.11).
 
@@ -264,7 +264,7 @@ The robot should react inside the pause after a person stops talking and show th
 
 Over all three splits, 83.3 % of MELD utterances last at most 5 s, 95.2 % at most 8 s and 99.7 % at most 15 s (subtitle durations, [results/data_stats.md](../results/data_stats.md)). The VAD tail is not compute. It adds 512 ms at the default setting to what the user waits, and it is reported apart from the targets. The assumptions are one speaker near the microphone, 16 kHz mono audio, utterances up to 15 s, 4 CPU cores and no GPU.
 
-[results/measurements.md](../results/measurements.md) has the container numbers, and every target passes there. On the proxy clips at 400 ms, finals up to 5 s took 173.9 ms at p50 and 261.8 ms at p95 (n 19). On the long clips at 500 ms, finals from 8 to 15 s took 490.8 ms at p50 and 654.0 ms at p95 (n 9). The laptop numbers are pending.
+[results/measurements.md](../results/measurements.md) has the container numbers, and every target passes there. All benches ran at 500 ms with the stacked fusion deployed. On the proxy clips, finals up to 5 s took 146.5 ms at p50 and 258.0 ms at p95 (n 19). On the long clips, finals from 8 to 15 s took 403.5 ms at p50 and 530.1 ms at p95 (n 9). On 200 MELD test clips, finals up to 5 s took 152.3 ms at p50 and 241.7 ms at p95 (n 168), and finals from 8 to 15 s took 371.2 ms and 491.3 ms (n 14). The MELD clips are cut at the end of the subtitle, and the VAD segments do not always line up with them. A final is attributed to the clip in which its speech stopped, or to the clip before when it stopped in the silence between two clips. By that rule, 30 of the 200 MELD clips have no final and 24 are split into several finals (the clip-attribution row of the same file), so the MELD buckets group finals by segment length. The laptop numbers are not measured yet.
 
 ## 1.11 Evaluation
 
@@ -272,13 +272,16 @@ The splits are the published ones. Model selection, temperatures, thresholds and
 
 | conditions | status |
 |---|---|
-| majority floor, text only at k = 0, at the best k and with the runtime-regime window, text-only sentiment | done |
-| audio only from the raw SenseVoice tag, audio calibrators A and B, stacked fusion, product of experts with the dev weight and with the fixed weight, fused sentiment | code ready, needs MELD audio |
-| ablations without events and without prosody, the live condition on SenseVoice transcripts with WER, the disagreement subset, early commit on 2 s and 4 s prefixes | needs MELD audio and code in `tools/evaluate.py` that does not exist yet |
+| majority floor, text only at k = 0, at the best k and with the runtime-regime window | done |
+| audio only from the raw SenseVoice tag, audio calibrators A and B, stacked fusion, product of experts with the dev weight and with the fixed weight, fused sentiment | done |
+| ablations without events, without prosody and without both, the live condition on SenseVoice transcripts with WER and the service's ASR gate, the disagreement subset, early commit on 2 s and 4 s prefixes | done |
+| text-only sentiment | not scored in the current run, because the committed sentiment head is the fused one ([results/01_text_only.md](../results/01_text_only.md) has the text-only run) |
 
-The audio and fused conditions leave out test rows that have no cached clip. Each such row reports how many rows were left out and the text head's weighted F1 on the same rows (`text_best_k_same_rows_weighted_f1` in [results/metrics.json](../results/metrics.json)), so the comparison uses the same utterances.
+The audio and fused conditions would leave out test rows without a cached clip and report the text head on the same rows (`text_best_k_same_rows_weighted_f1` in [results/metrics.json](../results/metrics.json)). Every test row has a clip, so no row is left out.
 
-A person also listens to 50 flagged test clips and marks which branch was right and where any laughter came from (`tools/audit_disagreement.py`, [docs/runbook_laptop.md](runbook_laptop.md)). The audit needs MELD audio and has not been done.
+The stacked fusion scores 60.77 against 59.62 for the text head on gold text, a small gain in weighted F1 with overlapping intervals. Its macro F1 is lower (39.24 against 41.22), and it scores 0.00 on fear against 20.29 for the text head. On the disagreement subset it scores 49.62 against 51.44 for the text head, so the evaluation gives no support for the claim that the audio branch helps where words and tone disagree ([docs/decisions.md](decisions.md), Fusion). On SenseVoice transcripts the text head scores 42.61 and the fusion 47.05. Dropping the event and prosody inputs leaves the fused score inside the deployed fusion's interval. [RESULTS.md](../RESULTS.md) has every row.
+
+The last check is a listening audit: a person listens to 50 flagged test clips and marks which branch was right and where any laughter came from (`tools/audit_disagreement.py`, [docs/runbook_laptop.md](runbook_laptop.md)). The tool draws the sample from the cached test audio. The listening has not been done.
 
 The published rows are the MELD paper's Tables 11 and 13, EmoBERTa's Table 2 and Table 8 of the FunAudioLLM report. [PROVENANCE.md](../PROVENANCE.md) quotes what that report says about the data behind SenseVoice's emotion labels. Because MELD may be in that data, the audio-only number is never called zero-shot.
 
@@ -294,12 +297,13 @@ The container recorded an "Intel(R) Xeon(R) Processor @ 2.10GHz" with nproc 4, 1
 
 ## 1.13 Left out
 
-- Vision and the three-modality extension. There is no camera here, the video was not reachable, and picking the speaker's face in a multi-party sitcom frame is its own project.
+- Vision and the three-modality extension. There is no camera here, only the audio track of the MELD clips was used, and picking the speaker's face in a multi-party sitcom frame is its own project.
 - A reply generated by an LLM. It would be nondeterministic and slow on a CPU, and its grounding could not be unit-tested.
 - Fine-tuning RoBERTa, SenseVoice, wav2vec2 or HuBERT. It needs GPU hours or long CPU runs, and a reviewer could not rerun it in minutes.
+- A text head trained on SenseVoice transcripts of train and dev. The deployed head is trained on gold text, and the live ASR rows score it on transcripts ([RESULTS.md](../RESULTS.md)).
 - Context models that read future utterances, because the live system only has the past.
 - Arousal and valence fields. MELD has no labels to score them.
-- Reinforcement learning. MELD has no reward for a reply, and the one candidate (when to commit the label) was not built.
+- Reinforcement learning. MELD has no reward for a reply, and the one candidate (when to commit the label) was not built, although the prefix features it needs are cached.
 - A spoken reply. Piper is present but only makes the proxy clips.
 - Speaker identification. One user in front of the robot is assumed.
 
@@ -321,6 +325,8 @@ meld_rt/                   the package
 tools/
   fetch_models.py          download and verify the models, write results/provenance_hashes.json
   fetch_meld_csv.py        download the MELD CSVs into meld/
+  meld_raw_source.py       hub revision, size, sha256 and licence of MELD.Raw, results/meld_raw_source.json
+  stream_meld_raw.py       stream MELD.Raw.tar.gz through extract_audio.py without unpacking it
   extract_tokenizer.py     vocab.json and merges.txt from the spaCy wheel
   edit_sensevoice_graph.py add the encoder_out output (model_enc.int8.onnx)
   make_proxy_clips.py      Piper TTS of MELD dev text into proxy/
@@ -331,6 +337,7 @@ tools/
   evaluate.py              test conditions, results/RESULTS.md, results/metrics.json
   report_text_only.py      results/01_text_only.md
   render_results.py        RESULTS.md
+  render_demo_docs.py      the demo blocks of README.md and 1.8 from results/demo_log.jsonl
   audit_disagreement.py    sample flagged test clips for a listening audit, count the marks
   meld_stats.py            results/data_stats.md
   count_params.py          results/params.md, results/params.json
