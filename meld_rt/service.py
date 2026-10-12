@@ -132,6 +132,15 @@ class ServiceConfig:
             self.bank_path = Path(self.bank_path)
 
 
+def build_sensevoice(cfg: ServiceConfig, with_encoder_states: bool = False):
+    """the sensevoice expert as the service runs it. tools/cache_audio_features.py
+    builds its expert here too, so cached features and live ones come from one call."""
+    from meld_rt.experts.sensevoice import SenseVoiceExpert
+
+    return SenseVoiceExpert(cfg.models / cfg.sensevoice, cfg.models / cfg.sensevoice_tokens, threads=cfg.threads,
+                            with_encoder_states=with_encoder_states)
+
+
 @dataclass
 class Job:
     kind: str                         # "final" | "provisional" | "text"
@@ -549,7 +558,6 @@ class Service:
                 self._running, self._busy = None, False
 
     def _load(self) -> None:
-        from meld_rt.experts.sensevoice import SenseVoiceExpert
         from meld_rt.experts.text import TextExpert
         from meld_rt.response.selector import ResponseSelector
 
@@ -558,15 +566,14 @@ class Service:
         self.heads = self._load_heads()
         need_enc = c.encoder_states or bool(self.heads.get("audio_cal") is not None and self.heads["audio_cal"].uses_encoder_states)
         try:
-            self.sv = SenseVoiceExpert(c.models / c.sensevoice, c.models / c.sensevoice_tokens, threads=c.threads,
-                                       with_encoder_states=need_enc)
+            self.sv = build_sensevoice(c, with_encoder_states=need_enc)
         except RuntimeError as e:
             if not need_enc:
                 raise
             log.warning("encoder states unavailable (%s); running without them", e)
             if self.heads.get("audio_cal") is not None and self.heads["audio_cal"].uses_encoder_states:
                 self.heads["audio_cal"] = None
-            self.sv = SenseVoiceExpert(c.models / c.sensevoice, c.models / c.sensevoice_tokens, threads=c.threads)
+            self.sv = build_sensevoice(c)
         try:
             self.text = TextExpert(c.models / c.roberta, c.tokenizer_dir, threads=c.text_threads)
         except Exception as e:  # noqa: BLE001 - the audio path keeps working without the text expert

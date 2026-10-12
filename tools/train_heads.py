@@ -12,7 +12,8 @@ stage 2, audio and fusion: needs cache/audio_{split}.npz from tools/cache_audio_
 audio calibrator A/B, 5-fold cross-fitting by dialogue of both expert heads,
 fusion and sentiment logistic regressions over the out-of-fold posteriors,
 product-of-experts weight, jsd threshold. skipped (and said so in the manifest)
-when the caches are absent or --text-only is given.
+when the caches are absent or --text-only is given. csv rows with no cached clip
+are dropped from this stage; manifest.json audio_rows_dropped counts them per split.
 
 usage: python tools/train_heads.py --cache cache/ --out heads/ --config configs/heads.yaml [--text-only]
 """
@@ -302,21 +303,32 @@ def train_sentiment_text_only(out: Path, cfg: dict, utts: dict[str, list[Utt]], 
 
 # ---------------------------------------------------------------- stage 2: audio and fusion
 
-def load_audio_cache(cache: Path, split: str, utts: list[Utt]) -> dict | None:
+def read_audio_cache(cache: Path, split: str, utts: list[Utt]) -> tuple[dict, np.ndarray, list[str]] | None:
+    """(cache rows in csv order for the csv rows that have a cached clip, their
+    indices into utts, keys of the csv rows without one). None when the file is absent."""
     path = cache / f"audio_{split}.npz"
     if not path.exists():
         return None
     with np.load(path, allow_pickle=False) as z:
         d = {k: z[k] for k in z.files}
-    keys = [str(k) for k in d["keys"]]
+    pos = {str(k): i for i, k in enumerate(d["keys"])}
     want = [key(u) for u in utts]
-    if keys != want:
-        pos = {k: i for i, k in enumerate(keys)}
-        missing = [k for k in want if k not in pos]
-        if missing:
-            raise ValueError(f"audio_{split}.npz lacks {len(missing)} clips (first {missing[:3]})")
-        order = np.array([pos[k] for k in want])
+    keep = np.array([i for i, k in enumerate(want) if k in pos], dtype=np.int64)
+    dropped = [k for k in want if k not in pos]
+    order = np.array([pos[want[i]] for i in keep], dtype=np.int64)
+    if not np.array_equal(order, np.arange(len(d["keys"]))):
         d = {k: v[order] for k, v in d.items()}
+    return d, keep, dropped
+
+
+def load_audio_cache(cache: Path, split: str, utts: list[Utt]) -> dict | None:
+    """every csv row must have a cached clip (evaluate.py reads test this way)."""
+    r = read_audio_cache(cache, split, utts)
+    if r is None:
+        return None
+    d, _, dropped = r
+    if dropped:
+        raise ValueError(f"audio_{split}.npz lacks {len(dropped)} clips (first {dropped[:3]})")
     return d
 
 
@@ -324,6 +336,8 @@ def audio_matrix(d: dict, with_enc: bool) -> np.ndarray:
     enc = d.get("enc_pooled") if with_enc else None
     if with_enc and (enc is None or enc.shape[1] != heads.ENC_POOLED_DIM or not np.isfinite(enc).all()):
         raise ValueError("encoder states missing or malformed in the audio cache")
+    if with_enc and not enc.any():
+        raise ValueError("encoder states are all zero (cache written without --encoder-states)")
     return np.stack([heads.AudioCalibrator.features(d["emo_probs"][i], d["event_probs"][i], d["prosody"][i],
                                                     None if enc is None else enc[i]) for i in range(len(d["keys"]))])
 
@@ -337,15 +351,28 @@ def fusion_rows(logp_text: np.ndarray, logp_audio: np.ndarray, d: dict) -> np.nd
 def train_audio_stage(cache: Path, out: Path, cfg: dict, utts: dict[str, list[Utt]], emb: dict[str, np.ndarray],
                       text_sel: dict, seed: int) -> dict:
     """audio calibrator A/B, cross-fitted expert posteriors, fusion, poe weight,
-    fused sentiment, jsd threshold. runs only when cache/audio_{train,dev}.npz exist."""
+    fused sentiment, jsd threshold. runs only when cache/audio_{train,dev}.npz exist.
+    csv rows without a cached clip (missing or unreadable in MELD.Raw) are dropped
+    from this stage. text context features are still built over the full dialogues."""
     t_stage = time.perf_counter()
-    aud = {s: load_audio_cache(cache, s, utts[s]) for s in ("train", "dev")}
-    if aud["train"] is None or aud["dev"] is None:
+    loaded = {s: read_audio_cache(cache, s, utts[s]) for s in ("train", "dev")}
+    if loaded["train"] is None or loaded["dev"] is None:
         return {"status": "pending (needs MELD audio)", "needs": [str(cache / f"audio_{s}.npz") for s in ("train", "dev")]}
-    y = {s: emotion_ids(utts[s]) for s in ("train", "dev")}
-    ys = {s: sentiment_ids(utts[s]) for s in ("train", "dev")}
-    w_emo = lambda scheme: emotion_class_weights(scheme, utts["train"])  # noqa: E731
-    rep: dict = {}
+    aud = {s: loaded[s][0] for s in loaded}
+    keep = {s: loaded[s][1] for s in loaded}
+    rows = {s: {"csv": len(utts[s]), "cached": len(keep[s]), "dropped": len(loaded[s][2]), "dropped_keys": loaded[s][2][:50]}
+            for s in loaded}
+    rep: dict = {"rows": rows, "rows_dropped": {s: rows[s]["dropped"] for s in rows}}
+    for s, r in rows.items():
+        if r["dropped"]:
+            print(f"audio stage: {s} drops {r['dropped']} of {r['csv']} csv rows without a cached clip "
+                  f"(first {r['dropped_keys'][:3]})", flush=True)
+    if not all(len(keep[s]) for s in keep):
+        return {"status": "no csv row has a cached clip", **rep}
+    y = {s: emotion_ids(utts[s])[keep[s]] for s in ("train", "dev")}
+    ys = {s: sentiment_ids(utts[s])[keep[s]] for s in ("train", "dev")}
+    train_kept = [utts["train"][i] for i in keep["train"]]
+    w_emo = lambda scheme: emotion_class_weights(scheme, train_kept)  # noqa: E731
 
     # audio calibrator A (24) and B (1048), chosen on dev
     cal_heads, cal_X = {}, {}
@@ -374,9 +401,9 @@ def train_audio_stage(cache: Path, out: Path, cfg: dict, utts: dict[str, list[Ut
     # cross-fitted expert posteriors on train (never in-sample), full-train heads on dev
     k = int(text_sel["k"])
     tcfg = cfg["text_ctx"]
-    Xt = {s: text_matrix(emb[s], utts[s], k) for s in ("train", "dev")}
+    Xt = {s: text_matrix(emb[s], utts[s], k)[keep[s]] for s in ("train", "dev")}
     Xa = {"train": cal_X[best_variant][0], "dev": cal_X[best_variant][1]}
-    groups = groups_of(utts["train"])
+    groups = groups_of(train_kept)
     w = w_emo(text_sel["class_weight_scheme"])
     mlp_cfg = {**tcfg["mlp"], "learning_rate_init": text_sel.get("learning_rate_init", tcfg["mlp"]["learning_rate_init"])}
 
@@ -486,7 +513,10 @@ def main(argv: list[str] | None = None) -> int:
         "thresholds_source": thresholds.get("source"),
         "thresholds_pending": {} if thresholds.get("jsd_flag") is not None else {"jsd_flag": "needs MELD audio"},
         "dev_scores": text["dev_scores"], "selected": text["selected"], "sentiment": stages["sentiment"],
-        "audio_fusion": stages["audio_fusion"], "histories": text["histories"],
+        "audio_fusion": stages["audio_fusion"],
+        # per split, csv rows the audio stage dropped because they have no cached clip (None when the stage did not run)
+        "audio_rows_dropped": stages["audio_fusion"].get("rows_dropped"),
+        "histories": text["histories"],
         "files": {p.name: file_record(p) for p in sorted(args.out.glob("*.npz"))},
         "inputs": {str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p): file_record(p)
                    for p in [args.cache / f"text_{s}.npy" for s in ("train", "dev")] + [args.meld / f"{s}_sent_emo.csv" for s in ("train", "dev")]},

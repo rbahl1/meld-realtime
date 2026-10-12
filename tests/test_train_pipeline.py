@@ -93,7 +93,7 @@ def test_train_full_stage_and_evaluate(workspace):
     man = json.loads((out / "manifest.json").read_text())
     for name in ("text_ctx.npz", "text_ctx_k0.npz", "audio_cal_A.npz", "audio_cal_B.npz", "audio_cal.npz", "fusion.npz", "sentiment.npz"):
         assert (out / name).exists(), name
-    assert man["audio_fusion"]["status"] == "trained"
+    assert man["audio_fusion"]["status"] == "trained" and man["audio_rows_dropped"] == {"train": 0, "dev": 0}
     assert man["audio_fusion"]["cross_fit"]["folds"] == 3
     assert sum(man["audio_fusion"]["cross_fit"]["fold_sizes"]) == len(load_split("train", meld))
     assert 0.0 < man["thresholds"]["jsd_flag"] <= 1.0 and man["thresholds_pending"] == {}
@@ -126,8 +126,48 @@ def test_train_text_only_on_subset(workspace):
     assert train_heads.main(["--cache", str(cache), "--out", str(out), "--config", str(root / "heads.yaml"), "--meld", str(meld), "--text-only"]) == 0
     man = json.loads((out / "manifest.json").read_text())
     assert man["text_only"] and man["sentiment"]["variant"] == "text_only" and man["thresholds"]["jsd_flag"] is None
+    assert man["audio_rows_dropped"] is None
     assert man["thresholds_pending"] == {"jsd_flag": "needs MELD audio"}
     sent = heads.SentimentHead.load(out / "sentiment.npz")
     assert sent.variant == "text_only" and sent.input_dim == heads.TextContextHead.input_dim_for(sent.k)
     assert float(sent.params["C"]) in (0.1, 1.0)
     assert not (out / "fusion.npz").exists()
+
+
+def test_audio_stage_drops_rows_without_a_clip(workspace):
+    """MELD.Raw lacks a few clips: the audio stage trains on the rest and counts the
+    dropped rows per split. the cache rows are shuffled and its encoder states are
+    zeros (no --encoder-states), so calibrator B is skipped."""
+    root, meld, cache, _ = workspace
+    drop_cache, out = root / "cache_drop", root / "heads_drop"
+    drop_cache.mkdir()
+    rng = np.random.default_rng(1)
+    dropped = {}
+    for split, n_drop in (("train", 3), ("dev", 2)):
+        for name in (f"text_{split}.npy", f"text_{split}_keys.json"):
+            (drop_cache / name).write_bytes((cache / name).read_bytes())
+        with np.load(cache / f"audio_{split}.npz") as z:
+            d = {k: z[k] for k in z.files}
+        n = len(d["keys"])
+        gone = set(rng.choice(n, n_drop, replace=False).tolist())
+        rows = rng.permutation([i for i in range(n) if i not in gone])
+        d = {k: v[rows] for k, v in d.items()}
+        d["enc_pooled"] = np.zeros_like(d["enc_pooled"])
+        np.savez(drop_cache / f"audio_{split}.npz", **d)
+        dropped[split] = [str(k) for i, k in enumerate(np.load(cache / f"audio_{split}.npz")["keys"]) if i in gone]
+    cfg = yaml.safe_load((root / "heads.yaml").read_text())
+    cfg["text_ctx"]["grid"] = {"k": [0], "class_weight": ["none"], "learning_rate_init": [0.001]}
+    cfg["lr"]["C"] = [1]
+    (root / "heads_drop.yaml").write_text(yaml.safe_dump(cfg))
+    assert train_heads.main(["--cache", str(drop_cache), "--out", str(out), "--config", str(root / "heads_drop.yaml"),
+                             "--meld", str(meld)]) == 0
+    man = json.loads((out / "manifest.json").read_text())
+    af = man["audio_fusion"]
+    assert man["audio_rows_dropped"] == {"train": 3, "dev": 2} and af["status"] == "trained"
+    for split in ("train", "dev"):
+        assert af["rows"][split]["dropped_keys"] == dropped[split]
+        assert af["rows"][split]["cached"] == len(load_split(split, meld)) - len(dropped[split])
+    assert sum(af["cross_fit"]["fold_sizes"]) == len(load_split("train", meld)) - 3
+    assert af["audio_cal_B"]["status"].startswith("skipped") and "all zero" in af["audio_cal_B"]["status"]
+    assert af["audio_cal"]["variant"] == "A" and heads.AudioCalibrator.load(out / "audio_cal.npz").input_dim == 24
+    assert (out / "fusion.npz").exists() and man["sentiment"]["variant"] == "fused"

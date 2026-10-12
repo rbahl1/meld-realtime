@@ -73,7 +73,7 @@ def plain_state(label, direction, conf, transcript="the GR-6 system failed again
     return st
 
 
-# the draft marker on the bank's first line and the two assertions on it below go together: remove both when the bank is rewritten
+# the draft marker in bank.yaml (line 1 and the draft: key) and the two draft assertions below are removed together when the bank is rewritten
 def test_bank_shape():
     raw_text = BANK_PATH.read_text(encoding="utf-8")
     assert raw_text.splitlines()[0].strip("# ").startswith(DRAFT_MARK)
