@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+models/
+cache/
+audio/
+proxy/
+bench_clips/
+verify_dl/
+*.egg-info/
+.DS_Store
+papers/
+meld/
