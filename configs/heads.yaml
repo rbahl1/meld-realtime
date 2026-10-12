@@ -1,0 +1,52 @@
+# head training config (design 1.6, 6.2 WP4). every choice below is made on dev
+# by weighted f1; test is never read by tools/train_heads.py.
+
+seed: 0
+threads: 2
+
+text_ctx:
+  grid:
+    k: [0, 1, 2]
+    class_weight: [meld_readme, balanced, none]
+    # added after a dev-only side sweep (k=0, no weights): 0.001 peaked at epoch 0
+    # and lost about two weighted-f1 points to 0.0001; alpha in [1e-4, 1] moved
+    # dev weighted f1 by under one point, so it stays fixed
+    learning_rate_init: [0.001, 0.0003, 0.0001]
+  mlp:
+    hidden: 256
+    activation: relu
+    alpha: 0.0001          # l2 penalty, sklearn default
+    batch_size: 128
+    learning_rate_init: 0.001   # used when the grid above has no learning_rate_init
+    max_epochs: 60
+    patience: 6            # epochs without a dev weighted-f1 gain before stopping
+  criterion: weighted_f1   # macro f1 is recorded next to it
+  temperature:
+    fit_on: dev            # nll minimum over T in [0.25, 8]
+
+# logistic-regression heads (audio calibrator, fusion, sentiment): l2, lbfgs
+lr:
+  C: [0.1, 1, 10]
+  max_iter: 2000
+
+audio_cal:
+  variants: [A, B]         # A: 24 inputs (slots, events, prosody); B: + 1024 pooled encoder states
+  class_weight: [none, balanced]
+
+fusion:
+  cross_fit_folds: 5       # by dialogue; expert heads refit per fold, fusion sees out-of-fold posteriors only
+  class_weight: [none, balanced]
+  poe_weight_grid: [0.25, 0.5, 0.75, 1.0]
+
+sentiment:
+  class_weight: [none, balanced]
+
+# selector thresholds chosen on dev after temperature scaling. low_conf: the
+# smallest confidence t at which dev predictions with confidence >= t are right
+# at least target_accuracy of the time; same for high_conf. the fallbacks are the
+# design defaults, used only when the target is never reached.
+thresholds:
+  grid_step: 0.01
+  low_conf: {target_accuracy: 0.5, fallback: 0.45}
+  high_conf: {target_accuracy: 0.7, fallback: 0.70}
+  jsd_flag: {rule: dev_quantile, quantile: 0.8, pending: "needs MELD audio"}

@@ -1,0 +1,703 @@
+{
+ "command": "python tools/evaluate.py --cache cache/ --heads heads/ --out results/RESULTS.md results/metrics.json",
+ "split": "test",
+ "n_resamples": 1000,
+ "seed": 0,
+ "wall_s": 0.9,
+ "inputs": {
+  "cache/text_test.npy": {
+   "bytes": 8018048,
+   "sha256": "bd454c8e0f496e649b8e9f61a1acd098ffe478c51184a30e28185c71135e3ce7"
+  },
+  "meld/test_sent_emo.csv": {
+   "bytes": 294526,
+   "sha256": "8d37103938f7067600839fe29d5a114a6cd1bcdafb75bec101e06464c5006888"
+  },
+  "heads/sentiment.npz": {
+   "bytes": 18328,
+   "sha256": "65c6614faa7a553bf62897048bb807eb52173e4ec873a036d50903b95225b78d"
+  },
+  "heads/text_ctx.npz": {
+   "bytes": 808726,
+   "sha256": "916806bf4f0a0055e989c6e73a289441378c719b9a4fb68c0628ad652d97dd92"
+  },
+  "heads/text_ctx_k0.npz": {
+   "bytes": 808726,
+   "sha256": "916806bf4f0a0055e989c6e73a289441378c719b9a4fb68c0628ad652d97dd92"
+  }
+ },
+ "manifest": {
+  "k": 0,
+  "class_weight_scheme": "none",
+  "temperature": 1.2228,
+  "thresholds": {
+   "low_conf": 0.39,
+   "high_conf": 0.73,
+   "jsd_flag": null
+  },
+  "text_only": true,
+  "sklearn_version": "1.9.1"
+ },
+ "published": [
+  {
+   "row": "MELD paper Table 11, text-CNN, text",
+   "task": "emotion",
+   "weighted_f1": 55.02,
+   "source": "Poria et al., ACL 2019, arXiv 1810.02508, Table 11"
+  },
+  {
+   "row": "MELD paper Table 11, bcLSTM, text",
+   "task": "emotion",
+   "weighted_f1": 56.44,
+   "source": "same"
+  },
+  {
+   "row": "MELD paper Table 11, bcLSTM, audio",
+   "task": "emotion",
+   "weighted_f1": 39.08,
+   "source": "same"
+  },
+  {
+   "row": "MELD paper Table 11, bcLSTM, text+audio",
+   "task": "emotion",
+   "weighted_f1": 59.25,
+   "source": "same"
+  },
+  {
+   "row": "MELD paper Table 11, DialogueRNN, text",
+   "task": "emotion",
+   "weighted_f1": 57.03,
+   "source": "same"
+  },
+  {
+   "row": "MELD paper Table 11, DialogueRNN, audio",
+   "task": "emotion",
+   "weighted_f1": 41.79,
+   "source": "same"
+  },
+  {
+   "row": "MELD paper Table 11, DialogueRNN, text+audio",
+   "task": "emotion",
+   "weighted_f1": 60.25,
+   "source": "same"
+  },
+  {
+   "row": "EmoBERTa Table 2, RoBERTa-large, no past or future utterances",
+   "task": "emotion",
+   "weighted_f1": 63.46,
+   "source": "Kim and Vossen, arXiv 2108.12009, Table 2"
+  },
+  {
+   "row": "EmoBERTa Table 2, only past",
+   "task": "emotion",
+   "weighted_f1": 64.55,
+   "source": "same"
+  },
+  {
+   "row": "EmoBERTa Table 2, past and future",
+   "task": "emotion",
+   "weighted_f1": 65.61,
+   "source": "same"
+  },
+  {
+   "row": "EmoBERTa Table 2, without speaker names",
+   "task": "emotion",
+   "weighted_f1": 65.07,
+   "source": "same"
+  },
+  {
+   "row": "EmoBERTa Table 2, COSMIC",
+   "task": "emotion",
+   "weighted_f1": 65.21,
+   "source": "same"
+  },
+  {
+   "row": "EmoBERTa Table 2, DialogXL",
+   "task": "emotion",
+   "weighted_f1": 62.41,
+   "source": "same"
+  },
+  {
+   "row": "FunAudioLLM Table 8, SenseVoice-S on MELD, no target-domain fine-tune (WF1; UA 50.8, WA 57.8, F1 44.6)",
+   "task": "emotion",
+   "weighted_f1": 57.7,
+   "source": "arXiv 2407.04051, Table 8; the report does not list its SER training corpora, so overlap with MELD cannot be excluded"
+  },
+  {
+   "row": "FunAudioLLM Table 8, EmoBox reference row (UA 31.5, WA 51.9, F1 32.9)",
+   "task": "emotion",
+   "weighted_f1": null,
+   "source": "arXiv 2407.04051, Table 8; no WF1 given"
+  },
+  {
+   "row": "MELD paper Table 13, text-CNN, text",
+   "task": "sentiment",
+   "weighted_f1": 64.25,
+   "source": "Poria et al., ACL 2019, Table 13"
+  },
+  {
+   "row": "MELD paper Table 13, DialogueRNN, text",
+   "task": "sentiment",
+   "weighted_f1": 66.1,
+   "source": "same"
+  },
+  {
+   "row": "MELD paper Table 13, DialogueRNN, audio",
+   "task": "sentiment",
+   "weighted_f1": 49.61,
+   "source": "same"
+  },
+  {
+   "row": "MELD paper Table 13, DialogueRNN, text+audio",
+   "task": "sentiment",
+   "weighted_f1": 67.56,
+   "source": "same"
+  }
+ ],
+ "conditions": {
+  "majority": {
+   "condition": "majority",
+   "task": "emotion",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.312685,
+   "macro_f1": 0.092824,
+   "accuracy": 0.481226,
+   "per_class_f1": {
+    "neutral": 0.649767,
+    "surprise": 0.0,
+    "fear": 0.0,
+    "sadness": 0.0,
+    "joy": 0.0,
+    "disgust": 0.0,
+    "anger": 0.0
+   },
+   "confusion": [
+    [
+     1256,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     281,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     50,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     208,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     402,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     68,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     345,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.2862410841365915,
+     0.34305873831427997
+    ],
+    "macro_f1": [
+     0.08956029869885265,
+     0.09633806928766057
+    ],
+    "accuracy": [
+     0.4565815875142801,
+     0.508712611663952
+    ]
+   },
+   "ece": 0.009707,
+   "note": "train prior as posterior; label = neutral",
+   "description": "1. majority class of train (neutral) for every test utterance; posterior = train class prior",
+   "wall_s": 0.08
+  },
+  "text_k0": {
+   "condition": "text_k0",
+   "task": "emotion",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.596152,
+   "macro_f1": 0.412159,
+   "accuracy": 0.627586,
+   "per_class_f1": {
+    "neutral": 0.779349,
+    "surprise": 0.536332,
+    "fear": 0.202899,
+    "sadness": 0.24,
+    "joy": 0.54878,
+    "disgust": 0.193548,
+    "anger": 0.384201
+   },
+   "confusion": [
+    [
+     1102,
+     50,
+     2,
+     16,
+     61,
+     5,
+     20
+    ],
+    [
+     56,
+     155,
+     2,
+     2,
+     36,
+     4,
+     26
+    ],
+    [
+     18,
+     7,
+     7,
+     7,
+     6,
+     0,
+     5
+    ],
+    [
+     116,
+     12,
+     4,
+     33,
+     23,
+     0,
+     20
+    ],
+    [
+     125,
+     25,
+     1,
+     1,
+     225,
+     3,
+     22
+    ],
+    [
+     34,
+     7,
+     0,
+     2,
+     4,
+     9,
+     12
+    ],
+    [
+     121,
+     41,
+     3,
+     6,
+     63,
+     4,
+     107
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.573757113085864,
+     0.6203265207989127
+    ],
+    "macro_f1": [
+     0.38229445146031027,
+     0.4423991763356413
+    ],
+    "accuracy": [
+     0.6079719001455236,
+     0.6483566350401546
+    ]
+   },
+   "ece": 0.038314,
+   "note": "class weights none, T=1.223",
+   "description": "2. text only, k = 0 (heads/text_ctx_k0.npz, gold transcripts)",
+   "wall_s": 0.1
+  },
+  "text_best_k": {
+   "condition": "text_best_k",
+   "task": "emotion",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.596152,
+   "macro_f1": 0.412159,
+   "accuracy": 0.627586,
+   "per_class_f1": {
+    "neutral": 0.779349,
+    "surprise": 0.536332,
+    "fear": 0.202899,
+    "sadness": 0.24,
+    "joy": 0.54878,
+    "disgust": 0.193548,
+    "anger": 0.384201
+   },
+   "confusion": [
+    [
+     1102,
+     50,
+     2,
+     16,
+     61,
+     5,
+     20
+    ],
+    [
+     56,
+     155,
+     2,
+     2,
+     36,
+     4,
+     26
+    ],
+    [
+     18,
+     7,
+     7,
+     7,
+     6,
+     0,
+     5
+    ],
+    [
+     116,
+     12,
+     4,
+     33,
+     23,
+     0,
+     20
+    ],
+    [
+     125,
+     25,
+     1,
+     1,
+     225,
+     3,
+     22
+    ],
+    [
+     34,
+     7,
+     0,
+     2,
+     4,
+     9,
+     12
+    ],
+    [
+     121,
+     41,
+     3,
+     6,
+     63,
+     4,
+     107
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.573757113085864,
+     0.6203265207989127
+    ],
+    "macro_f1": [
+     0.38229445146031027,
+     0.4423991763356413
+    ],
+    "accuracy": [
+     0.6079719001455236,
+     0.6483566350401546
+    ]
+   },
+   "ece": 0.038314,
+   "note": "k=0, class weights none, T=1.223",
+   "description": "2. text only, best k on dev, full-dialogue window (heads/text_ctx.npz)",
+   "wall_s": 0.07
+  },
+  "text_runtime_regime": {
+   "condition": "text_runtime_regime",
+   "task": "emotion",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.59611,
+   "macro_f1": 0.408217,
+   "accuracy": 0.628736,
+   "per_class_f1": {
+    "neutral": 0.780127,
+    "surprise": 0.538194,
+    "fear": 0.202899,
+    "sadness": 0.245487,
+    "joy": 0.54921,
+    "disgust": 0.159091,
+    "anger": 0.382514
+   },
+   "confusion": [
+    [
+     1107,
+     48,
+     2,
+     15,
+     61,
+     5,
+     18
+    ],
+    [
+     56,
+     155,
+     2,
+     2,
+     38,
+     3,
+     25
+    ],
+    [
+     18,
+     7,
+     7,
+     7,
+     6,
+     0,
+     5
+    ],
+    [
+     118,
+     11,
+     4,
+     34,
+     22,
+     0,
+     19
+    ],
+    [
+     126,
+     25,
+     1,
+     1,
+     226,
+     2,
+     21
+    ],
+    [
+     35,
+     6,
+     0,
+     4,
+     5,
+     7,
+     11
+    ],
+    [
+     122,
+     43,
+     3,
+     6,
+     63,
+     3,
+     105
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.5735857034812624,
+     0.6208471347008343
+    ],
+    "macro_f1": [
+     0.37920288161666127,
+     0.4399102524325968
+    ],
+    "accuracy": [
+     0.608759939665998,
+     0.6495248537147585
+    ]
+   },
+   "ece": 0.035441,
+   "note": "same head as text_best_k, same-speaker window (k=0: differs from text_best_k only through the turn-index flags)",
+   "description": "2. text only, best k, runtime-regime window: same-speaker previous utterances only, flags 1",
+   "wall_s": 0.12
+  },
+  "audio_raw_tag": {
+   "condition": "audio_raw_tag",
+   "task": "emotion",
+   "status": "pending (needs MELD audio)",
+   "description": "3. audio only, raw sensevoice tag: argmax over the seven named tokens",
+   "wall_s": 0.0
+  },
+  "audio_cal_A": {
+   "condition": "audio_cal_A",
+   "task": "emotion",
+   "status": "pending (needs MELD audio)",
+   "description": "4. audio only, AudioCalibrator A (slots + events + prosody)",
+   "wall_s": 0.0
+  },
+  "audio_cal_B": {
+   "condition": "audio_cal_B",
+   "task": "emotion",
+   "status": "pending (needs MELD audio)",
+   "description": "4. audio only, AudioCalibrator B (+ encoder states)",
+   "wall_s": 0.0
+  },
+  "fused_stacked": {
+   "condition": "fused_stacked",
+   "task": "emotion",
+   "status": "pending (needs MELD audio)",
+   "description": "5. fused, stacked logistic regression (deployed)",
+   "wall_s": 0.0
+  },
+  "fused_poe": {
+   "condition": "fused_poe",
+   "task": "emotion",
+   "status": "pending (needs MELD audio)",
+   "description": "5. fused, product of experts with the dev-chosen weight",
+   "wall_s": 0.0
+  },
+  "fused_poe_uncalibrated": {
+   "condition": "fused_poe_uncalibrated",
+   "task": "emotion",
+   "status": "pending (needs MELD audio)",
+   "description": "5. fused, fixed poe_uncalibrated fallback (w = 0.5)",
+   "wall_s": 0.0
+  },
+  "ablation_no_events": {
+   "condition": "ablation_no_events",
+   "task": "emotion",
+   "status": "pending (needs MELD audio); also needs the ablation heads of experiment 02",
+   "description": "6. fused without event features",
+   "wall_s": 0.0
+  },
+  "ablation_no_prosody": {
+   "condition": "ablation_no_prosody",
+   "task": "emotion",
+   "status": "pending (needs MELD audio); also needs the ablation heads of experiment 02",
+   "description": "6. fused without prosody",
+   "wall_s": 0.0
+  },
+  "ablation_no_events_no_prosody": {
+   "condition": "ablation_no_events_no_prosody",
+   "task": "emotion",
+   "status": "pending (needs MELD audio); also needs the ablation heads of experiment 02",
+   "description": "6. fused without events and prosody",
+   "wall_s": 0.0
+  },
+  "live_asr_text": {
+   "condition": "live_asr_text",
+   "task": "emotion",
+   "status": "pending (needs MELD audio); also needs cache/text_asr_test.npy (embed_text.py on the sensevoice transcripts)",
+   "description": "7. fused with sensevoice transcripts instead of gold text, plus WER",
+   "wall_s": 0.0
+  },
+  "disagreement_subset": {
+   "condition": "disagreement_subset",
+   "task": "emotion",
+   "status": "pending (needs MELD audio); needs the jsd threshold chosen on dev with audio",
+   "description": "8. utterances with jsd above the dev threshold: size, per-branch accuracy, fused gain",
+   "wall_s": 0.0
+  },
+  "early_commit": {
+   "condition": "early_commit",
+   "task": "emotion",
+   "status": "pending (needs MELD audio); needs the _p2/_p4 prefix features of cache/audio_test.npz",
+   "description": "9. audio-only and fused label on 2 s and 4 s prefixes versus the full clip",
+   "wall_s": 0.0
+  },
+  "sentiment_text_only": {
+   "condition": "sentiment_text_only",
+   "task": "sentiment",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.662397,
+   "macro_f1": 0.63333,
+   "accuracy": 0.66705,
+   "per_class_f1": {
+    "neutral": 0.758595,
+    "positive": 0.56,
+    "negative": 0.581395
+   },
+   "confusion": [
+    [
+     1004,
+     87,
+     165
+    ],
+    [
+     134,
+     287,
+     100
+    ],
+    [
+     253,
+     130,
+     450
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.6441346341359375,
+     0.6820380288739826
+    ],
+    "macro_f1": [
+     0.6115184595372989,
+     0.655145262616964
+    ],
+    "accuracy": [
+     0.6485973257050596,
+     0.6854004739336492
+    ]
+   },
+   "ece": 0.020414,
+   "note": "k=0, C=0.1, T=1.420",
+   "description": "10. sentiment, text-only head (logistic regression over the text context features)",
+   "wall_s": 0.11
+  },
+  "sentiment_fused": {
+   "condition": "sentiment_fused",
+   "task": "sentiment",
+   "status": "pending (needs MELD audio)",
+   "description": "10. sentiment, fused head over the 19 fusion features",
+   "wall_s": 0.0
+  }
+ }
+}
