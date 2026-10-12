@@ -1,0 +1,179 @@
+# draft: every line to be edited by me before submission
+# reply bank (design 1.9). cells are "<fused label>|<discrepancy direction>";
+# direction mixed shares the none cell. styles: acknowledge, ask, name_the_gap.
+# rules: at most 12 words, slot templates at most 8 words, first person,
+# no exclamation marks, no emoji, no therapy-speak. {keyphrase} is filled from
+# the transcript. a name_the_gap line says what the words and the tone
+# disagree about.
+draft: every line to be edited by me before submission
+
+cells:
+  "neutral|none":
+    - {id: neutral_none_01, style: acknowledge, text: "Okay. I am with you so far."}
+    - {id: neutral_none_02, style: acknowledge, text: "So this is about {keyphrase}. Okay."}
+    - {id: neutral_none_03, style: ask, text: "Tell me more about {keyphrase}."}
+    - {id: neutral_none_04, style: ask, text: "What happens next with that?"}
+  "neutral|tone_more_negative":
+    - {id: neutral_neg_01, style: acknowledge, text: "The words are plain, but your voice sounds a little heavy."}
+    - {id: neutral_neg_02, style: name_the_gap, text: "You describe {keyphrase} flatly, but your voice drops."}
+    - {id: neutral_neg_03, style: name_the_gap, text: "Your words stay neutral. Your tone does not."}
+    - {id: neutral_neg_04, style: ask, text: "Something in your voice sounds lower than the words. What is it?"}
+  "neutral|tone_more_positive":
+    - {id: neutral_pos_01, style: acknowledge, text: "You sound lighter than the words suggest."}
+    - {id: neutral_pos_02, style: name_the_gap, text: "The words are plain, but there is a lift in your voice."}
+    - {id: neutral_pos_03, style: name_the_gap, text: "You mention {keyphrase} evenly, yet you sound pleased."}
+    - {id: neutral_pos_04, style: ask, text: "You sound almost pleased about {keyphrase}. Are you?"}
+  "neutral|tone_surprised":
+    - {id: neutral_surp_01, style: acknowledge, text: "That seemed to catch you off guard."}
+    - {id: neutral_surp_02, style: name_the_gap, text: "The words are matter of fact, but your voice sounds surprised."}
+    - {id: neutral_surp_03, style: name_the_gap, text: "You call {keyphrase} nothing, but you sound surprised."}
+    - {id: neutral_surp_04, style: ask, text: "Did you expect that to happen?"}
+
+  "surprise|none":
+    - {id: surprise_none_01, style: acknowledge, text: "That was not what you expected, by the sound of it."}
+    - {id: surprise_none_02, style: acknowledge, text: "Right, {keyphrase} came out of nowhere."}
+    - {id: surprise_none_03, style: ask, text: "What surprised you most about {keyphrase}?"}
+    - {id: surprise_none_04, style: ask, text: "Was that a good surprise or a bad one?"}
+  "surprise|tone_more_negative":
+    - {id: surprise_neg_01, style: acknowledge, text: "A surprise, and not a welcome one, from your voice."}
+    - {id: surprise_neg_02, style: name_the_gap, text: "The words say surprise. Your voice says something worse."}
+    - {id: surprise_neg_03, style: name_the_gap, text: "You call {keyphrase} a surprise. You sound unsettled."}
+    - {id: surprise_neg_04, style: ask, text: "Your voice sounds more worried than surprised. Is that right?"}
+  "surprise|tone_more_positive":
+    - {id: surprise_pos_01, style: acknowledge, text: "A surprise, and a good one, by the sound of it."}
+    - {id: surprise_pos_02, style: name_the_gap, text: "The words are surprised, but you sound glad about it."}
+    - {id: surprise_pos_03, style: name_the_gap, text: "The words shrug at {keyphrase}. Your voice smiles."}
+    - {id: surprise_pos_04, style: ask, text: "You sound pleased. Was that a good surprise?"}
+  "surprise|tone_surprised":
+    - {id: surprise_surp_01, style: acknowledge, text: "I can hear the surprise in your voice."}
+    - {id: surprise_surp_02, style: name_the_gap, text: "The words barely say it, but your voice is startled."}
+    - {id: surprise_surp_03, style: name_the_gap, text: "You mention {keyphrase} quietly, but you sound startled."}
+    - {id: surprise_surp_04, style: ask, text: "What was it about {keyphrase} that threw you?"}
+
+  "fear|none":
+    - {id: fear_none_01, style: acknowledge, text: "That sounds frightening, from the words and the voice."}
+    - {id: fear_none_02, style: acknowledge, text: "I can tell {keyphrase} worries you."}
+    - {id: fear_none_03, style: ask, text: "What is the worst case you are picturing?"}
+    - {id: fear_none_04, style: ask, text: "What about {keyphrase} scares you most?"}
+  "fear|tone_more_negative":
+    - {id: fear_neg_01, style: acknowledge, text: "You sound more scared than you are saying."}
+    - {id: fear_neg_02, style: name_the_gap, text: "The words are careful. Your voice is shaking a little."}
+    - {id: fear_neg_03, style: name_the_gap, text: "Calm words about {keyphrase}, but a tight voice."}
+    - {id: fear_neg_04, style: ask, text: "Your voice sounds tenser than the words. How bad is it?"}
+  "fear|tone_more_positive":
+    - {id: fear_pos_01, style: acknowledge, text: "The worry is in the words, but your voice sounds steady."}
+    - {id: fear_pos_02, style: name_the_gap, text: "You say you are scared, but you sound fairly calm."}
+    - {id: fear_pos_03, style: name_the_gap, text: "The words fear {keyphrase}. Your voice sounds settled."}
+    - {id: fear_pos_04, style: ask, text: "You sound calmer than the words. Is it already over?"}
+  "fear|tone_surprised":
+    - {id: fear_surp_01, style: acknowledge, text: "That sounds like a shock as much as a fear."}
+    - {id: fear_surp_02, style: name_the_gap, text: "The words say worry. Your voice says this was unexpected."}
+    - {id: fear_surp_03, style: name_the_gap, text: "Your words expected {keyphrase}. Your voice did not."}
+    - {id: fear_surp_04, style: ask, text: "Did this come out of nowhere?"}
+
+  "sadness|none":
+    - {id: sadness_none_01, style: acknowledge, text: "That sounds hard, in the words and the voice."}
+    - {id: sadness_none_02, style: acknowledge, text: "I can hear {keyphrase} weighs on you."}
+    - {id: sadness_none_03, style: ask, text: "Do you want to say more about {keyphrase}?"}
+    - {id: sadness_none_04, style: ask, text: "How long has it been like this?"}
+  "sadness|tone_more_negative":
+    - {id: sadness_neg_01, style: acknowledge, text: "The words play it down. Your voice does not."}
+    - {id: sadness_neg_02, style: name_the_gap, text: "You say it is fine. You sound sad."}
+    - {id: sadness_neg_03, style: name_the_gap, text: "You mention {keyphrase} lightly, but your voice sinks."}
+    - {id: sadness_neg_04, style: ask, text: "Your voice sounds heavier than the words. What is underneath?"}
+  "sadness|tone_more_positive":
+    - {id: sadness_pos_01, style: acknowledge, text: "Sad words, but your voice sounds steadier than that."}
+    - {id: sadness_pos_02, style: name_the_gap, text: "The words are sad, but you sound almost relieved."}
+    - {id: sadness_pos_03, style: name_the_gap, text: "Your words grieve {keyphrase}. Your voice sounds lighter."}
+    - {id: sadness_pos_04, style: ask, text: "You sound lighter than the words. Is something easing?"}
+  "sadness|tone_surprised":
+    - {id: sadness_surp_01, style: acknowledge, text: "That sounds like a loss you did not see coming."}
+    - {id: sadness_surp_02, style: name_the_gap, text: "The words are sad. Your voice sounds caught off guard."}
+    - {id: sadness_surp_03, style: name_the_gap, text: "Words saw {keyphrase} coming. The voice did not."}
+    - {id: sadness_surp_04, style: ask, text: "Was that sudden?"}
+
+  "joy|none":
+    - {id: joy_none_01, style: acknowledge, text: "That sounds like good news, in the words and the voice."}
+    - {id: joy_none_02, style: acknowledge, text: "You sound glad about {keyphrase}."}
+    - {id: joy_none_03, style: ask, text: "What was the best part of {keyphrase}?"}
+    - {id: joy_none_04, style: ask, text: "What happens now that it worked out?"}
+  "joy|tone_more_negative":
+    - {id: joy_neg_01, style: acknowledge, text: "Happy words, but your voice sounds flatter than that."}
+    - {id: joy_neg_02, style: name_the_gap, text: "You say it went well. You do not sound like it."}
+    - {id: joy_neg_03, style: name_the_gap, text: "The words call {keyphrase} good. The voice disagrees."}
+    - {id: joy_neg_04, style: ask, text: "The words are glad, the voice is not. What is off?"}
+  "joy|tone_more_positive":
+    - {id: joy_pos_01, style: acknowledge, text: "You sound even happier than you are letting on."}
+    - {id: joy_pos_02, style: name_the_gap, text: "The words are modest, but your voice is beaming."}
+    - {id: joy_pos_03, style: name_the_gap, text: "You play down {keyphrase}. Your voice does not."}
+    - {id: joy_pos_04, style: ask, text: "You sound thrilled. What are you not saying?"}
+  "joy|tone_surprised":
+    - {id: joy_surp_01, style: acknowledge, text: "That sounds like a happy surprise."}
+    - {id: joy_surp_02, style: name_the_gap, text: "The words are pleased, but your voice sounds startled too."}
+    - {id: joy_surp_03, style: name_the_gap, text: "Your words expected {keyphrase}. Your voice sounds startled."}
+    - {id: joy_surp_04, style: ask, text: "Was that better than you expected?"}
+
+  "disgust|none":
+    - {id: disgust_none_01, style: acknowledge, text: "That clearly put you off, in words and tone."}
+    - {id: disgust_none_02, style: acknowledge, text: "You have had enough of {keyphrase}."}
+    - {id: disgust_none_03, style: ask, text: "What about {keyphrase} bothers you most?"}
+    - {id: disgust_none_04, style: ask, text: "Was it always this bad?"}
+  "disgust|tone_more_negative":
+    - {id: disgust_neg_01, style: acknowledge, text: "The words are measured. Your voice is not."}
+    - {id: disgust_neg_02, style: name_the_gap, text: "You describe it politely, but your voice is sour."}
+    - {id: disgust_neg_03, style: name_the_gap, text: "Polite words about {keyphrase}, but a sour voice."}
+    - {id: disgust_neg_04, style: ask, text: "You sound more fed up than the words say. How much?"}
+  "disgust|tone_more_positive":
+    - {id: disgust_pos_01, style: acknowledge, text: "Sharp words, but your voice sounds almost amused."}
+    - {id: disgust_pos_02, style: name_the_gap, text: "The words are disgusted, but you sound entertained by it."}
+    - {id: disgust_pos_03, style: name_the_gap, text: "Your words reject {keyphrase}. Your voice is amused."}
+    - {id: disgust_pos_04, style: ask, text: "Are you joking about {keyphrase}, or serious?"}
+  "disgust|tone_surprised":
+    - {id: disgust_surp_01, style: acknowledge, text: "That sounds like it caught you off guard and put you off."}
+    - {id: disgust_surp_02, style: name_the_gap, text: "The words are disgusted. Your voice sounds surprised by it."}
+    - {id: disgust_surp_03, style: name_the_gap, text: "Words expected {keyphrase}. The voice sounds startled."}
+    - {id: disgust_surp_04, style: ask, text: "Did you expect it to be that bad?"}
+
+  "anger|none":
+    - {id: anger_none_01, style: acknowledge, text: "You sound angry, and the words match."}
+    - {id: anger_none_02, style: acknowledge, text: "I can hear how angry {keyphrase} made you."}
+    - {id: anger_none_03, style: ask, text: "What about {keyphrase} crossed the line?"}
+    - {id: anger_none_04, style: ask, text: "Who or what set this off?"}
+  "anger|tone_more_negative":
+    - {id: anger_neg_01, style: acknowledge, text: "The words hold back. Your voice does not."}
+    - {id: anger_neg_02, style: name_the_gap, text: "You say it is fine, but your voice is sharp."}
+    - {id: anger_neg_03, style: name_the_gap, text: "Calm words about {keyphrase}, but an angry voice."}
+    - {id: anger_neg_04, style: ask, text: "Your voice sounds angrier than the words. What is going on?"}
+  "anger|tone_more_positive":
+    - {id: anger_pos_01, style: acknowledge, text: "Angry words, but your voice sounds lighter than that."}
+    - {id: anger_pos_02, style: name_the_gap, text: "The words are furious, but you sound almost amused."}
+    - {id: anger_pos_03, style: name_the_gap, text: "Your words attack {keyphrase}. Your voice stays light."}
+    - {id: anger_pos_04, style: ask, text: "Are you angry about {keyphrase}, or past it?"}
+  "anger|tone_surprised":
+    - {id: anger_surp_01, style: acknowledge, text: "That sounds like anger that arrived suddenly."}
+    - {id: anger_surp_02, style: name_the_gap, text: "The words are angry. Your voice sounds blindsided."}
+    - {id: anger_surp_03, style: name_the_gap, text: "Your words blame {keyphrase}. Your voice sounds stunned."}
+    - {id: anger_surp_04, style: ask, text: "Did that come out of nowhere?"}
+
+# no emotion claim; used when fused confidence is below low_conf
+hold_back:
+  - {id: hold_back_01, text: "Go on, I am listening."}
+  - {id: hold_back_02, text: "Say a bit more about that."}
+  - {id: hold_back_03, text: "I am not sure I follow yet. Keep going."}
+  - {id: hold_back_04, text: "Take your time."}
+  - {id: hold_back_05, text: "I am still here."}
+  - {id: hold_back_06, text: "Tell me the rest."}
+
+# the "did not catch that" response of design 1.4 (style hold_back)
+asr_failed:
+  - {id: asr_failed_01, text: "I did not catch that. Could you say it again?"}
+  - {id: asr_failed_02, text: "Sorry, I missed that. Once more?"}
+
+# prepended when laughter or cry exceeds 0.5
+event_prefix:
+  laughter:
+    - "I heard you laugh."
+    - "That got a laugh."
+  cry:
+    - "Your voice is breaking a little."
+    - "I heard that catch in your voice."
