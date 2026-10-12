@@ -4,7 +4,7 @@ Rendered by `python tools/render_measurements.py --out results/measurements.md` 
 
 ## Host that rendered this file
 
-- host `vm`, rendered 2026-10-12T20:58:14Z, commit `4cff1a19d70d (main)`
+- host `vm`, rendered 2026-10-12T22:14:21Z, commit `abe5b3e7c2b1 (main)`
 - CPU (lscpu): Intel(R) Xeon(R) Processor @ 2.10GHz
 - nproc: 4
 - flags of interest: avx2 yes, fma yes, avx512f yes, avx512bw yes, avx512_vnni yes, amx_tile yes, amx_int8 yes, amx_bf16 yes
@@ -13,7 +13,7 @@ Rendered by `python tools/render_measurements.py --out results/measurements.md` 
 
 ```
 total        used        free      shared  buff/cache   available
-Mem:           16093        1056       10895          15        4470       15036
+Mem:           16093         767       11049          15        4607       15325
 Swap:              0           0           0
 ```
 
@@ -111,7 +111,7 @@ Machine recorded by the bench: Intel(R) Xeon(R) Processor @ 2.10GHz, nproc 4, Me
 
 ### Replay bench (`replay_bench_vm.json`, written by `tools/replay_bench.py`)
 
-Generated 2026-10-12T20:38:11Z on `vm` by `python tools/replay_bench.py --clips proxy/*.wav --n 20 --realtime --out results/replay_bench_vm.json`.
+Generated 2026-10-12T20:38:11Z on `vm` by `python tools/replay_bench.py --clips proxy/*.wav --n 20 --realtime --out results/replay_bench_vm.json`. The clip attribution was recomputed from the stored utterances and clip spans at 2026-10-12T22:08:04Z by `python tools/replay_bench.py --reattribute results/replay_bench_vm.json results/replay_bench_vm_long.json results/replay_bench_vm_meld.json`. The latencies were not touched.
 
 - Clips: 20 from `proxy` (duration p50 2.58 s, max 5.00 s), streamed at real-time pace on one stream with 1.0 s of silence after each clip. Before the measured run, the first clip was streamed once on a separate stream as a warm-up. Streaming the 73.536 s of audio took 73.504 s.
 - Service: 4 SenseVoice threads, 2 RoBERTa threads, endpoint silence 500 ms, provisionals at 1.0 Hz over a 4.0 s window, fusion mode `auto` resolved to `stacked`, head files in `heads/`: audio_cal.npz, audio_cal_A.npz, audio_cal_B.npz, fusion.npz, sentiment.npz, text_ctx.npz, text_ctx_k0.npz. The finals report `fused.mode` `stacked` (20).
@@ -133,10 +133,10 @@ Generated 2026-10-12T20:38:11Z on `vm` by `python tools/replay_bench.py --clips 
 |---|---|---|
 | reply text within 5.0 ms of the final state (p95) | p50 0.180, p95 0.420, max 0.800 ms over 20 replies | pass |
 | provisionals at 1 Hz during the first 4 s of speech | full-window gap p50 1.020 s (n 24), tail-window gap p50 - s (n 0), full-to-tail switch gap p50 1.020 s, first provisional 1.020 s after speech start, 44 full + 7 tail provisionals, 14/14 utterances over 1.5 s got one, dropped 0, provisional SenseVoice p50 72.4 ms | pass |
-| sustained compute below 0.3 s per second of audio | worker 0.108 s per audio s (0.151 per speech s); whole process 0.504 cpu s per audio s, cpu % sampled mean 49.5 max 296.9 | pass |
+| sustained compute below 0.3 s per second of audio | worker 0.108 s per audio s (0.151 per speech s), whole process 0.504 cpu s per audio s, cpu % sampled mean 49.5 max 296.9 | pass |
 | memory | rss 1117.5 MB after load, peak 1187.7 MB during the run (service + client + monitor in one process) | - |
-| worker lag | max health queue_s 0.334 s; degraded finals 0, empty transcripts 0 | - |
-| clip attribution (t_media_end within [media_start, media_end + 0.25 s]) | clips without a final: none; clips split into several finals: none; finals outside every clip span: none | - |
+| worker lag | max health queue_s 0.334 s, degraded finals 0, empty transcripts 0 | - |
+| clip attribution (t_media_end within [media_start, next clip's media_start)) | Clips without a final: none. Clips split into several finals: none. Finals outside every clip span: none. No final ends after the end of its clip. | - |
 
 Definitions:
 
@@ -144,12 +144,12 @@ Definitions:
 - Client-side latency is the monitor's arrival time minus the capture time of the endpoint frame. It is valid because client and monitor run on one host.
 - Endpoint to response runs from the arrival of the endpoint frame to the emission of the response.
 - The service, the replay client and the monitor run in one process, so RSS and CPU include all three.
-- A final belongs to the clip whose media span holds its `t_media_end`, the time the speech stopped (rule: `t_media_end within [media_start, media_end + 0.25 s]`). The segment start is not used because it carries the VAD pre-roll.
+- A final belongs to the clip whose span holds its `t_media_end`, the time the speech stopped (rule: `t_media_end within [media_start, next clip's media_start)`). A span runs from the start of a clip to the start of the next one, so it includes the silence streamed after the clip. The segment start is not used because it carries the VAD pre-roll.
 - The proxy clips are Piper TTS of MELD dev text. Their latencies are real. Their emotion labels are not a result.
 
 ### Replay bench (`replay_bench_vm_long.json`, written by `tools/replay_bench.py`)
 
-Generated 2026-10-12T20:40:50Z on `vm` by `python tools/replay_bench.py --clips bench_clips/long/*.wav --n 0 --repeat 3 --realtime --out results/replay_bench_vm_long.json`.
+Generated 2026-10-12T20:40:50Z on `vm` by `python tools/replay_bench.py --clips bench_clips/long/*.wav --n 0 --repeat 3 --realtime --out results/replay_bench_vm_long.json`. The clip attribution was recomputed from the stored utterances and clip spans at 2026-10-12T22:08:04Z by `python tools/replay_bench.py --reattribute results/replay_bench_vm.json results/replay_bench_vm_long.json results/replay_bench_vm_meld.json`. The latencies were not touched.
 
 - Clips: 12 from `bench_clips/long` (duration p50 10.50 s, max 15.00 s), streamed at real-time pace on one stream with 1.0 s of silence after each clip. Before the measured run, the first clip was streamed once on a separate stream as a warm-up. Streaming the 138.432 s of audio took 138.4 s.
 - Service: 4 SenseVoice threads, 2 RoBERTa threads, endpoint silence 500 ms, provisionals at 1.0 Hz over a 4.0 s window, fusion mode `auto` resolved to `stacked`, head files in `heads/`: audio_cal.npz, audio_cal_A.npz, audio_cal_B.npz, fusion.npz, sentiment.npz, text_ctx.npz, text_ctx_k0.npz. The finals report `fused.mode` `stacked` (12).
@@ -171,10 +171,10 @@ Generated 2026-10-12T20:40:50Z on `vm` by `python tools/replay_bench.py --clips 
 |---|---|---|
 | reply text within 5.0 ms of the final state (p95) | p50 0.200, p95 0.280, max 0.290 ms over 12 replies | pass |
 | provisionals at 1 Hz during the first 4 s of speech | full-window gap p50 1.020 s (n 24), tail-window gap p50 2.020 s (n 36), full-to-tail switch gap p50 1.020 s, first provisional 1.020 s after speech start, 36 full + 48 tail provisionals, 12/12 utterances over 1.5 s got one, dropped 0, provisional SenseVoice p50 116.8 ms | pass |
-| sustained compute below 0.3 s per second of audio | worker 0.102 s per audio s (0.113 per speech s); whole process 0.468 cpu s per audio s, cpu % sampled mean 46.1 max 325.7 | pass |
+| sustained compute below 0.3 s per second of audio | worker 0.102 s per audio s (0.113 per speech s), whole process 0.468 cpu s per audio s, cpu % sampled mean 46.1 max 325.7 | pass |
 | memory | rss 1117.2 MB after load, peak 1204.4 MB during the run (service + client + monitor in one process) | - |
-| worker lag | max health queue_s 0.425 s; degraded finals 0, empty transcripts 0 | - |
-| clip attribution (t_media_end within [media_start, media_end + 0.25 s]) | clips without a final: none; clips split into several finals: none; finals outside every clip span: none | - |
+| worker lag | max health queue_s 0.425 s, degraded finals 0, empty transcripts 0 | - |
+| clip attribution (t_media_end within [media_start, next clip's media_start)) | Clips without a final: none. Clips split into several finals: none. Finals outside every clip span: none. 9 of the 12 finals end after the end of their clip, by up to 0.032 s. | - |
 
 Definitions:
 
@@ -182,12 +182,12 @@ Definitions:
 - Client-side latency is the monitor's arrival time minus the capture time of the endpoint frame. It is valid because client and monitor run on one host.
 - Endpoint to response runs from the arrival of the endpoint frame to the emission of the response.
 - The service, the replay client and the monitor run in one process, so RSS and CPU include all three.
-- A final belongs to the clip whose media span holds its `t_media_end`, the time the speech stopped (rule: `t_media_end within [media_start, media_end + 0.25 s]`). The segment start is not used because it carries the VAD pre-roll.
+- A final belongs to the clip whose span holds its `t_media_end`, the time the speech stopped (rule: `t_media_end within [media_start, next clip's media_start)`). A span runs from the start of a clip to the start of the next one, so it includes the silence streamed after the clip. The segment start is not used because it carries the VAD pre-roll.
 - The clips are cut and tiled from `models/sensevoice/test_wavs/en.wav` by `tools/bench_components.py`.
 
 ### Replay bench (`replay_bench_vm_meld.json`, written by `tools/replay_bench.py`)
 
-Generated 2026-10-12T20:56:04Z on `vm` by `python tools/replay_bench.py --clips audio/test/*.wav --n 200 --realtime --out results/replay_bench_vm_meld.json`.
+Generated 2026-10-12T20:56:04Z on `vm` by `python tools/replay_bench.py --clips audio/test/*.wav --n 200 --realtime --out results/replay_bench_vm_meld.json`. The clip attribution was recomputed from the stored utterances and clip spans at 2026-10-12T22:08:04Z by `python tools/replay_bench.py --reattribute results/replay_bench_vm.json results/replay_bench_vm_long.json results/replay_bench_vm_meld.json`. The latencies were not touched.
 
 - Clips: 200 from `audio/test` (duration p50 2.75 s, max 16.06 s), streamed at real-time pace on one stream with 1.0 s of silence after each clip. Before the measured run, the first clip was streamed once on a separate stream as a warm-up. Streaming the 903.424 s of audio took 903.392 s.
 - Service: 4 SenseVoice threads, 2 RoBERTa threads, endpoint silence 500 ms, provisionals at 1.0 Hz over a 4.0 s window, fusion mode `auto` resolved to `stacked`, head files in `heads/`: audio_cal.npz, audio_cal_A.npz, audio_cal_B.npz, fusion.npz, sentiment.npz, text_ctx.npz, text_ctx_k0.npz. The finals report `fused.mode` `stacked` (201).
@@ -209,10 +209,10 @@ Generated 2026-10-12T20:56:04Z on `vm` by `python tools/replay_bench.py --clips 
 |---|---|---|
 | reply text within 5.0 ms of the final state (p95) | p50 0.170, p95 0.350, max 0.590 ms over 201 replies | pass |
 | provisionals at 1 Hz during the first 4 s of speech | full-window gap p50 1.020 s (n 259), tail-window gap p50 2.020 s (n 59), full-to-tail switch gap p50 1.020 s, first provisional 1.020 s after speech start, 458 full + 119 tail provisionals, 154/154 utterances over 1.5 s got one, dropped 0, provisional SenseVoice p50 79.9 ms | pass |
-| sustained compute below 0.3 s per second of audio | worker 0.099 s per audio s (0.128 per speech s); whole process 0.458 cpu s per audio s, cpu % sampled mean 45.6 max 331.5 | pass |
+| sustained compute below 0.3 s per second of audio | worker 0.099 s per audio s (0.128 per speech s), whole process 0.458 cpu s per audio s, cpu % sampled mean 45.6 max 331.5 | pass |
 | memory | rss 1137.4 MB after load, peak 1262.1 MB during the run (service + client + monitor in one process) | - |
-| worker lag | max health queue_s 0.378 s; degraded finals 2, empty transcripts 0 | - |
-| clip attribution (t_media_end within [media_start, media_end + 0.25 s]) | clips without a final: ['dia0_utt0.wav#0', 'dia0_utt2.wav#2', 'dia100_utt10.wav#5', 'dia100_utt11.wav#6', 'dia100_utt17.wav#12', 'dia100_utt18.wav#13', 'dia100_utt19.wav#14', 'dia100_utt3.wav#16', 'dia100_utt5.wav#18', 'dia100_utt6.wav#19', 'dia100_utt7.wav#20', 'dia100_utt8.wav#21', 'dia101_utt1.wav#24', 'dia102_utt2.wav#29', 'dia102_utt3.wav#30', 'dia102_utt4.wav#31', 'dia102_utt6.wav#33', 'dia102_utt7.wav#34', 'dia102_utt8.wav#35', 'dia102_utt9.wav#36', 'dia103_utt1.wav#38', 'dia105_utt0.wav#46', 'dia105_utt1.wav#47', 'dia105_utt2.wav#48', 'dia106_utt0.wav#49', 'dia106_utt1.wav#50', 'dia106_utt2.wav#51', 'dia107_utt1.wav#54', 'dia107_utt12.wav#57', 'dia107_utt2.wav#58', 'dia107_utt3.wav#59', 'dia107_utt5.wav#61', 'dia107_utt6.wav#62', 'dia107_utt7.wav#63', 'dia107_utt8.wav#64', 'dia108_utt3.wav#67', 'dia108_utt4.wav#68', 'dia108_utt6.wav#70', 'dia108_utt7.wav#71', 'dia108_utt8.wav#72', 'dia108_utt9.wav#73', 'dia109_utt0.wav#74', 'dia109_utt4.wav#78', 'dia109_utt5.wav#79', 'dia109_utt6.wav#80', 'dia110_utt0.wav#86', 'dia110_utt2.wav#88', 'dia110_utt3.wav#89', 'dia110_utt4.wav#90', 'dia110_utt5.wav#91', 'dia110_utt7.wav#93', 'dia110_utt8.wav#94', 'dia111_utt11.wav#98', 'dia111_utt12.wav#99', 'dia111_utt13.wav#100', 'dia111_utt14.wav#101', 'dia111_utt2.wav#102', 'dia111_utt5.wav#105', 'dia111_utt8.wav#108', 'dia113_utt14.wav#138', 'dia113_utt6.wav#145', 'dia114_utt2.wav#151', 'dia116_utt0.wav#161', 'dia116_utt1.wav#162', 'dia116_utt10.wav#163', 'dia116_utt11.wav#164', 'dia116_utt3.wav#166', 'dia116_utt4.wav#167', 'dia116_utt6.wav#169', 'dia116_utt7.wav#170', 'dia116_utt8.wav#171', 'dia117_utt2.wav#175', 'dia117_utt4.wav#177', 'dia117_utt5.wav#178', 'dia118_utt0.wav#182', 'dia118_utt1.wav#183', 'dia118_utt9.wav#193']; clips split into several finals: ['dia103_utt0.wav#37', 'dia103_utt3.wav#40', 'dia103_utt4.wav#41', 'dia107_utt0.wav#53', 'dia107_utt10.wav#55', 'dia109_utt1.wav#75', 'dia112_utt12.wav#114', 'dia112_utt16.wav#118', 'dia112_utt17.wav#119', 'dia114_utt4.wav#153', 'dia115_utt3.wav#158', 'dia115_utt4.wav#159', 'dia115_utt5.wav#160', 'dia116_utt2.wav#165', 'dia116_utt5.wav#168', 'dia118_utt8.wav#192', 'dia119_utt1.wav#195', 'dia119_utt2.wav#196', 'dia119_utt3.wav#197']; finals outside every clip span: [1, 3, 6, 7, 13, 15, 17, 18, 19, 26, 28, 31, 42, 43, 44, 51, 52, 54, 55, 58, 60, 61, 62, 65, 67, 69, 70, 76, 78, 79, 80, 82, 83, 87, 88, 89, 90, 91, 93, 95, 128, 140, 147, 160, 163, 168, 169, 170, 174, 176, 177, 182, 192] | - |
+| worker lag | max health queue_s 0.378 s, degraded finals 2, empty transcripts 0 | - |
+| clip attribution (t_media_end within [media_start, next clip's media_start)) | 30 clips without a final (dia100_utt18.wav#13, dia100_utt19.wav#14, dia100_utt8.wav#21, dia101_utt1.wav#24, dia102_utt3.wav#30, dia102_utt4.wav#31, dia102_utt7.wav#34, dia102_utt8.wav#35, dia102_utt9.wav#36, dia105_utt0.wav#46, dia105_utt1.wav#47, dia105_utt2.wav#48, dia107_utt1.wav#54, dia107_utt2.wav#58, dia107_utt5.wav#61, dia107_utt6.wav#62, dia108_utt3.wav#67, dia108_utt7.wav#71, dia108_utt8.wav#72, dia109_utt4.wav#78, dia110_utt3.wav#89, dia111_utt8.wav#108, dia113_utt14.wav#138, dia114_utt2.wav#151, dia116_utt1.wav#162, dia116_utt10.wav#163, dia116_utt11.wav#164, dia116_utt3.wav#166, dia118_utt0.wav#182, dia118_utt1.wav#183). 24 clips split into several finals (dia103_utt0.wav#37, dia103_utt3.wav#40, dia103_utt4.wav#41, dia107_utt0.wav#53, dia107_utt10.wav#55, dia109_utt1.wav#75, dia109_utt2.wav#76, dia111_utt3.wav#103, dia112_utt12.wav#114, dia112_utt16.wav#118, dia112_utt17.wav#119, dia113_utt0.wav#132, dia114_utt3.wav#152, dia114_utt4.wav#153, dia115_utt3.wav#158, dia115_utt4.wav#159, dia115_utt5.wav#160, dia116_utt2.wav#165, dia116_utt5.wav#168, dia118_utt10.wav#184, dia118_utt8.wav#192, dia119_utt1.wav#195, dia119_utt2.wav#196, dia119_utt3.wav#197). Finals outside every clip span: none. 112 of the 201 finals end after the end of their clip, by up to 0.576 s. | - |
 
 Definitions:
 
@@ -220,8 +220,8 @@ Definitions:
 - Client-side latency is the monitor's arrival time minus the capture time of the endpoint frame. It is valid because client and monitor run on one host.
 - Endpoint to response runs from the arrival of the endpoint frame to the emission of the response.
 - The service, the replay client and the monitor run in one process, so RSS and CPU include all three.
-- A final belongs to the clip whose media span holds its `t_media_end`, the time the speech stopped (rule: `t_media_end within [media_start, media_end + 0.25 s]`). The segment start is not used because it carries the VAD pre-roll.
-- The clips are cut and tiled from `models/sensevoice/test_wavs/en.wav` by `tools/bench_components.py`.
+- A final belongs to the clip whose span holds its `t_media_end`, the time the speech stopped (rule: `t_media_end within [media_start, next clip's media_start)`). A span runs from the start of a clip to the start of the next one, so it includes the silence streamed after the clip. The segment start is not used because it carries the VAD pre-roll.
+- The clips are MELD utterances, converted to 16 kHz WAV by `tools/extract_audio.py`. They are cut at the end of the subtitle, so the detected end of speech can fall after the end of the clip. The buckets group finals by segment length, and the clip-attribution row shows where the segments and the clips differ.
 
 ## Laptop (user-run)
 

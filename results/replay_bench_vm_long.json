@@ -197,7 +197,7 @@
   "client_ms is the monitor's arrival time minus the capture time of the endpoint frame, valid because both run here",
   "response_ms is from the endpoint frame arrival to the response's emission",
   "proxy clips are piper tts: latencies are real, emotion labels are not a result",
-  "a final is attributed to the clip whose media span holds its t_media_end (the time the speech stopped), 0.25 s past the clip end allowed; the segment start carries the vad pre-roll and is not used"
+  "a final is attributed to the clip whose span holds its t_media_end (the time the speech stopped). a span runs from the clip's start to the next clip's start, so it includes the silence after the clip. the segment start carries the vad pre-roll and is not used"
  ],
  "results": {
   "n_finals": 12,
@@ -207,7 +207,7 @@
   "errors": {},
   "max_queue_s": 0.425,
   "health_rss_mb_last": 1204.4,
-  "clip_attribution": "t_media_end within [media_start, media_end + 0.25 s]",
+  "clip_attribution": "t_media_end within [media_start, next clip's media_start)",
   "clips_without_final": [],
   "clips_with_several_finals": [],
   "finals_unattributed": [],
@@ -449,7 +449,9 @@
    "pass": true,
    "rule": "median media-time gap between consecutive full-window provisionals within 1.0 +- 0.1 s"
   },
-  "worker_compute_s": 14.193
+  "worker_compute_s": 14.193,
+  "finals_ending_after_clip": 9,
+  "max_end_after_clip_s": 0.032
  },
  "utterances": [
   {
@@ -1148,5 +1150,10 @@
    "fused_mode": "stacked",
    "continued_from": null
   }
- ]
+ ],
+ "reattributed": {
+  "command": "python tools/replay_bench.py --reattribute results/replay_bench_vm.json results/replay_bench_vm_long.json results/replay_bench_vm_meld.json",
+  "at": "2026-10-12T22:08:04Z",
+  "previous_rule": "t_media_end within [media_start, media_end + 0.25 s]"
+ }
 }

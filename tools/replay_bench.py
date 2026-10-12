@@ -52,12 +52,16 @@ TARGETS = {
 BUCKETS = (("le5s", 0.0, 5.0, "up to 5 s (83 % of MELD)"), ("le8s", 5.0, 8.0, "5 to 8 s (95 % cumulative)"),
            ("le15s", 8.0, float("inf"), "8 s to the 15 s cap (99.7 % cumulative)"))
 STAGES = ("frontend", "sensevoice", "prosody", "text_encoder", "heads")
-# a final belongs to the clip whose media span holds the time its speech stopped (t_media_end),
-# allowing this much past the clip's end: the vad's hangover when a clip is cut mid-word plus one
-# frame of rounding (measured +0.024 to +0.040 s on bench_clips/long). the segment start is never
-# used, because the 256 ms pre-roll puts it inside the previous clip's silent tail. --tail-s must
-# exceed twice this value so spans cannot overlap.
-ATTRIBUTION_TOL_S = 0.25
+# a final belongs to the clip whose span holds the time its speech stopped (t_media_end). a clip's
+# span runs from its start to the next clip's start, so it takes in the silence streamed after it:
+# only that clip can have produced speech there. meld clips are cut at the end of the subtitle and
+# their speech often runs to the last frame, so the vad's hangover puts t_media_end past the clip
+# end (up to 0.576 s on the meld bench). the segment start is never used, because the 256 ms
+# pre-roll puts it inside the previous clip's silent tail.
+ATTRIBUTION_RULE = "t_media_end within [media_start, next clip's media_start)"
+ATTRIBUTION_NOTE = ("a final is attributed to the clip whose span holds its t_media_end (the time the speech stopped). "
+                    "a span runs from the clip's start to the next clip's start, so it includes the silence after the clip. "
+                    "the segment start carries the vad pre-roll and is not used")
 STREAM = "bench"
 WARMUP_STREAM = "warmup"
 
@@ -179,20 +183,45 @@ def stream_clips(push, clips: list[dict], stream_id: str, realtime: bool, tail_s
     return {"frames": seq, "audio_s": round(seq * P.FRAME_S, 3), "wall_s": round(wall, 3)}
 
 
-def analyze(msgs: list[tuple[int, str, dict]], clips: list[dict], stream_id: str, tol_s: float = ATTRIBUTION_TOL_S) -> dict:
+def clip_of(t_media_end: float, clips: list[dict]) -> int | None:
+    """index of the clip whose span holds the time the speech stopped: the last clip that
+    starts at or before it (see ATTRIBUTION_RULE). None before the first clip."""
+    idx = None
+    for i, c in enumerate(clips):
+        if c["media_start"] <= t_media_end:
+            idx = i
+        else:
+            break
+    return idx
+
+
+def attribution(rows: list[dict], clips: list[dict]) -> dict:
+    """per streamed instance (a name repeats under --repeat), reported as name#index. exact by
+    construction: the spans tile the stream, so a clip without a final produced none and a clip
+    with several was split (a forced endpoint at the 15 s cap, or a pause longer than the
+    endpoint silence)"""
+    hits = [r["clip_index"] for r in rows if r["clip_index"] is not None]
+    past = [round(end_of(r) - clips[r["clip_index"]]["media_end"], 3) for r in rows
+            if r["clip_index"] is not None and end_of(r) > clips[r["clip_index"]]["media_end"]]
+    return {"clip_attribution": ATTRIBUTION_RULE,
+            "clips_without_final": [f"{c['name']}#{i}" for i, c in enumerate(clips) if i not in hits],
+            "clips_with_several_finals": [f"{clips[i]['name']}#{i}" for i in sorted(set(hits)) if hits.count(i) > 1],
+            "finals_unattributed": [r["utt_id"] for r in rows if r["clip_index"] is None],
+            "finals_ending_after_clip": len(past), "max_end_after_clip_s": max(past, default=None)}
+
+
+def end_of(row: dict) -> float:
+    """t_media_end of an utterance row. rows written before it was stored have segment_s,
+    which is t_media_end - t_media_start rounded to 1 ms."""
+    return row["t_media_end"] if "t_media_end" in row else round(row["t_media_start"] + row["segment_s"], 3)
+
+
+def analyze(msgs: list[tuple[int, str, dict]], clips: list[dict], stream_id: str) -> dict:
     finals = [(t, m) for t, topic, m in msgs if topic == "state.final" and m.get("stream_id") == stream_id]
     provs = [m for _, topic, m in msgs if topic == "state.provisional" and m.get("stream_id") == stream_id]
     resps = {m["utt_id"]: m for _, topic, m in msgs if topic == "response" and m.get("stream_id") == stream_id}
     healths = [m for _, topic, m in msgs if topic == "health" and m.get("stream_id") == stream_id]
     errors = [m for _, topic, m in msgs if topic == "error" and m.get("stream_id") == stream_id]
-
-    def clip_index(t_media_end: float) -> int | None:
-        """the clip whose media span holds the time the speech stopped, with tol_s
-        past the clip's end (see ATTRIBUTION_TOL_S); None when no span does."""
-        for i, c in enumerate(clips):
-            if c["media_start"] <= t_media_end <= c["media_end"] + tol_s:
-                return i
-        return None
 
     rows = []
     for t_recv, f in finals:
@@ -200,11 +229,11 @@ def analyze(msgs: list[tuple[int, str, dict]], clips: list[dict], stream_id: str
         r = resps.get(f["utt_id"])
         dur = round(f["t_media_end"] - f["t_media_start"], 3)
         ps = sorted((p for p in provs if p["utt_id"] == f["utt_id"]), key=lambda p: p["t_media_end"])
-        ci = clip_index(f["t_media_end"])
+        ci = clip_of(f["t_media_end"], clips)
         rows.append({
             "utt_id": f["utt_id"], "clip": clips[ci]["name"] if ci is not None else None, "clip_index": ci,
             "clip_duration_s": clips[ci]["duration_s"] if ci is not None else None,
-            "t_media_start": f["t_media_start"], "segment_s": dur, "bucket": bucket_of(dur),
+            "t_media_start": f["t_media_start"], "t_media_end": f["t_media_end"], "segment_s": dur, "bucket": bucket_of(dur),
             "service_total_ms": tm.get("service_total"),
             "client_ms": round((t_recv - int(f["t_speech_end_capture_ns"])) / 1e6, 2) if f.get("t_speech_end_capture_ns") else None,
             "response_ms": round((int(r["t_emitted_ns"]) - int(f["t_service_recv_ns"])) / 1e6, 2) if r else None,
@@ -270,18 +299,10 @@ def analyze(msgs: list[tuple[int, str, dict]], clips: list[dict], stream_id: str
     codes: dict[str, int] = {}
     for e in errors:
         codes[e["code"]] = codes.get(e["code"], 0) + 1
-    # per streamed instance (a name repeats under --repeat), reported as name#index. exact by
-    # construction: every final lands in at most one span, so a clip without a final produced
-    # none and a clip with several was split (a forced endpoint at the 15 s cap, or a pause
-    # longer than the endpoint silence); finals outside every span are listed by utt_id
-    hits = [r["clip_index"] for r in rows if r["clip_index"] is not None]
     return {"n_finals": len(rows), "n_responses": len(resps), "n_provisionals": len(provs), "n_health": len(healths),
             "errors": codes, "max_queue_s": max((h["queue_s"] for h in healths), default=None),
             "health_rss_mb_last": healths[-1]["rss_mb"] if healths else None,
-            "clip_attribution": f"t_media_end within [media_start, media_end + {tol_s} s]",
-            "clips_without_final": [f"{c['name']}#{i}" for i, c in enumerate(clips) if i not in hits],
-            "clips_with_several_finals": [f"{clips[i]['name']}#{i}" for i in sorted(set(hits)) if hits.count(i) > 1],
-            "finals_unattributed": [r["utt_id"] for r in rows if r["clip_index"] is None],
+            **attribution(rows, clips),
             "finals_degraded": sum(bool(r["degraded"]) for r in rows), "finals_empty_text": sum(not r["asr_text"].strip() for r in rows),
             "all": {"service_total_ms": summary([r["service_total_ms"] for r in rows]), "client_ms": summary([r["client_ms"] for r in rows]),
                     "response_ms": summary([r["response_ms"] for r in rows]), "segment_s": summary([r["segment_s"] for r in rows]),
@@ -290,9 +311,31 @@ def analyze(msgs: list[tuple[int, str, dict]], clips: list[dict], stream_id: str
             "worker_compute_s": round(worker_ms / 1000, 3), "utterances": rows}
 
 
+def reattribute(path: Path, command: str) -> dict:
+    """recompute the clip attribution of a written bench file under ATTRIBUTION_RULE, from the
+    utterances and clip spans it stores, and rewrite it. the latencies are not touched."""
+    d = json.loads(Path(path).read_text(encoding="utf-8"))
+    clips = d["config"]["clips"]
+    res = d["results"]
+    previous = res.get("clip_attribution")
+    for u in d["utterances"]:
+        ci = clip_of(end_of(u), clips)
+        u.update({"clip": clips[ci]["name"] if ci is not None else None, "clip_index": ci,
+                  "clip_duration_s": clips[ci]["duration_s"] if ci is not None else None})
+    att = attribution(d["utterances"], clips)
+    res.update(att)
+    d["notes"] = [ATTRIBUTION_NOTE if n.startswith("a final is attributed to the clip") else n for n in d.get("notes", [])]
+    if previous != ATTRIBUTION_RULE:
+        d["reattributed"] = {"command": command, "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "previous_rule": previous}
+    Path(path).write_text(json.dumps(d, indent=1), encoding="utf-8")
+    return att
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="stream clips through the real service and measure the real-time contract")
-    ap.add_argument("--clips", nargs="+", required=True, help="globs or files, comma- or space-separated")
+    ap.add_argument("--clips", nargs="+", help="globs or files, comma- or space-separated")
+    ap.add_argument("--reattribute", nargs="+", type=Path, metavar="JSON",
+                    help="recompute the clip attribution of written bench files from their stored utterances and clip spans, then exit")
     ap.add_argument("--n", type=int, default=200, help="first n clips in sorted order (0: all)")
     ap.add_argument("--repeat", type=int, default=1, help="stream the clip list this many times")
     ap.add_argument("--realtime", action="store_true", help="pace frames at 32 ms; without it frames go as fast as possible")
@@ -310,8 +353,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--heads", type=Path, default=ROOT / "heads")
     ap.add_argument("--jsonl", type=Path, default=None, help="also write every message as json lines")
     a = ap.parse_args(argv)
-    if a.tail_s <= 2 * ATTRIBUTION_TOL_S:
-        ap.error(f"--tail-s must exceed {2 * ATTRIBUTION_TOL_S} s so clip spans do not overlap")
+    if a.reattribute:
+        cmd = "python tools/replay_bench.py " + " ".join(sys.argv[1:] if argv is None else argv)
+        for path in a.reattribute:
+            r = reattribute(path, cmd)
+            print(f"{path}: {len(r['clips_without_final'])} clips without a final, {len(r['clips_with_several_finals'])} with several, "
+                  f"{len(r['finals_unattributed'])} finals outside every span")
+        return 0
+    if not a.clips:
+        ap.error("--clips is required")
 
     files = collect_clips(a.clips, a.n)
     if not files:
@@ -412,8 +462,7 @@ def main(argv: list[str] | None = None) -> int:
                      "client_ms is the monitor's arrival time minus the capture time of the endpoint frame, valid because both run here",
                      "response_ms is from the endpoint frame arrival to the response's emission",
                      "proxy clips are piper tts: latencies are real, emotion labels are not a result",
-                     f"a final is attributed to the clip whose media span holds its t_media_end (the time the speech stopped), "
-                     f"{ATTRIBUTION_TOL_S} s past the clip end allowed; the segment start carries the vad pre-roll and is not used"],
+                     ATTRIBUTION_NOTE],
            "results": {k: v for k, v in res.items() if k != "utterances"}, "utterances": res["utterances"]}
     a.out.parent.mkdir(parents=True, exist_ok=True)
     a.out.write_text(json.dumps(out, indent=1), encoding="utf-8")

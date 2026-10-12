@@ -140,6 +140,26 @@ def load_json(path: Path) -> dict | None:
         return None
 
 
+def clip_note(source: str) -> str:
+    """one definition line on where the bench clips come from."""
+    if "proxy" in source:
+        return "- The proxy clips are Piper TTS of MELD dev text. Their latencies are real. Their emotion labels are not a result."
+    if "bench_clips" in source:
+        return "- The clips are cut and tiled from `models/sensevoice/test_wavs/en.wav` by `tools/bench_components.py`."
+    if source.startswith("audio"):
+        return ("- The clips are MELD utterances, converted to 16 kHz WAV by `tools/extract_audio.py`. They are cut at the end of the "
+                "subtitle, so the detected end of speech can fall after the end of the clip. The buckets group finals by segment length, and the "
+                "clip-attribution row shows where the segments and the clips differ.")
+    return f"- The clips are the WAV files under `{source}`."
+
+
+def counted(items: list, what: str) -> str:
+    """a count with the items behind it, ex. "2 clips without a final (a.wav#0, b.wav#3)"."""
+    if not items:
+        return f"{what[0].upper()}{what[1:]}: none"
+    return f"{len(items)} {what} ({', '.join(str(i) for i in items)})"
+
+
 def fmt(v, nd: int = 1) -> str:
     if v is None:
         return "-"
@@ -228,7 +248,9 @@ def replay_section(r: dict, path: Path) -> list[str]:
     sent = r.get("sent") or {}
     modes = Counter(u.get("fused_mode") for u in r.get("utterances", []) if u.get("fused_mode"))
     out = [f"### Replay bench (`{path.name}`, written by `tools/replay_bench.py`)", "",
-           f"Generated {r.get('generated_at')} on `{r.get('host')}` by `{r.get('command')}`.", "",
+           f"Generated {r.get('generated_at')} on `{r.get('host')}` by `{r.get('command')}`."
+           + (f" The clip attribution was recomputed from the stored utterances and clip spans at {r['reattributed']['at']} by "
+              f"`{r['reattributed']['command']}`. The latencies were not touched." if r.get("reattributed") else ""), "",
            (f"- Clips: {c['n_clips']} from `{c['clip_source']}` (duration p50 {fmt(c['clip_duration_s'].get('p50'), 2)} s, "
             f"max {fmt(c['clip_duration_s'].get('max'), 2)} s), streamed {'at real-time pace' if c['realtime'] else 'as fast as possible'} "
             f"on one stream with {c['tail_s']} s of silence after each clip. "
@@ -273,24 +295,29 @@ def replay_section(r: dict, path: Path) -> list[str]:
             f"{fmt(cad.get('first_provisional_offset_s', {}).get('p50'), 3)} s after speech start, {cad['n_full']} full + {cad['n_tail']} tail provisionals, "
             f"{cad['utterances_over_1p5s_with_a_provisional']} utterances over 1.5 s got one, dropped {cad['dropped_provisionals']}, provisional SenseVoice p50 {fmt(cad['sensevoice_ms'].get('p50'))} ms | {pf(cad['pass'])} |"),
             (f"| sustained compute below {comp['target_max']} s per second of audio | worker {fmt(comp['worker_compute_s_per_audio_s'], 3)} s per audio s "
-            f"({fmt(comp['worker_compute_s_per_speech_s'], 3)} per speech s); whole process {fmt(comp['process_cpu_s_per_audio_s'], 3)} cpu s per audio s, "
+            f"({fmt(comp['worker_compute_s_per_speech_s'], 3)} per speech s), whole process {fmt(comp['process_cpu_s_per_audio_s'], 3)} cpu s per audio s, "
             f"cpu % sampled mean {fmt(comp['process_cpu_percent_sampled'].get('mean'))} max {fmt(comp['process_cpu_percent_sampled'].get('max'))} | {pf(comp['pass'])} |"),
             f"| memory | rss {mem['rss_mb_after_load']} MB after load, peak {mem['peak_rss_mb']} MB during the run (service + client + monitor in one process) | - |",
-            (f"| worker lag | max health queue_s {fmt(res.get('max_queue_s'), 3)} s; degraded finals {res['finals_degraded']}, empty transcripts {res['finals_empty_text']} | - |"),
-            (f"| clip attribution ({res.get('clip_attribution', 'by t_media_end')}) | clips without a final: {res['clips_without_final'] or 'none'}; "
-            f"clips split into several finals: {res['clips_with_several_finals'] or 'none'}; finals outside every clip span: {res.get('finals_unattributed') or 'none'} | - |"), ""]
+            (f"| worker lag | max health queue_s {fmt(res.get('max_queue_s'), 3)} s, degraded finals {res['finals_degraded']}, empty transcripts {res['finals_empty_text']} | - |"),
+            (f"| clip attribution ({res.get('clip_attribution', 'by t_media_end')}) | {counted(res['clips_without_final'], 'clips without a final')}. "
+             f"{counted(res['clips_with_several_finals'], 'clips split into several finals')}. "
+             f"{counted(res.get('finals_unattributed') or [], 'finals outside every clip span')}."
+             + ("" if "finals_ending_after_clip" not in res else
+                " No final ends after the end of its clip." if not res["finals_ending_after_clip"] else
+                f" {res['finals_ending_after_clip']} of the {res['n_finals']} finals end after the end of their clip, by up to "
+                f"{fmt(res.get('max_end_after_clip_s'), 3)} s.") + " | - |"), ""]
     out += ["Definitions:", "",
             "- Service-side latency runs from the arrival of the endpoint frame (`t_service_recv_ns`) to the emission of the final state.",
             "- Client-side latency is the monitor's arrival time minus the capture time of the endpoint frame. "
             "It is valid because client and monitor run on one host.",
             "- Endpoint to response runs from the arrival of the endpoint frame to the emission of the response.",
             "- The service, the replay client and the monitor run in one process, so RSS and CPU include all three.",
-            (f"- A final belongs to the clip whose media span holds its `t_media_end`, the time the speech stopped "
+            (f"- A final belongs to the clip whose span holds its `t_media_end`, the time the speech stopped "
              f"(rule: `{res.get('clip_attribution', 't_media_end within the clip span')}`). "
-             "The segment start is not used because it carries the VAD pre-roll."),
-            ("- The proxy clips are Piper TTS of MELD dev text. Their latencies are real. Their emotion labels are not a result."
-             if "proxy" in str(c.get("clip_source", "")) else
-             "- The clips are cut and tiled from `models/sensevoice/test_wavs/en.wav` by `tools/bench_components.py`."), ""]
+             + ("A span runs from the start of a clip to the start of the next one, so it includes the silence streamed after the clip. "
+                if "next clip" in res.get("clip_attribution", "") else "")
+             + "The segment start is not used because it carries the VAD pre-roll."),
+            clip_note(str(c.get("clip_source", ""))), ""]
     return out
 
 

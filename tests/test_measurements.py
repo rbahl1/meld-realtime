@@ -163,9 +163,9 @@ def test_analyze_synthetic_stream():
 
 
 def test_clip_attribution_uses_the_speech_end_not_the_preroll_start():
-    """the vad pre-roll puts a segment's start inside the previous clip's silent
-    tail; a clip cut mid-word ends a frame or two after its span. both finals must
-    land on their own clip, and a final past the tolerance on none."""
+    """the vad pre-roll puts a segment's start inside the previous clip's silent tail; a
+    meld clip cut at the end of its subtitle ends well before the vad's end of speech. a
+    final belongs to the clip whose span (clip plus the silence after it) holds its end."""
     ns = 1_000_000
     stages = {"frontend": 5.0, "sensevoice": 100.0, "prosody": 10.0, "text_encoder": 20.0, "heads": 1.0}
     clips = [{"name": "a.wav", "duration_s": 3.0, "media_start": 0.0, "media_end": 3.0},
@@ -173,22 +173,46 @@ def test_clip_attribution_uses_the_speech_end_not_the_preroll_start():
              {"name": "c.wav", "duration_s": 2.0, "media_start": 7.0, "media_end": 9.0}]
     msgs = [
         (0, "health", {"stream_id": "bench", "dropped_provisionals": 0, "queue_s": 0.0, "rss_mb": 900.0}),
-        _final(1, 0.0, 2.9, recv=1000 * ns, emitted=1150 * ns, capture=999 * ns, stages=stages),
+        # speech stops 0.576 s after a's end, inside the silence before b
+        _final(1, 0.0, 3.576, recv=1000 * ns, emitted=1150 * ns, capture=999 * ns, stages=stages),
         # starts 0.256 s before clip b (pre-roll in a's tail), speech stops 0.032 s after b's end
         _final(2, 3.744, 6.032, recv=2000 * ns, emitted=2150 * ns, capture=1999 * ns, stages=stages),
         # a forced split of clip c: both pieces end inside c's span
         _final(3, 6.8, 8.0, recv=3000 * ns, emitted=3150 * ns, capture=2999 * ns, stages=stages),
-        _final(4, 8.0, 9.1, recv=4000 * ns, emitted=4150 * ns, capture=3999 * ns, stages=stages),
-        # speech stopping 0.5 s after c's end lies in no span
-        _final(5, 8.5, 9.5, recv=5000 * ns, emitted=5150 * ns, capture=4999 * ns, stages=stages),
+        _final(4, 8.0, 9.5, recv=4000 * ns, emitted=4150 * ns, capture=3999 * ns, stages=stages),
     ]
     r = rb.analyze(msgs, clips, "bench")
-    assert [u["clip"] for u in r["utterances"]] == ["a.wav", "b.wav", "c.wav", "c.wav", None]
-    assert r["clips_without_final"] == [] and r["clips_with_several_finals"] == ["c.wav#2"] and r["finals_unattributed"] == [5]
-    assert rb.ATTRIBUTION_TOL_S == 0.25 and str(rb.ATTRIBUTION_TOL_S) in r["clip_attribution"]
-    # the old rule (segment start) would have put utt 2 on a.wav
-    r = rb.analyze(msgs[:2] + [msgs[2]], clips[:2], "bench", tol_s=0.0)
-    assert [u["clip"] for u in r["utterances"]] == ["a.wav", None] and r["clips_without_final"] == ["b.wav#1"]
+    assert [u["clip"] for u in r["utterances"]] == ["a.wav", "b.wav", "c.wav", "c.wav"]
+    assert r["clips_without_final"] == [] and r["clips_with_several_finals"] == ["c.wav#2"] and r["finals_unattributed"] == []
+    assert r["clip_attribution"] == rb.ATTRIBUTION_RULE and r["finals_ending_after_clip"] == 3 and r["max_end_after_clip_s"] == 0.576
+    # the segment start of utt 2 lies in a's span, so attributing by the start would put it on a.wav
+    assert rb.clip_of(3.744, clips) == 0 and rb.clip_of(6.032, clips) == 1 and rb.clip_of(-0.1, clips) is None
+
+
+def test_reattribute_rewrites_only_the_attribution(tmp_path):
+    """a bench file written under an older rule gets the current attribution from its
+    stored utterances and clip spans. the latencies stay as they were."""
+    clips = [{"name": "a.wav", "duration_s": 3.0, "media_start": 0.0, "media_end": 3.0},
+             {"name": "b.wav", "duration_s": 2.0, "media_start": 4.0, "media_end": 6.0}]
+    utts = [{"utt_id": 1, "clip": None, "clip_index": None, "clip_duration_s": None, "t_media_start": 0.0, "segment_s": 3.4,
+             "service_total_ms": 120.0},
+            {"utt_id": 2, "clip": "b.wav", "clip_index": 1, "clip_duration_s": 2.0, "t_media_start": 3.744, "segment_s": 2.288,
+             "service_total_ms": 130.0}]
+    old_note = "a final is attributed to the clip whose media span holds its t_media_end, 0.25 s past the clip end allowed"
+    d = {"command": "python tools/replay_bench.py --clips x", "config": {"clips": clips}, "notes": ["one", old_note],
+         "results": {"clip_attribution": "t_media_end within [media_start, media_end + 0.25 s]", "clips_without_final": ["a.wav#0"],
+                     "clips_with_several_finals": [], "finals_unattributed": [1], "by_bucket": {"le5s": {"n": 2}}},
+         "utterances": utts}
+    path = tmp_path / "bench.json"
+    path.write_text(json.dumps(d))
+    att = rb.reattribute(path, "python tools/replay_bench.py --reattribute bench.json")
+    out = json.loads(path.read_text())
+    assert att["clips_without_final"] == [] and att["finals_unattributed"] == [] and att["finals_ending_after_clip"] == 2
+    assert [u["clip"] for u in out["utterances"]] == ["a.wav", "b.wav"] and [u["service_total_ms"] for u in out["utterances"]] == [120.0, 130.0]
+    assert out["results"]["clip_attribution"] == rb.ATTRIBUTION_RULE and out["results"]["by_bucket"] == {"le5s": {"n": 2}}
+    assert out["notes"] == ["one", rb.ATTRIBUTION_NOTE] and out["reattributed"]["previous_rule"].endswith("+ 0.25 s]")
+    assert rm.counted(att["clips_without_final"], "clips without a final") == "Clips without a final: none"
+    assert rm.counted(["a.wav#0", "b.wav#1"], "clips without a final") == "2 clips without a final (a.wav#0, b.wav#1)"
 
 
 # -- render_measurements -----------------------------------------------------
