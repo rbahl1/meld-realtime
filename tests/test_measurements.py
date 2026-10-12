@@ -162,6 +162,35 @@ def test_analyze_synthetic_stream():
     assert r["max_queue_s"] == 0.2 and r["health_rss_mb_last"] == 950.0
 
 
+def test_clip_attribution_uses_the_speech_end_not_the_preroll_start():
+    """the vad pre-roll puts a segment's start inside the previous clip's silent
+    tail; a clip cut mid-word ends a frame or two after its span. both finals must
+    land on their own clip, and a final past the tolerance on none."""
+    ns = 1_000_000
+    stages = {"frontend": 5.0, "sensevoice": 100.0, "prosody": 10.0, "text_encoder": 20.0, "heads": 1.0}
+    clips = [{"name": "a.wav", "duration_s": 3.0, "media_start": 0.0, "media_end": 3.0},
+             {"name": "b.wav", "duration_s": 2.0, "media_start": 4.0, "media_end": 6.0},
+             {"name": "c.wav", "duration_s": 2.0, "media_start": 7.0, "media_end": 9.0}]
+    msgs = [
+        (0, "health", {"stream_id": "bench", "dropped_provisionals": 0, "queue_s": 0.0, "rss_mb": 900.0}),
+        _final(1, 0.0, 2.9, recv=1000 * ns, emitted=1150 * ns, capture=999 * ns, stages=stages),
+        # starts 0.256 s before clip b (pre-roll in a's tail), speech stops 0.032 s after b's end
+        _final(2, 3.744, 6.032, recv=2000 * ns, emitted=2150 * ns, capture=1999 * ns, stages=stages),
+        # a forced split of clip c: both pieces end inside c's span
+        _final(3, 6.8, 8.0, recv=3000 * ns, emitted=3150 * ns, capture=2999 * ns, stages=stages),
+        _final(4, 8.0, 9.1, recv=4000 * ns, emitted=4150 * ns, capture=3999 * ns, stages=stages),
+        # speech stopping 0.5 s after c's end lies in no span
+        _final(5, 8.5, 9.5, recv=5000 * ns, emitted=5150 * ns, capture=4999 * ns, stages=stages),
+    ]
+    r = rb.analyze(msgs, clips, "bench")
+    assert [u["clip"] for u in r["utterances"]] == ["a.wav", "b.wav", "c.wav", "c.wav", None]
+    assert r["clips_without_final"] == [] and r["clips_with_several_finals"] == ["c.wav#2"] and r["finals_unattributed"] == [5]
+    assert rb.ATTRIBUTION_TOL_S == 0.25 and str(rb.ATTRIBUTION_TOL_S) in r["clip_attribution"]
+    # the old rule (segment start) would have put utt 2 on a.wav
+    r = rb.analyze(msgs[:2] + [msgs[2]], clips[:2], "bench", tol_s=0.0)
+    assert [u["clip"] for u in r["utterances"]] == ["a.wav", None] and r["clips_without_final"] == ["b.wav#1"]
+
+
 # -- render_measurements -----------------------------------------------------
 
 def test_render_without_json_files_has_placeholders_only(tmp_path):

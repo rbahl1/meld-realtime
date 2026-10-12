@@ -251,8 +251,9 @@ def replay_section(r: dict, path: Path) -> list[str]:
             f"({fmt(comp['worker_compute_s_per_speech_s'], 3)} per speech s); whole process {fmt(comp['process_cpu_s_per_audio_s'], 3)} cpu s per audio s, "
             f"cpu % sampled mean {fmt(comp['process_cpu_percent_sampled'].get('mean'))} max {fmt(comp['process_cpu_percent_sampled'].get('max'))} | {pf(comp['pass'])} |"),
             f"| memory | rss {mem['rss_mb_after_load']} MB after load, peak {mem['peak_rss_mb']} MB during the run (service + client + monitor in one process) | - |",
-            (f"| worker lag | max health queue_s {fmt(res.get('max_queue_s'), 3)} s; clips without a final: {res['clips_without_final'] or 'none'}; "
-            f"clips split into several finals: {res['clips_with_several_finals'] or 'none'}; degraded finals {res['finals_degraded']}, empty transcripts {res['finals_empty_text']} | - |"), ""]
+            (f"| worker lag | max health queue_s {fmt(res.get('max_queue_s'), 3)} s; degraded finals {res['finals_degraded']}, empty transcripts {res['finals_empty_text']} | - |"),
+            (f"| clip attribution ({res.get('clip_attribution', 'by t_media_end')}) | clips without a final: {res['clips_without_final'] or 'none'}; "
+            f"clips split into several finals: {res['clips_with_several_finals'] or 'none'}; finals outside every clip span: {res.get('finals_unattributed') or 'none'} | - |"), ""]
     out += ["Notes: " + " ".join(n + "." for n in r.get("notes", [])), ""]
     return out
 

@@ -52,6 +52,12 @@ TARGETS = {
 BUCKETS = (("le5s", 0.0, 5.0, "up to 5 s (83 % of MELD)"), ("le8s", 5.0, 8.0, "5 to 8 s (95 % cumulative)"),
            ("le15s", 8.0, float("inf"), "8 s to the 15 s cap (99.7 % cumulative)"))
 STAGES = ("frontend", "sensevoice", "prosody", "text_encoder", "heads")
+# a final belongs to the clip whose media span holds the time its speech stopped (t_media_end),
+# allowing this much past the clip's end: the vad's hangover when a clip is cut mid-word plus one
+# frame of rounding (measured +0.024 to +0.040 s on bench_clips/long). the segment start is never
+# used, because the 256 ms pre-roll puts it inside the previous clip's silent tail. --tail-s must
+# exceed twice this value so spans cannot overlap.
+ATTRIBUTION_TOL_S = 0.25
 STREAM = "bench"
 WARMUP_STREAM = "warmup"
 
@@ -173,7 +179,7 @@ def stream_clips(push, clips: list[dict], stream_id: str, realtime: bool, tail_s
     return {"frames": seq, "audio_s": round(seq * P.FRAME_S, 3), "wall_s": round(wall, 3)}
 
 
-def analyze(msgs: list[tuple[int, str, dict]], clips: list[dict], stream_id: str) -> dict:
+def analyze(msgs: list[tuple[int, str, dict]], clips: list[dict], stream_id: str, tol_s: float = ATTRIBUTION_TOL_S) -> dict:
     finals = [(t, m) for t, topic, m in msgs if topic == "state.final" and m.get("stream_id") == stream_id]
     provs = [m for _, topic, m in msgs if topic == "state.provisional" and m.get("stream_id") == stream_id]
     resps = {m["utt_id"]: m for _, topic, m in msgs if topic == "response" and m.get("stream_id") == stream_id}
@@ -181,11 +187,10 @@ def analyze(msgs: list[tuple[int, str, dict]], clips: list[dict], stream_id: str
     errors = [m for _, topic, m in msgs if topic == "error" and m.get("stream_id") == stream_id]
 
     def clip_index(t_media_end: float) -> int | None:
-        """the clip in which the speech ended; the segment start carries the vad
-        pre-roll and can lie in the previous clip's silent tail."""
+        """the clip whose media span holds the time the speech stopped, with tol_s
+        past the clip's end (see ATTRIBUTION_TOL_S); None when no span does."""
         for i, c in enumerate(clips):
-            nxt = clips[i + 1]["media_start"] if i + 1 < len(clips) else float("inf")
-            if c["media_start"] <= t_media_end < nxt:
+            if c["media_start"] <= t_media_end <= c["media_end"] + tol_s:
                 return i
         return None
 
@@ -265,13 +270,18 @@ def analyze(msgs: list[tuple[int, str, dict]], clips: list[dict], stream_id: str
     codes: dict[str, int] = {}
     for e in errors:
         codes[e["code"]] = codes.get(e["code"], 0) + 1
-    # per streamed instance (a name repeats under --repeat), reported as name#index
+    # per streamed instance (a name repeats under --repeat), reported as name#index. exact by
+    # construction: every final lands in at most one span, so a clip without a final produced
+    # none and a clip with several was split (a forced endpoint at the 15 s cap, or a pause
+    # longer than the endpoint silence); finals outside every span are listed by utt_id
     hits = [r["clip_index"] for r in rows if r["clip_index"] is not None]
     return {"n_finals": len(rows), "n_responses": len(resps), "n_provisionals": len(provs), "n_health": len(healths),
             "errors": codes, "max_queue_s": max((h["queue_s"] for h in healths), default=None),
             "health_rss_mb_last": healths[-1]["rss_mb"] if healths else None,
+            "clip_attribution": f"t_media_end within [media_start, media_end + {tol_s} s]",
             "clips_without_final": [f"{c['name']}#{i}" for i, c in enumerate(clips) if i not in hits],
             "clips_with_several_finals": [f"{clips[i]['name']}#{i}" for i in sorted(set(hits)) if hits.count(i) > 1],
+            "finals_unattributed": [r["utt_id"] for r in rows if r["clip_index"] is None],
             "finals_degraded": sum(bool(r["degraded"]) for r in rows), "finals_empty_text": sum(not r["asr_text"].strip() for r in rows),
             "all": {"service_total_ms": summary([r["service_total_ms"] for r in rows]), "client_ms": summary([r["client_ms"] for r in rows]),
                     "response_ms": summary([r["response_ms"] for r in rows]), "segment_s": summary([r["segment_s"] for r in rows]),
@@ -300,6 +310,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--heads", type=Path, default=ROOT / "heads")
     ap.add_argument("--jsonl", type=Path, default=None, help="also write every message as json lines")
     a = ap.parse_args(argv)
+    if a.tail_s <= 2 * ATTRIBUTION_TOL_S:
+        ap.error(f"--tail-s must exceed {2 * ATTRIBUTION_TOL_S} s so clip spans do not overlap")
 
     files = collect_clips(a.clips, a.n)
     if not files:
@@ -399,7 +411,9 @@ def main(argv: list[str] | None = None) -> int:
                      "service_total_ms is the service-side latency: endpoint frame arrival (t_service_recv_ns) to the final's emission",
                      "client_ms is the monitor's arrival time minus the capture time of the endpoint frame, valid because both run here",
                      "response_ms is from the endpoint frame arrival to the response's emission",
-                     "proxy clips are piper tts: latencies are real, emotion labels are not a result"],
+                     "proxy clips are piper tts: latencies are real, emotion labels are not a result",
+                     f"a final is attributed to the clip whose media span holds its t_media_end (the time the speech stopped), "
+                     f"{ATTRIBUTION_TOL_S} s past the clip end allowed; the segment start carries the vad pre-roll and is not used"],
            "results": {k: v for k, v in res.items() if k != "utterances"}, "utterances": res["utterances"]}
     a.out.parent.mkdir(parents=True, exist_ok=True)
     a.out.write_text(json.dumps(out, indent=1), encoding="utf-8")
