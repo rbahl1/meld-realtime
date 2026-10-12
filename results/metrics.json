@@ -3,7 +3,7 @@
  "split": "test",
  "n_resamples": 1000,
  "seed": 0,
- "wall_s": 1.5,
+ "wall_s": 1.6,
  "inputs": {
   "cache/text_test.npy": {
    "bytes": 8018048,
@@ -13,9 +13,29 @@
    "bytes": 294526,
    "sha256": "8d37103938f7067600839fe29d5a114a6cd1bcdafb75bec101e06464c5006888"
   },
+  "cache/audio_test.npz": {
+   "bytes": 30360152,
+   "sha256": "a9e22761afa2096ec65841c9f8adc9af541a05e2517e8c0b9e7a1337c58007e2"
+  },
+  "heads/audio_cal.npz": {
+   "bytes": 3622,
+   "sha256": "49be433bf1a2b0b7cb635dda743c4416af0ed8958fc28235f84f5f3a31509cfc"
+  },
+  "heads/audio_cal_A.npz": {
+   "bytes": 3622,
+   "sha256": "49be433bf1a2b0b7cb635dda743c4416af0ed8958fc28235f84f5f3a31509cfc"
+  },
+  "heads/audio_cal_B.npz": {
+   "bytes": 40486,
+   "sha256": "4cb548fa197a50e7d83241e03af7cc64237bcfa406e69dae18850a12f3c9c2d4"
+  },
+  "heads/fusion.npz": {
+   "bytes": 3192,
+   "sha256": "19fb219aa787d75611ec39d65067bc8afdd982bc807ea9b4601729e8c95c154d"
+  },
   "heads/sentiment.npz": {
-   "bytes": 18328,
-   "sha256": "65c6614faa7a553bf62897048bb807eb52173e4ec873a036d50903b95225b78d"
+   "bytes": 3010,
+   "sha256": "4cd0467fe75f6b97f956994d8b099c63a256f52f68a36fd105766d7301d0abbf"
   },
   "heads/text_ctx.npz": {
    "bytes": 808726,
@@ -31,11 +51,11 @@
   "class_weight_scheme": "none",
   "temperature": 1.2228,
   "thresholds": {
-   "low_conf": 0.39,
+   "low_conf": 0.47,
    "high_conf": 0.73,
-   "jsd_flag": null
+   "jsd_flag": 0.3831
   },
-  "text_only": true,
+  "text_only": false,
   "sklearn_version": "1.9.1"
  },
  "published": [
@@ -254,7 +274,7 @@
    "ece": 0.009707,
    "note": "train prior as posterior; label = neutral",
    "description": "1. majority class of train (neutral) for every test utterance; posterior = train class prior",
-   "wall_s": 0.1
+   "wall_s": 0.08
   },
   "text_k0": {
    "condition": "text_k0",
@@ -355,7 +375,7 @@
    "ece": 0.038314,
    "note": "class weights none, T=1.223",
    "description": "2. text only, k = 0 (heads/text_ctx_k0.npz, gold transcripts)",
-   "wall_s": 0.14
+   "wall_s": 0.12
   },
   "text_best_k": {
    "condition": "text_best_k",
@@ -456,7 +476,7 @@
    "ece": 0.038314,
    "note": "k=0, class weights none, T=1.223",
    "description": "2. text only, best k on dev, full-dialogue window (heads/text_ctx.npz)",
-   "wall_s": 0.09
+   "wall_s": 0.06
   },
   "text_runtime_regime": {
    "condition": "text_runtime_regime",
@@ -557,49 +577,614 @@
    "ece": 0.035441,
    "note": "same head as text_best_k, same-speaker window (k=0: differs from text_best_k only through the turn-index flags)",
    "description": "2. text only, best k, runtime-regime window: same-speaker previous utterances only, flags 1",
-   "wall_s": 0.14
+   "wall_s": 0.1
   },
   "audio_raw_tag": {
    "condition": "audio_raw_tag",
    "task": "emotion",
-   "status": "pending (needs MELD audio)",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.485214,
+   "macro_f1": 0.281793,
+   "accuracy": 0.51341,
+   "per_class_f1": {
+    "neutral": 0.672161,
+    "surprise": 0.312625,
+    "fear": 0.0,
+    "sadness": 0.169231,
+    "joy": 0.381885,
+    "disgust": 0.018182,
+    "anger": 0.41847
+   },
+   "confusion": [
+    [
+     938,
+     61,
+     0,
+     20,
+     130,
+     18,
+     89
+    ],
+    [
+     119,
+     78,
+     0,
+     3,
+     48,
+     6,
+     27
+    ],
+    [
+     28,
+     1,
+     0,
+     0,
+     9,
+     1,
+     11
+    ],
+    [
+     121,
+     17,
+     0,
+     22,
+     19,
+     5,
+     24
+    ],
+    [
+     173,
+     30,
+     0,
+     5,
+     156,
+     4,
+     34
+    ],
+    [
+     34,
+     2,
+     0,
+     1,
+     12,
+     1,
+     18
+    ],
+    [
+     122,
+     29,
+     0,
+     1,
+     41,
+     7,
+     145
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.46332620463350915,
+     0.50963280163783
+    ],
+    "macro_f1": [
+     0.26333367976844985,
+     0.30138130933565727
+    ],
+    "accuracy": [
+     0.4924921729658421,
+     0.5368404662180574
+    ]
+   },
+   "ece": 0.197701,
+   "note": "argmax over the seven named tokens",
+   "abstain_rate": 0.975096,
    "description": "3. audio only, raw sensevoice tag: argmax over the seven named tokens",
-   "wall_s": 0.0
+   "wall_s": 0.09
   },
   "audio_cal_A": {
    "condition": "audio_cal_A",
    "task": "emotion",
-   "status": "pending (needs MELD audio)",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.480169,
+   "macro_f1": 0.269173,
+   "accuracy": 0.537165,
+   "per_class_f1": {
+    "neutral": 0.693839,
+    "surprise": 0.297297,
+    "fear": 0.0,
+    "sadness": 0.206349,
+    "joy": 0.322775,
+    "disgust": 0.0,
+    "anger": 0.363951
+   },
+   "confusion": [
+    [
+     1098,
+     38,
+     0,
+     10,
+     60,
+     1,
+     49
+    ],
+    [
+     158,
+     66,
+     0,
+     0,
+     33,
+     0,
+     24
+    ],
+    [
+     35,
+     1,
+     0,
+     1,
+     5,
+     0,
+     8
+    ],
+    [
+     139,
+     11,
+     0,
+     26,
+     14,
+     0,
+     18
+    ],
+    [
+     253,
+     24,
+     0,
+     2,
+     107,
+     0,
+     16
+    ],
+    [
+     43,
+     1,
+     0,
+     2,
+     10,
+     0,
+     12
+    ],
+    [
+     183,
+     22,
+     0,
+     3,
+     32,
+     0,
+     105
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.4565547244820358,
+     0.5063657774146016
+    ],
+    "macro_f1": [
+     0.24853715278252092,
+     0.28917362963342114
+    ],
+    "accuracy": [
+     0.5147258845440416,
+     0.5600999716392513
+    ]
+   },
+   "ece": 0.028419,
+   "note": "T=1.015",
    "description": "4. audio only, AudioCalibrator A (slots + events + prosody)",
-   "wall_s": 0.0
+   "wall_s": 0.08
   },
   "audio_cal_B": {
    "condition": "audio_cal_B",
    "task": "emotion",
-   "status": "pending (needs MELD audio)",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.463204,
+   "macro_f1": 0.28512,
+   "accuracy": 0.477778,
+   "per_class_f1": {
+    "neutral": 0.653422,
+    "surprise": 0.355401,
+    "fear": 0.068376,
+    "sadness": 0.246334,
+    "joy": 0.332893,
+    "disgust": 0.062016,
+    "anger": 0.277397
+   },
+   "confusion": [
+    [
+     888,
+     78,
+     33,
+     49,
+     115,
+     24,
+     69
+    ],
+    [
+     104,
+     102,
+     3,
+     10,
+     33,
+     9,
+     20
+    ],
+    [
+     23,
+     5,
+     4,
+     5,
+     7,
+     0,
+     6
+    ],
+    [
+     93,
+     16,
+     8,
+     42,
+     20,
+     7,
+     22
+    ],
+    [
+     190,
+     43,
+     4,
+     12,
+     126,
+     5,
+     22
+    ],
+    [
+     24,
+     8,
+     3,
+     3,
+     7,
+     4,
+     19
+    ],
+    [
+     140,
+     41,
+     12,
+     12,
+     47,
+     12,
+     81
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.4413990830053186,
+     0.4843360460268484
+    ],
+    "macro_f1": [
+     0.2656081366538813,
+     0.3060111688856184
+    ],
+    "accuracy": [
+     0.45847884354440976,
+     0.49815273142998395
+    ]
+   },
+   "ece": 0.047269,
+   "note": "T=2.061",
    "description": "4. audio only, AudioCalibrator B (+ encoder states)",
-   "wall_s": 0.0
+   "wall_s": 0.11
   },
   "fused_stacked": {
    "condition": "fused_stacked",
    "task": "emotion",
-   "status": "pending (needs MELD audio)",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.607679,
+   "macro_f1": 0.392359,
+   "accuracy": 0.639847,
+   "per_class_f1": {
+    "neutral": 0.778717,
+    "surprise": 0.549091,
+    "fear": 0.0,
+    "sadness": 0.281588,
+    "joy": 0.560701,
+    "disgust": 0.105263,
+    "anger": 0.471154
+   },
+   "confusion": [
+    [
+     1105,
+     41,
+     0,
+     14,
+     59,
+     3,
+     34
+    ],
+    [
+     61,
+     151,
+     1,
+     0,
+     41,
+     1,
+     26
+    ],
+    [
+     25,
+     3,
+     0,
+     7,
+     4,
+     0,
+     11
+    ],
+    [
+     112,
+     10,
+     4,
+     39,
+     15,
+     0,
+     28
+    ],
+    [
+     134,
+     24,
+     0,
+     3,
+     224,
+     0,
+     17
+    ],
+    [
+     35,
+     4,
+     0,
+     4,
+     5,
+     4,
+     16
+    ],
+    [
+     110,
+     36,
+     1,
+     2,
+     49,
+     0,
+     147
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.5864829426296081,
+     0.6299646126460865
+    ],
+    "macro_f1": [
+     0.37066063733290117,
+     0.4141108971388496
+    ],
+    "accuracy": [
+     0.6206212565875067,
+     0.6592876228320871
+    ]
+   },
+   "ece": 0.015236,
+   "note": "T=0.846",
    "description": "5. fused, stacked logistic regression (deployed)",
-   "wall_s": 0.0
+   "wall_s": 0.11
   },
   "fused_poe": {
    "condition": "fused_poe",
    "task": "emotion",
-   "status": "pending (needs MELD audio)",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.582636,
+   "macro_f1": 0.358578,
+   "accuracy": 0.631418,
+   "per_class_f1": {
+    "neutral": 0.767863,
+    "surprise": 0.527778,
+    "fear": 0.0,
+    "sadness": 0.1893,
+    "joy": 0.535248,
+    "disgust": 0.056338,
+    "anger": 0.433515
+   },
+   "confusion": [
+    [
+     1166,
+     23,
+     0,
+     6,
+     48,
+     1,
+     12
+    ],
+    [
+     90,
+     133,
+     0,
+     0,
+     39,
+     0,
+     19
+    ],
+    [
+     30,
+     4,
+     0,
+     4,
+     4,
+     0,
+     8
+    ],
+    [
+     144,
+     8,
+     0,
+     23,
+     15,
+     0,
+     18
+    ],
+    [
+     164,
+     19,
+     0,
+     1,
+     205,
+     0,
+     13
+    ],
+    [
+     40,
+     4,
+     0,
+     1,
+     6,
+     2,
+     15
+    ],
+    [
+     147,
+     32,
+     0,
+     0,
+     47,
+     0,
+     119
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.5590807076613844,
+     0.6069082936683731
+    ],
+    "macro_f1": [
+     0.33777063827931897,
+     0.3803655037316345
+    ],
+    "accuracy": [
+     0.6118254937493434,
+     0.6524555482161734
+    ]
+   },
+   "ece": 0.111237,
+   "note": "w=0.75; calibrated audio posterior",
    "description": "5. fused, product of experts with the dev-chosen weight",
-   "wall_s": 0.0
+   "wall_s": 0.14
   },
   "fused_poe_uncalibrated": {
    "condition": "fused_poe_uncalibrated",
    "task": "emotion",
-   "status": "pending (needs MELD audio)",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.589958,
+   "macro_f1": 0.366534,
+   "accuracy": 0.634866,
+   "per_class_f1": {
+    "neutral": 0.772712,
+    "surprise": 0.527938,
+    "fear": 0.0,
+    "sadness": 0.176471,
+    "joy": 0.550943,
+    "disgust": 0.082192,
+    "anger": 0.455479
+   },
+   "confusion": [
+    [
+     1144,
+     25,
+     0,
+     4,
+     57,
+     1,
+     25
+    ],
+    [
+     83,
+     137,
+     0,
+     0,
+     40,
+     0,
+     21
+    ],
+    [
+     30,
+     5,
+     0,
+     3,
+     4,
+     0,
+     8
+    ],
+    [
+     135,
+     10,
+     0,
+     21,
+     17,
+     0,
+     25
+    ],
+    [
+     148,
+     20,
+     0,
+     1,
+     219,
+     0,
+     14
+    ],
+    [
+     39,
+     5,
+     0,
+     1,
+     7,
+     3,
+     13
+    ],
+    [
+     126,
+     36,
+     0,
+     0,
+     49,
+     1,
+     133
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.567257649934609,
+     0.6135853065338697
+    ],
+    "macro_f1": [
+     0.3449630045661206,
+     0.38856353978651914
+    ],
+    "accuracy": [
+     0.6160284990683275,
+     0.6560154823705859
+    ]
+   },
+   "ece": 0.131399,
+   "note": "w=0.5; raw sensevoice posterior, uncalibrated",
    "description": "5. fused, fixed poe_uncalibrated fallback (w = 0.5)",
-   "wall_s": 0.0
+   "wall_s": 0.13
   },
   "ablation_no_events": {
    "condition": "ablation_no_events",
@@ -646,58 +1231,58 @@
   "sentiment_text_only": {
    "condition": "sentiment_text_only",
    "task": "sentiment",
-   "status": "done",
-   "n": 2610,
-   "weighted_f1": 0.662397,
-   "macro_f1": 0.63333,
-   "accuracy": 0.66705,
-   "per_class_f1": {
-    "neutral": 0.758595,
-    "positive": 0.56,
-    "negative": 0.581395
-   },
-   "confusion": [
-    [
-     1004,
-     87,
-     165
-    ],
-    [
-     134,
-     287,
-     100
-    ],
-    [
-     253,
-     130,
-     450
-    ]
-   ],
-   "ci95": {
-    "weighted_f1": [
-     0.6441346341359375,
-     0.6820380288739826
-    ],
-    "macro_f1": [
-     0.6115184595372989,
-     0.655145262616964
-    ],
-    "accuracy": [
-     0.6485973257050596,
-     0.6854004739336492
-    ]
-   },
-   "ece": 0.020414,
-   "note": "k=0, C=0.1, T=1.420",
+   "status": "pending (run tools/train_heads.py --text-only first)",
    "description": "10. sentiment, text-only head (logistic regression over the text context features)",
-   "wall_s": 0.1
+   "wall_s": 0.0
   },
   "sentiment_fused": {
    "condition": "sentiment_fused",
    "task": "sentiment",
-   "status": "pending (needs MELD audio)",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.691652,
+   "macro_f1": 0.664543,
+   "accuracy": 0.694636,
+   "per_class_f1": {
+    "neutral": 0.770479,
+    "positive": 0.581395,
+    "negative": 0.641756
+   },
+   "confusion": [
+    [
+     997,
+     66,
+     193
+    ],
+    [
+     127,
+     275,
+     119
+    ],
+    [
+     208,
+     84,
+     541
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.673652138391169,
+     0.7096077881103761
+    ],
+    "macro_f1": [
+     0.6444336707054529,
+     0.6840140994848242
+    ],
+    "accuracy": [
+     0.6771627141376578,
+     0.7119572053823472
+    ]
+   },
+   "ece": 0.018808,
+   "note": "T=0.805",
    "description": "10. sentiment, fused head over the 19 fusion features",
-   "wall_s": 0.0
+   "wall_s": 0.11
   }
  }
 }

@@ -8,11 +8,16 @@ Written by `python tools/evaluate.py --cache cache/ --heads heads/ --out results
 | --- | --- | --- |
 | `cache/text_test.npy` | 8018048 | `bd454c8e0f496e649b8e9f61a1acd098ffe478c51184a30e28185c71135e3ce7` |
 | `meld/test_sent_emo.csv` | 294526 | `8d37103938f7067600839fe29d5a114a6cd1bcdafb75bec101e06464c5006888` |
-| `heads/sentiment.npz` | 18328 | `65c6614faa7a553bf62897048bb807eb52173e4ec873a036d50903b95225b78d` |
+| `cache/audio_test.npz` | 30360152 | `a9e22761afa2096ec65841c9f8adc9af541a05e2517e8c0b9e7a1337c58007e2` |
+| `heads/audio_cal.npz` | 3622 | `49be433bf1a2b0b7cb635dda743c4416af0ed8958fc28235f84f5f3a31509cfc` |
+| `heads/audio_cal_A.npz` | 3622 | `49be433bf1a2b0b7cb635dda743c4416af0ed8958fc28235f84f5f3a31509cfc` |
+| `heads/audio_cal_B.npz` | 40486 | `4cb548fa197a50e7d83241e03af7cc64237bcfa406e69dae18850a12f3c9c2d4` |
+| `heads/fusion.npz` | 3192 | `19fb219aa787d75611ec39d65067bc8afdd982bc807ea9b4601729e8c95c154d` |
+| `heads/sentiment.npz` | 3010 | `4cd0467fe75f6b97f956994d8b099c63a256f52f68a36fd105766d7301d0abbf` |
 | `heads/text_ctx.npz` | 808726 | `916806bf4f0a0055e989c6e73a289441378c719b9a4fb68c0628ad652d97dd92` |
 | `heads/text_ctx_k0.npz` | 808726 | `916806bf4f0a0055e989c6e73a289441378c719b9a4fb68c0628ad652d97dd92` |
 
-Deployed text head, from `heads/manifest.json`: k = 0, class weights `none`, temperature 1.2228, thresholds `{"low_conf": 0.39, "high_conf": 0.73, "jsd_flag": null}`, text_only = True, scikit-learn 1.9.1.
+Deployed text head, from `heads/manifest.json`: k = 0, class weights `none`, temperature 1.2228, thresholds `{"low_conf": 0.47, "high_conf": 0.73, "jsd_flag": 0.3831}`, text_only = False, scikit-learn 1.9.1.
 
 ## Emotion (7 classes)
 
@@ -22,12 +27,12 @@ Deployed text head, from `heads/manifest.json`: k = 0, class weights `none`, tem
 | text_k0 | done | 59.62 | [57.38, 62.03] | 41.22 | 62.76 | 3.83 | class weights none, T=1.223 |
 | text_best_k | done | 59.62 | [57.38, 62.03] | 41.22 | 62.76 | 3.83 | k=0, class weights none, T=1.223 |
 | text_runtime_regime | done | 59.61 | [57.36, 62.08] | 40.82 | 62.87 | 3.54 | same head as text_best_k, same-speaker window (k=0: differs from text_best_k only through the turn-index flags) |
-| audio_raw_tag | pending (needs MELD audio) | | | | | | 3. audio only, raw sensevoice tag: argmax over the seven named tokens |
-| audio_cal_A | pending (needs MELD audio) | | | | | | 4. audio only, AudioCalibrator A (slots + events + prosody) |
-| audio_cal_B | pending (needs MELD audio) | | | | | | 4. audio only, AudioCalibrator B (+ encoder states) |
-| fused_stacked | pending (needs MELD audio) | | | | | | 5. fused, stacked logistic regression (deployed) |
-| fused_poe | pending (needs MELD audio) | | | | | | 5. fused, product of experts with the dev-chosen weight |
-| fused_poe_uncalibrated | pending (needs MELD audio) | | | | | | 5. fused, fixed poe_uncalibrated fallback (w = 0.5) |
+| audio_raw_tag | done | 48.52 | [46.33, 50.96] | 28.18 | 51.34 | 19.77 | argmax over the seven named tokens |
+| audio_cal_A | done | 48.02 | [45.66, 50.64] | 26.92 | 53.72 | 2.84 | T=1.015 |
+| audio_cal_B | done | 46.32 | [44.14, 48.43] | 28.51 | 47.78 | 4.73 | T=2.061 |
+| fused_stacked | done | 60.77 | [58.65, 63.00] | 39.24 | 63.98 | 1.52 | T=0.846 |
+| fused_poe | done | 58.26 | [55.91, 60.69] | 35.86 | 63.14 | 11.12 | w=0.75; calibrated audio posterior |
+| fused_poe_uncalibrated | done | 59.00 | [56.73, 61.36] | 36.65 | 63.49 | 13.14 | w=0.5; raw sensevoice posterior, uncalibrated |
 | ablation_no_events | pending (needs MELD audio); also needs the ablation heads of experiment 02 | | | | | | 6. fused without event features |
 | ablation_no_prosody | pending (needs MELD audio); also needs the ablation heads of experiment 02 | | | | | | 6. fused without prosody |
 | ablation_no_events_no_prosody | pending (needs MELD audio); also needs the ablation heads of experiment 02 | | | | | | 6. fused without events and prosody |
@@ -59,8 +64,8 @@ Deployed text head, from `heads/manifest.json`: k = 0, class weights `none`, tem
 
 | condition | status | weighted F1 | 95 % CI | macro F1 | accuracy | ECE | note |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| sentiment_text_only | done | 66.24 | [64.41, 68.20] | 63.33 | 66.70 | 2.04 | k=0, C=0.1, T=1.420 |
-| sentiment_fused | pending (needs MELD audio) | | | | | | 10. sentiment, fused head over the 19 fusion features |
+| sentiment_text_only | pending (run tools/train_heads.py --text-only first) | | | | | | 10. sentiment, text-only head (logistic regression over the text context features) |
+| sentiment_fused | done | 69.17 | [67.37, 70.96] | 66.45 | 69.46 | 1.88 | T=0.805 |
 
 ### Published rows (sentiment)
 
@@ -79,6 +84,12 @@ Deployed text head, from `heads/manifest.json`: k = 0, class weights `none`, tem
 | text_k0 | 77.93 | 53.63 | 20.29 | 24.00 | 54.88 | 19.35 | 38.42 |
 | text_best_k | 77.93 | 53.63 | 20.29 | 24.00 | 54.88 | 19.35 | 38.42 |
 | text_runtime_regime | 78.01 | 53.82 | 20.29 | 24.55 | 54.92 | 15.91 | 38.25 |
+| audio_raw_tag | 67.22 | 31.26 | 0.00 | 16.92 | 38.19 | 1.82 | 41.85 |
+| audio_cal_A | 69.38 | 29.73 | 0.00 | 20.63 | 32.28 | 0.00 | 36.40 |
+| audio_cal_B | 65.34 | 35.54 | 6.84 | 24.63 | 33.29 | 6.20 | 27.74 |
+| fused_stacked | 77.87 | 54.91 | 0.00 | 28.16 | 56.07 | 10.53 | 47.12 |
+| fused_poe | 76.79 | 52.78 | 0.00 | 18.93 | 53.52 | 5.63 | 43.35 |
+| fused_poe_uncalibrated | 77.27 | 52.79 | 0.00 | 17.65 | 55.09 | 8.22 | 45.55 |
 | DialogueRNN text+audio (MELD paper Table 11) | 77.44 | 52.51 | 11.68 | 34.59 | 54.40 | 7.89 | 43.65 |
 
 ### Confusion matrix of majority (rows true, columns predicted)
@@ -129,13 +140,87 @@ Deployed text head, from `heads/manifest.json`: k = 0, class weights `none`, tem
 | disgust | 35 | 6 | 0 | 4 | 5 | 7 | 11 |
 | anger | 122 | 43 | 3 | 6 | 63 | 3 | 105 |
 
-### Confusion matrix of sentiment_text_only (rows true, columns predicted)
+### Confusion matrix of audio_raw_tag (rows true, columns predicted)
+
+| true \ pred | neutral | surprise | fear | sadness | joy | disgust | anger |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| neutral | 938 | 61 | 0 | 20 | 130 | 18 | 89 |
+| surprise | 119 | 78 | 0 | 3 | 48 | 6 | 27 |
+| fear | 28 | 1 | 0 | 0 | 9 | 1 | 11 |
+| sadness | 121 | 17 | 0 | 22 | 19 | 5 | 24 |
+| joy | 173 | 30 | 0 | 5 | 156 | 4 | 34 |
+| disgust | 34 | 2 | 0 | 1 | 12 | 1 | 18 |
+| anger | 122 | 29 | 0 | 1 | 41 | 7 | 145 |
+
+Abstain rate (OTHER + EMO_UNKNOWN above half the mass): 97.51 %.
+
+### Confusion matrix of audio_cal_A (rows true, columns predicted)
+
+| true \ pred | neutral | surprise | fear | sadness | joy | disgust | anger |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| neutral | 1098 | 38 | 0 | 10 | 60 | 1 | 49 |
+| surprise | 158 | 66 | 0 | 0 | 33 | 0 | 24 |
+| fear | 35 | 1 | 0 | 1 | 5 | 0 | 8 |
+| sadness | 139 | 11 | 0 | 26 | 14 | 0 | 18 |
+| joy | 253 | 24 | 0 | 2 | 107 | 0 | 16 |
+| disgust | 43 | 1 | 0 | 2 | 10 | 0 | 12 |
+| anger | 183 | 22 | 0 | 3 | 32 | 0 | 105 |
+
+### Confusion matrix of audio_cal_B (rows true, columns predicted)
+
+| true \ pred | neutral | surprise | fear | sadness | joy | disgust | anger |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| neutral | 888 | 78 | 33 | 49 | 115 | 24 | 69 |
+| surprise | 104 | 102 | 3 | 10 | 33 | 9 | 20 |
+| fear | 23 | 5 | 4 | 5 | 7 | 0 | 6 |
+| sadness | 93 | 16 | 8 | 42 | 20 | 7 | 22 |
+| joy | 190 | 43 | 4 | 12 | 126 | 5 | 22 |
+| disgust | 24 | 8 | 3 | 3 | 7 | 4 | 19 |
+| anger | 140 | 41 | 12 | 12 | 47 | 12 | 81 |
+
+### Confusion matrix of fused_stacked (rows true, columns predicted)
+
+| true \ pred | neutral | surprise | fear | sadness | joy | disgust | anger |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| neutral | 1105 | 41 | 0 | 14 | 59 | 3 | 34 |
+| surprise | 61 | 151 | 1 | 0 | 41 | 1 | 26 |
+| fear | 25 | 3 | 0 | 7 | 4 | 0 | 11 |
+| sadness | 112 | 10 | 4 | 39 | 15 | 0 | 28 |
+| joy | 134 | 24 | 0 | 3 | 224 | 0 | 17 |
+| disgust | 35 | 4 | 0 | 4 | 5 | 4 | 16 |
+| anger | 110 | 36 | 1 | 2 | 49 | 0 | 147 |
+
+### Confusion matrix of fused_poe (rows true, columns predicted)
+
+| true \ pred | neutral | surprise | fear | sadness | joy | disgust | anger |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| neutral | 1166 | 23 | 0 | 6 | 48 | 1 | 12 |
+| surprise | 90 | 133 | 0 | 0 | 39 | 0 | 19 |
+| fear | 30 | 4 | 0 | 4 | 4 | 0 | 8 |
+| sadness | 144 | 8 | 0 | 23 | 15 | 0 | 18 |
+| joy | 164 | 19 | 0 | 1 | 205 | 0 | 13 |
+| disgust | 40 | 4 | 0 | 1 | 6 | 2 | 15 |
+| anger | 147 | 32 | 0 | 0 | 47 | 0 | 119 |
+
+### Confusion matrix of fused_poe_uncalibrated (rows true, columns predicted)
+
+| true \ pred | neutral | surprise | fear | sadness | joy | disgust | anger |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| neutral | 1144 | 25 | 0 | 4 | 57 | 1 | 25 |
+| surprise | 83 | 137 | 0 | 0 | 40 | 0 | 21 |
+| fear | 30 | 5 | 0 | 3 | 4 | 0 | 8 |
+| sadness | 135 | 10 | 0 | 21 | 17 | 0 | 25 |
+| joy | 148 | 20 | 0 | 1 | 219 | 0 | 14 |
+| disgust | 39 | 5 | 0 | 1 | 7 | 3 | 13 |
+| anger | 126 | 36 | 0 | 0 | 49 | 1 | 133 |
+
+### Confusion matrix of sentiment_fused (rows true, columns predicted)
 
 | true \ pred | neutral | positive | negative |
 | --- | --- | --- | --- |
-| neutral | 1004 | 87 | 165 |
-| positive | 134 | 287 | 100 |
-| negative | 253 | 130 | 450 |
+| neutral | 997 | 66 | 193 |
+| positive | 127 | 275 | 119 |
+| negative | 208 | 84 | 541 |
 
 ## Definitions
 
