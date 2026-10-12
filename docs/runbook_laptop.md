@@ -51,7 +51,7 @@ uv run python -m meld_rt.clients.mic --list-devices
 uv run python -m meld_rt.clients.mic --device N --seconds 180
 ```
 
-The JSONL file stays outside the repository because it holds what was said. When the session ends, the microphone client prints how many frames it sent and how many input overflows it saw. Write that line and what you observed (ex. the device used, utterances that were split or merged, replies that did not fit, how long the answers felt) in `results/laptop_notes.md`. The renderer copies that file verbatim under the laptop heading.
+The JSONL file stays outside the repository because it holds what was said. The service uses the default endpoint silence of 500 ms (a 512 ms tail), so a pause shorter than 512 ms stays inside one utterance. When the session ends, the microphone client prints how many frames it sent and how many input overflows it saw. Write that line and what you observed (ex. the device used, utterances that were split or merged, replies that did not fit, how long the answers felt) in `results/laptop_notes.md`. The renderer copies that file verbatim under the laptop heading.
 
 ## 4. Re-render the measurements file
 

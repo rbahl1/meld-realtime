@@ -33,7 +33,7 @@ class VadEvent:
 
 
 class VadSegmenter:
-    def __init__(self, model_path: Path | str, endpoint_silence_ms: int = 400, min_speech_ms: int = 250,
+    def __init__(self, model_path: Path | str, endpoint_silence_ms: int = 500, min_speech_ms: int = 250,
                  preroll_ms: int = 250, max_segment_s: float = 15.0, threshold: float = 0.5,
                  threads: int = 1):
         so = ort.SessionOptions()

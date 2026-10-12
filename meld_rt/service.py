@@ -104,7 +104,7 @@ class ServiceConfig:
     out_addr: str = P.OUT_ADDR
     threads: int = 4                  # sensevoice intra-op threads; roberta uses text_threads, vad 1
     text_threads: int = 2
-    endpoint_silence_ms: int = 400
+    endpoint_silence_ms: int = 500    # 16 frames, a 512 ms tail (decisions: end-pointing)
     min_speech_ms: int = 250
     preroll_ms: int = 250
     max_segment_s: float = 15.0

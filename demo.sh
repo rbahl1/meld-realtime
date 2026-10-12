@@ -2,7 +2,7 @@
 # service + monitor + replay on one clip; prints the state and response lines
 # and writes every message to results/demo_log.jsonl.
 # usage: ./demo.sh [clip.wav]      (default proxy/dev_0001.wav, else en.wav)
-# env: THREADS (4), ENDPOINT_MS (400), N_FINALS (1), DEMO_LOG (results/demo_log.jsonl)
+# env: THREADS (4), ENDPOINT_MS (500), N_FINALS (1), DEMO_LOG (results/demo_log.jsonl)
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -12,7 +12,7 @@ if [ ! -f "$CLIP" ]; then
   CLIP=models/sensevoice/test_wavs/en.wav
 fi
 THREADS="${THREADS:-4}"
-ENDPOINT_MS="${ENDPOINT_MS:-400}"
+ENDPOINT_MS="${ENDPOINT_MS:-500}"
 N_FINALS="${N_FINALS:-1}"
 LOG="${DEMO_LOG:-results/demo_log.jsonl}"
 mkdir -p "$(dirname "$LOG")"

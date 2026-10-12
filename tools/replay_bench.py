@@ -299,7 +299,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--out", type=Path, default=ROOT / f"results/replay_bench_{socket.gethostname()}.json")
     ap.add_argument("--threads", type=int, default=4, help="sensevoice intra-op threads")
     ap.add_argument("--text-threads", type=int, default=2)
-    ap.add_argument("--endpoint-silence-ms", type=int, default=400)
+    ap.add_argument("--endpoint-silence-ms", type=int, default=ServiceConfig().endpoint_silence_ms, help="default: the service default")
     ap.add_argument("--provisional-hz", type=float, default=1.0)
     ap.add_argument("--provisional-window-s", type=float, default=4.0)
     ap.add_argument("--provisional-budget-ms", type=float, default=0.0)

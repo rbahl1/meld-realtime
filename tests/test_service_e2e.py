@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EN_WAV = ROOT / "models/sensevoice/test_wavs/en.wav"
 MODELS = [ROOT / "models/silero_vad.onnx", ROOT / "models/sensevoice/model.int8.onnx", ROOT / "models/roberta-base-11.onnx"]
 THREADS = 2
-ENDPOINT_MS = 500          # en.wav has a 0.45 s pause; 500 ms keeps it one utterance (WP3 report)
+ENDPOINT_MS = 500          # the default. en.wav has a 448 ms pause at 3.392 s, 500 ms keeps it one utterance (results/pause_stats_available.json)
 MAX_SERVICE_TOTAL_MS = 1500
 REPLY_WITHIN_MS = 5.0
 
