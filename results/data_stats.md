@@ -1,6 +1,6 @@
-# MELD csv statistics
+# MELD CSV statistics
 
-Computed from the csvs below by `python tools/meld_stats.py --meld meld/ --out results/data_stats.md`. No audio was used.
+Computed from the CSV files below by `python tools/meld_stats.py --meld meld/ --out results/data_stats.md`. No audio was used.
 
 | file | bytes | sha256 |
 | --- | --- | --- |
@@ -8,7 +8,13 @@ Computed from the csvs below by `python tools/meld_stats.py --meld meld/ --out r
 | `dev_sent_emo.csv` | 121640 | `2e89c6f8aa182d6f62f8c6331aece905ac7273ca4999660bfb5213e1d0370c1c` |
 | `test_sent_emo.csv` | 294526 | `8d37103938f7067600839fe29d5a114a6cd1bcdafb75bec101e06464c5006888` |
 
-Definitions: duration = EndTime - StartTime of the subtitle timestamps; percentiles are numpy linear interpolation; words = whitespace-separated tokens of the Utterance column; consecutive pairs = adjacent rows of the same dialogue in Utterance_ID order (utterance ids have gaps in some dialogues, so a pair need not have consecutive ids); speaker and emotion change rates are over those pairs. `all` pools the three splits.
+Definitions:
+
+- Duration is EndTime minus StartTime of the subtitle timestamps.
+- Percentiles use numpy linear interpolation.
+- Words are the whitespace-separated tokens of the Utterance column.
+- Consecutive pairs are adjacent rows of the same dialogue in Utterance_ID order. Utterance ids have gaps in some dialogues, so a pair need not have consecutive ids. The speaker and emotion change rates are over these pairs.
+- The `all` rows pool the three splits.
 
 ## Counts
 
@@ -63,4 +69,4 @@ Definitions: duration = EndTime - StartTime of the subtitle timestamps; percenti
 | test | 155 | 3 | 752.632 | 752.632 | 0.000 | 3 |
 | test | 220 | 0 | 104.270 | 339.338 | 235.068 | 3 |
 
-MELD README emotion class weights, index order ['neutral', 'surprise', 'fear', 'sadness', 'joy', 'disgust', 'anger']: `[4.0, 15.0, 15.0, 3.0, 1.0, 6.0, 3.0]`.
+The MELD README gives these emotion class weights, in the index order neutral, surprise, fear, sadness, joy, disgust, anger: `[4.0, 15.0, 15.0, 3.0, 1.0, 6.0, 3.0]`.

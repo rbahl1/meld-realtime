@@ -196,3 +196,47 @@ def test_evaluate_leaves_out_test_rows_without_a_clip(workspace):
         assert "left out" in r["note"]
     assert 0.0 <= met["fused_stacked"]["text_best_k_same_rows_weighted_f1"] <= 1.0
     assert met["text_best_k"]["n"] == n and "n_no_audio" not in met["text_best_k"]
+
+
+def test_audit_sample_and_tally(workspace, tmp_path):
+    """the disagreement audit draws flagged test rows scored as the service scores them,
+    and the tally counts the listener's marks without copying any utterance text."""
+    import audit_disagreement as audit
+
+    root, meld, cache, out = workspace
+    if not (out / "fusion.npz").exists():
+        assert train_heads.main(["--cache", str(cache), "--out", str(out), "--config", str(root / "heads.yaml"), "--meld", str(meld)]) == 0
+    sheet = tmp_path / "audit.csv"
+    # without heads/audio_cal.npz the audit scores the raw sensevoice posterior, as the service does,
+    # which is also what the manifest's jsd threshold was chosen on
+    no_cal = tmp_path / "heads_no_cal"
+    no_cal.mkdir()
+    for name in ("text_ctx.npz", "manifest.json"):
+        (no_cal / name).write_bytes((out / name).read_bytes())
+    thr = json.loads((out / "manifest.json").read_text())["thresholds"]["jsd_flag"]
+    assert audit.main(["sample", "--n", "5", "--cache", str(cache), "--heads", str(no_cal), "--meld", str(meld),
+                       "--audio", str(tmp_path), "--out", str(sheet)]) == 0
+    with sheet.open(newline="", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    assert 0 < len(rows) <= 5 and all(r["direction"] != "none" and float(r["jsd"]) > thr - 1e-4 for r in rows)
+    assert all(r[c] == "" for r in rows for c in audit.LISTENER_COLUMNS)
+    for r, mark in zip(rows, ["text", "audio", "both", "neither", "text"]):
+        r["right_branch"], r["laughter_source"] = mark, "none"
+    with sheet.open("w", newline="", encoding="utf-8") as f:
+        w = csv.DictWriter(f, fieldnames=list(rows[0]))
+        w.writeheader()
+        w.writerows(rows)
+    md = tmp_path / "audit.md"
+    assert audit.main(["tally", "--csv", str(sheet), "--out", str(md)]) == 0
+    text = md.read_text()
+    assert f"{len(rows)} of {len(rows)} rows are marked" in text and f"threshold was {thr:g}" in text
+    assert not any(r["utterance"] in text for r in rows if len(r["utterance"]) > 12)
+
+
+def test_audit_draw_is_seeded_and_keeps_order():
+    import audit_disagreement as audit
+
+    rows = list(range(100))
+    a, b = audit.draw(rows, 10, 0), audit.draw(rows, 10, 0)
+    assert a == b and a == sorted(a) and len(set(a)) == 10
+    assert audit.draw(rows[:3], 10, 0) == [0, 1, 2]

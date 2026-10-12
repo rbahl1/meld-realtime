@@ -3,7 +3,7 @@
 files on disk (design 1.5, 1.12): onnx initializer element counts per model
 file (an int8 initializer counts its dequantized element count, one parameter
 per element) plus the weight and bias arrays of the trained .npz heads. piper
-is counted separately as the optional spoken reply. writes results/params.md
+is counted separately (offline tts for the proxy clips). writes results/params.md
 and results/params.json and prints the table; nothing in them is typed.
 
 usage: python tools/count_params.py --models models/ --heads heads/ --out results/params.md
@@ -31,7 +31,7 @@ ONNX_ROWS = [
     ("SenseVoice-small int8", "ASR + emotion + event posterior", "sensevoice/model.int8.onnx", "frozen"),
     ("RoBERTa-base encoder", "text embedding", "roberta-base-11.onnx", "frozen"),
 ]
-PIPER_ROW = ("Piper en_US-lessac-medium", "TTS (optional spoken reply)", "piper/en_US-lessac-medium/en_US-lessac-medium.onnx", "frozen")
+PIPER_ROW = ("Piper en_US-lessac-medium", "TTS for the proxy clips (offline)", "piper/en_US-lessac-medium/en_US-lessac-medium.onnx", "frozen")
 # (contract file name, component, role) for the heads of design 6.2 WP4
 HEAD_ROWS = [
     ("text_ctx.npz", "TextContextHead", "text posterior with context"),
@@ -139,7 +139,8 @@ def build(models: Path, heads: Path) -> dict:
     if pp.exists():
         c = count_onnx(pp)
         piper = {"component": PIPER_ROW[0], "role": PIPER_ROW[1], "file": PIPER_ROW[2], "trained": PIPER_ROW[3],
-                 "params": c["params"], "bytes": c["bytes"], "by_dtype": c["by_dtype"], "note": f"{c['n_initializers']} initializers; optional, not on the measured path"}
+                 "params": c["params"], "bytes": c["bytes"], "by_dtype": c["by_dtype"],
+                 "note": f"{c['n_initializers']} initializers, used by tools/make_proxy_clips.py only, not on the inference path"}
     return {"rows": rows, "total_inference_path": total, "piper": piper,
             "total_with_piper": total + piper["params"] if piper else None,
             "heads_pending": [r["component"] for r in rows if r.get("params") is None and r["trained"] == "trained"],
@@ -147,11 +148,13 @@ def build(models: Path, heads: Path) -> dict:
 
 
 def render(res: dict, models: Path, heads: Path) -> str:
-    out = ["# Parameter count (recomputed from the files on disk)", "",
-           (f"Written by `python tools/count_params.py --models {models} --heads {heads}` on {res['generated_at']}. "
-            "ONNX rows sum the element counts of the graph initializers (an int8 initializer counts one parameter per element, "
-            "its dequantized count); head rows sum the weight and bias arrays of the `.npz` files (the standardizer mean and "
-            "scale are not parameters and are listed in the note). Constant-node tensors are not initializers and are not counted."),
+    out = ["# Parameter count", "",
+           (f"Written by `python tools/count_params.py --models {models} --heads {heads}` on {res['generated_at']}, "
+            "from the files on disk. An ONNX row is the sum of the element counts of the graph initializers. "
+            "An int8 initializer counts one parameter per element, which is its dequantized count. "
+            "A head row is the sum of the weight and bias arrays in its `.npz` file. "
+            "The standardizer mean and scale are not parameters and are listed in the note. "
+            "Tensors held by Constant nodes are not initializers and are not counted."),
            "", "| Component | Role | File | Params | Trained | Note |", "|---|---|---|---|---|---|"]
     for r in res["rows"]:
         f = "-" if r["file"] == "-" else f"`{r['file']}`"
@@ -162,9 +165,9 @@ def render(res: dict, models: Path, heads: Path) -> str:
     p = res["piper"]
     if p:
         out.append(f"| {p['component']} | {p['role']} | `{p['file']}` | {fmt_m(p['params'])} | {p['trained']} | {p['note']} |")
-        out.append(f"| Total with Piper enabled | | | {fmt_m(res['total_with_piper'])} | | |")
+        out.append(f"| Total including Piper | | | {fmt_m(res['total_with_piper'])} | | |")
     else:
-        out.append("| Piper en_US-lessac-medium | TTS (optional) | - | not on disk | | |")
+        out.append("| Piper en_US-lessac-medium | TTS for the proxy clips (offline) | - | not on disk | | |")
     if res["other_head_files"]:
         out += ["", "Other files in `heads/` (not on the inference path): " +
                 ", ".join(f"`{e['file']}` ({fmt_m(e['params'])})" for e in res["other_head_files"]) + "."]
@@ -173,7 +176,7 @@ def render(res: dict, models: Path, heads: Path) -> str:
         if r.get("params") is not None and r.get("file") != "-":
             dt = ", ".join(f"{k} {v:,}" for k, v in sorted(r.get("by_dtype", {}).items())) if r.get("by_dtype") else \
                 ", ".join(f"{k} {v:,}" for k, v in r.get("weights", {}).items())
-            out.append(f"- `{r['file']}`: {r['params']:,} ({dt}); {r.get('bytes', 0):,} bytes on disk")
+            out.append(f"- `{r['file']}`: {r['params']:,} ({dt}), {r.get('bytes', 0):,} bytes on disk")
     return "\n".join(out) + "\n"
 
 

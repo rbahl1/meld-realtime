@@ -196,8 +196,25 @@ def test_clip_attribution_uses_the_speech_end_not_the_preroll_start():
 def test_render_without_json_files_has_placeholders_only(tmp_path):
     md = rm.render(ROOT, tmp_path)
     assert md.count("[not yet measured: run") == 3
-    assert md.count(rm.NOT_YET) >= 12 and "## Laptop (user-run)" in md and "## Container (this host)" in md
-    assert "avx512_vnni" in md and "python 3." in md
+    assert md.count(rm.NOT_YET) >= 12 and "## Laptop (user-run)" in md and "## Container (host `vm`)" in md
+    assert "## Host that rendered this file" in md and "avx512_vnni" in md and "python 3." in md
+
+
+def test_render_puts_other_hosts_under_the_laptop_heading(tmp_path):
+    """bench json files recorded on another host replace the laptop placeholders;
+    the container keeps its own; results/laptop_notes.md is included verbatim."""
+    src = sorted((ROOT / "results").glob("replay_bench_*.json"))
+    if not src:
+        pytest.skip("no committed replay bench json")
+    r = json.loads(src[0].read_text())
+    (tmp_path / "replay_bench_vm.json").write_text(json.dumps(r))
+    r["host"] = "laptop1"
+    (tmp_path / "replay_bench_laptop1.json").write_text(json.dumps(r))
+    (tmp_path / rm.LAPTOP_NOTES).write_text("mic session: no dropouts")
+    md = rm.render(ROOT, tmp_path)
+    container, laptop = md.split("## Laptop (user-run)")
+    assert "replay_bench_vm.json" in container and "replay_bench_laptop1.json" in laptop
+    assert rm.NOT_YET not in laptop and "mic session: no dropouts" in laptop
 
 
 @pytest.mark.skipif(not (ROOT / "results/params.json").exists(), reason="count_params.py has not run")

@@ -1,6 +1,6 @@
-# Experiment 01: text-only heads
+# Experiment 01, text-only heads
 
-Rendered by `python tools/report_text_only.py --manifest heads/manifest.json --metrics results/metrics.json --out results/01_text_only.md` from `heads/manifest.json` (written by `python tools/train_heads.py --cache cache/ --out heads/ --config configs/heads.yaml --text-only`) and `results/metrics.json` (written by `python tools/evaluate.py --cache cache/ --heads heads/ --out results/RESULTS.md results/metrics.json`). Frozen RoBERTa-base mean-pooled embeddings (`cache/text_{split}.npy`, WP2), TextContextHead MLP 256 hidden units, early stopping on dev weighted F1, scikit-learn 1.9.1, 2 threads, seed 0. Metrics in percent.
+Rendered by `python tools/report_text_only.py --manifest heads/manifest.json --metrics results/metrics.json --out results/01_text_only.md` from `heads/manifest.json` (written by `python tools/train_heads.py --cache cache/ --out heads/ --config configs/heads.yaml --text-only`) and `results/metrics.json` (written by `python tools/evaluate.py --cache cache/ --heads heads/ --out results/RESULTS.md results/metrics.json`). The inputs are frozen RoBERTa-base embeddings, mean-pooled, in `cache/text_{split}.npy` (written by `tools/embed_text.py`). The TextContextHead is an MLP with 256 hidden units and early stopping on dev weighted F1 (scikit-learn 1.9.1, 2 threads, seed 0). Metrics are in percent.
 
 ## Dev grid (weighted F1 / macro F1, best epoch / epochs run)
 
@@ -42,15 +42,15 @@ All grid points:
 | k=2,cw=none,lr=0.0003 | 55.48 | 38.33 | 58.16 | 4 / 10 | 8.0 |
 | k=2,cw=none,lr=0.0001 | 54.91 | 36.76 | 58.25 | 9 / 15 | 12.3 |
 
-Training wall time for the grid: 326.6 s; total run 335.9 s.
+Training the grid took 326.6 s. The whole run took 335.9 s.
 
 ## Chosen configuration (dev)
 
-- grid point `k=0,cw=none,lr=0.0001`: k = 0, class weights `none`, dev weighted F1 57.56, macro F1 41.81, accuracy 60.87; 199687 parameters in `heads/text_ctx.npz`
-- temperature 1.2228 (dev NLL 1.1998 -> 1.1798, dev ECE 6.74 -> 3.59)
-- selector thresholds low_conf = 0.39, high_conf = 0.73 (dev); jsd_flag = None (needs MELD audio)
-- k = 0 head kept for the k = 0 row: `k=0,cw=none,lr=0.0001` in `heads/text_ctx_k0.npz`
-- sentiment head (text_only): logistic regression over TextContextHead features, k=0 (768*(k+1)+4), C = 0.1, class weights `none`, dev weighted F1 65.25, temperature 1.4197
+- Grid point `k=0,cw=none,lr=0.0001`: k = 0, class weights `none`, dev weighted F1 57.56, macro F1 41.81, accuracy 60.87, 199687 parameters in `heads/text_ctx.npz`.
+- Temperature 1.2228: dev NLL from 1.1998 to 1.1798, dev ECE from 6.74 to 3.59.
+- Selector thresholds: low_conf = 0.39 and high_conf = 0.73 (dev). jsd_flag = None (needs MELD audio), so the service uses its `--jsd-flag` default.
+- The k = 0 row uses `k=0,cw=none,lr=0.0001` in `heads/text_ctx_k0.npz`.
+- Sentiment head (text_only): logistic regression over TextContextHead features, k=0 (768*(k+1)+4), C = 0.1, class weights `none`, dev weighted F1 65.25, temperature 1.4197.
 
 ## Test (one run per condition)
 
@@ -71,7 +71,7 @@ Training wall time for the grid: 326.6 s; total run 335.9 s.
 | text_best_k | 77.93 | 53.63 | 20.29 | 24.00 | 54.88 | 19.35 | 38.42 |
 | text_runtime_regime | 78.01 | 53.82 | 20.29 | 24.55 | 54.92 | 15.91 | 38.25 |
 
-### Published text-only rows (test weighted F1, from the sources named in RESULTS.md)
+### Published text-only rows (test weighted F1, sources in results/RESULTS.md)
 
 - MELD paper Table 11, text-CNN, text: 55.02
 - MELD paper Table 11, bcLSTM, text: 56.44
@@ -79,5 +79,10 @@ Training wall time for the grid: 326.6 s; total run 335.9 s.
 
 ## Observations
 
-On dev the grid point k=0,cw=none,lr=0.0001 (k = 0, class weights `none`) won on weighted F1 with 57.56; its macro F1 is 41.81, against 42.71 for the best macro-F1 point k=0,cw=balanced,lr=0.0003 (whose weighted F1 is 55.06), so the chosen scheme costs 0.90 macro-F1 points for +2.50 weighted-F1 points; the MELD README weights reach at best 55.32 / 40.07 (weighted / macro), -2.24 and -1.75 points against the chosen point.
-Context did not help on dev: k = 1 reaches 56.14, k = 2 reaches 55.75 against 57.56 at k = 0, so the deployed head sees the current utterance only; on test the deployed head scores 59.62 weighted F1 (95 % CI [57.38, 62.03]) against 59.62 for k = 0 and 59.61 with the same-speaker runtime-regime window, next to the published text-only rows text-CNN 55.02; bcLSTM 56.44; DialogueRNN 57.03; EmoBERTa without context 63.46.
+On dev, the grid point `k=0,cw=none,lr=0.0001` (k = 0, class weights `none`) has the best weighted F1, 57.56, with a macro F1 of 41.81.
+The best macro F1 on dev is 42.71, at `k=0,cw=balanced,lr=0.0003`, whose weighted F1 is 55.06. Choosing by weighted F1 costs 0.90 macro-F1 points and gains 2.50 weighted-F1 points.
+The MELD README class weights reach at best 55.32 weighted F1 and 40.07 macro F1, 2.24 and 1.75 points below the chosen point.
+Context did not help on dev: the best points reach 56.14 at k = 1 and 55.75 at k = 2, against 57.56 at k = 0. The deployed head sees the current utterance only.
+On test, the deployed head scores 59.62 weighted F1 (95 % CI [57.38, 62.03]). The k = 0 head scores 59.62, and the deployed head with the same-speaker runtime window scores 59.61.
+The published text-only rows of the MELD paper (Table 11) are text-CNN 55.02, bcLSTM 56.44 and DialogueRNN 57.03.
+EmoBERTa, a fine-tuned RoBERTa-large without context, reports 63.46 (Table 2).

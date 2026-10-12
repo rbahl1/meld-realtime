@@ -1,6 +1,6 @@
 # Results on MELD test
 
-Written by `python tools/evaluate.py --cache cache/ --heads heads/ --out results/RESULTS.md results/metrics.json`. Every number below was computed by that command from the inputs listed; model selection, temperature and thresholds were chosen on dev by `tools/train_heads.py` and the test split was read once per condition. Weighted F1 is the primary metric (as in the published rows); CIs are 95 % percentile bootstrap intervals over test dialogues (1000 resamples, seed 0); ECE uses 10 equal-width confidence bins. All metrics in percent.
+Written by `python tools/evaluate.py --cache cache/ --heads heads/ --out results/RESULTS.md results/metrics.json`. Every number below was computed by that command from the inputs listed. Model selection, temperature and thresholds were chosen on dev by `tools/train_heads.py`, and the test split was read once per condition. Weighted F1 is the primary metric, as in the published rows. The CIs are 95 % percentile bootstrap intervals over test dialogues (1000 resamples, seed 0). ECE uses 10 equal-width confidence bins. All metrics are in percent.
 
 ## Inputs
 
@@ -12,7 +12,7 @@ Written by `python tools/evaluate.py --cache cache/ --heads heads/ --out results
 | `heads/text_ctx.npz` | 808726 | `916806bf4f0a0055e989c6e73a289441378c719b9a4fb68c0628ad652d97dd92` |
 | `heads/text_ctx_k0.npz` | 808726 | `916806bf4f0a0055e989c6e73a289441378c719b9a4fb68c0628ad652d97dd92` |
 
-Deployed text head from `heads/manifest.json`: k = 0, class weights `none`, temperature 1.2228, thresholds {"low_conf": 0.39, "high_conf": 0.73, "jsd_flag": null}, text_only = True, scikit-learn 1.9.1.
+Deployed text head, from `heads/manifest.json`: k = 0, class weights `none`, temperature 1.2228, thresholds `{"low_conf": 0.39, "high_conf": 0.73, "jsd_flag": null}`, text_only = True, scikit-learn 1.9.1.
 
 ## Emotion (7 classes)
 
@@ -81,7 +81,7 @@ Deployed text head from `heads/manifest.json`: k = 0, class weights `none`, temp
 | text_runtime_regime | 78.01 | 53.82 | 20.29 | 24.55 | 54.92 | 15.91 | 38.25 |
 | DialogueRNN text+audio (MELD paper Table 11) | 77.44 | 52.51 | 11.68 | 34.59 | 54.40 | 7.89 | 43.65 |
 
-### Confusion matrix: majority (rows true, columns predicted)
+### Confusion matrix of majority (rows true, columns predicted)
 
 | true \ pred | neutral | surprise | fear | sadness | joy | disgust | anger |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -93,7 +93,7 @@ Deployed text head from `heads/manifest.json`: k = 0, class weights `none`, temp
 | disgust | 68 | 0 | 0 | 0 | 0 | 0 | 0 |
 | anger | 345 | 0 | 0 | 0 | 0 | 0 | 0 |
 
-### Confusion matrix: text_k0 (rows true, columns predicted)
+### Confusion matrix of text_k0 (rows true, columns predicted)
 
 | true \ pred | neutral | surprise | fear | sadness | joy | disgust | anger |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -105,7 +105,7 @@ Deployed text head from `heads/manifest.json`: k = 0, class weights `none`, temp
 | disgust | 34 | 7 | 0 | 2 | 4 | 9 | 12 |
 | anger | 121 | 41 | 3 | 6 | 63 | 4 | 107 |
 
-### Confusion matrix: text_best_k (rows true, columns predicted)
+### Confusion matrix of text_best_k (rows true, columns predicted)
 
 | true \ pred | neutral | surprise | fear | sadness | joy | disgust | anger |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -117,7 +117,7 @@ Deployed text head from `heads/manifest.json`: k = 0, class weights `none`, temp
 | disgust | 34 | 7 | 0 | 2 | 4 | 9 | 12 |
 | anger | 121 | 41 | 3 | 6 | 63 | 4 | 107 |
 
-### Confusion matrix: text_runtime_regime (rows true, columns predicted)
+### Confusion matrix of text_runtime_regime (rows true, columns predicted)
 
 | true \ pred | neutral | surprise | fear | sadness | joy | disgust | anger |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -129,7 +129,7 @@ Deployed text head from `heads/manifest.json`: k = 0, class weights `none`, temp
 | disgust | 35 | 6 | 0 | 4 | 5 | 7 | 11 |
 | anger | 122 | 43 | 3 | 6 | 63 | 3 | 105 |
 
-### Confusion matrix: sentiment_text_only (rows true, columns predicted)
+### Confusion matrix of sentiment_text_only (rows true, columns predicted)
 
 | true \ pred | neutral | positive | negative |
 | --- | --- | --- | --- |
@@ -139,6 +139,7 @@ Deployed text head from `heads/manifest.json`: k = 0, class weights `none`, temp
 
 ## Definitions
 
-- runtime-regime window: previous utterances restricted to the same speaker within the dialogue, same-speaker flags 1, turn index = number of that speaker's earlier utterances (what a single user at the lamp has said so far); the head is the one trained on the full-dialogue window.
-- majority floor: every test utterance labelled with the train majority class; its posterior is the train class prior, which is what the ECE column scores.
-- pending rows wait for MELD audio (`tools/extract_audio.py`, `tools/cache_audio_features.py`) and the heads of experiment 02.
+- Runtime-regime window: the previous utterances are restricted to the same speaker within the dialogue, the same-speaker flags are 1, and the turn index counts that speaker's earlier utterances (what a single user in front of the robot has said so far). The head is the one trained on the full-dialogue window.
+- Majority floor: every test utterance gets the train majority class. Its posterior is the train class prior, which is what the ECE column scores.
+- Rows without a clip: the audio and fused conditions leave out test rows that have no cached clip. The note says how many, and `results/metrics.json` gives the text head's weighted F1 on the same rows (`text_best_k_same_rows_weighted_f1`).
+- Pending rows: the audio and fused rows wait for MELD audio (`tools/extract_audio.py`, `tools/cache_audio_features.py`, then `tools/train_heads.py` without `--text-only`). The ablation, live ASR, disagreement and early-commit rows also need code that this script does not have yet.

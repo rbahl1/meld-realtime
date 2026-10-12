@@ -3,7 +3,7 @@
  "split": "test",
  "n_resamples": 1000,
  "seed": 0,
- "wall_s": 0.9,
+ "wall_s": 1.5,
  "inputs": {
   "cache/text_test.npy": {
    "bytes": 8018048,
@@ -254,7 +254,7 @@
    "ece": 0.009707,
    "note": "train prior as posterior; label = neutral",
    "description": "1. majority class of train (neutral) for every test utterance; posterior = train class prior",
-   "wall_s": 0.08
+   "wall_s": 0.1
   },
   "text_k0": {
    "condition": "text_k0",
@@ -355,7 +355,7 @@
    "ece": 0.038314,
    "note": "class weights none, T=1.223",
    "description": "2. text only, k = 0 (heads/text_ctx_k0.npz, gold transcripts)",
-   "wall_s": 0.1
+   "wall_s": 0.14
   },
   "text_best_k": {
    "condition": "text_best_k",
@@ -456,7 +456,7 @@
    "ece": 0.038314,
    "note": "k=0, class weights none, T=1.223",
    "description": "2. text only, best k on dev, full-dialogue window (heads/text_ctx.npz)",
-   "wall_s": 0.07
+   "wall_s": 0.09
   },
   "text_runtime_regime": {
    "condition": "text_runtime_regime",
@@ -557,7 +557,7 @@
    "ece": 0.035441,
    "note": "same head as text_best_k, same-speaker window (k=0: differs from text_best_k only through the turn-index flags)",
    "description": "2. text only, best k, runtime-regime window: same-speaker previous utterances only, flags 1",
-   "wall_s": 0.12
+   "wall_s": 0.14
   },
   "audio_raw_tag": {
    "condition": "audio_raw_tag",
@@ -690,7 +690,7 @@
    "ece": 0.020414,
    "note": "k=0, C=0.1, T=1.420",
    "description": "10. sentiment, text-only head (logistic regression over the text context features)",
-   "wall_s": 0.11
+   "wall_s": 0.1
   },
   "sentiment_fused": {
    "condition": "sentiment_fused",

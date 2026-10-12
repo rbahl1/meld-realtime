@@ -1,24 +1,27 @@
 # Measurements
 
-Rendered by `python tools/render_measurements.py --out results/measurements.md` from the json files under `results/`; the header comes from `lscpu`, `nproc`, `free -m`, the running interpreter and `.git`. Targets are the real-time definition of design 1.10; every measured number was written by the script named in its section.
+Rendered by `python tools/render_measurements.py --out results/measurements.md` from the JSON files under `results/`. The first block describes the machine that rendered this file, from `lscpu`, `nproc`, `free -m`, the running interpreter and `.git`. Each bench section names the host that ran it and the machine it recorded. The targets are the real-time definition of design 1.10 (docs/design.md). Every measured number was written by the script named in its section.
 
-## Container (this host)
+## Host that rendered this file
 
-- host: `vm`, rendered 2026-10-12T15:15:32Z, commit `e75af6c6210f (main)`
-- lscpu: Intel(R) Xeon(R) Processor @ 2.10GHz; nproc 4; flags of interest: avx2 yes, fma yes, avx512f yes, avx512bw yes, avx512_vnni yes, amx_tile yes, amx_int8 yes, amx_bf16 yes
+- host `vm`, rendered 2026-10-12T15:55:09Z, commit `34079a703f0a (main)`
+- CPU (lscpu): Intel(R) Xeon(R) Processor @ 2.10GHz
+- nproc: 4
+- flags of interest: avx2 yes, fma yes, avx512f yes, avx512bw yes, avx512_vnni yes, amx_tile yes, amx_int8 yes, amx_bf16 yes
+- python 3.12.13 (Linux-6.18.44-fc-v114-x86_64-with-glibc2.39), onnxruntime 1.31.0
 - free -m:
 
 ```
 total        used        free      shared  buff/cache   available
-Mem:           16093         766       13328          15        2255       15327
+Mem:           16093         848       13124          15        2379       15244
 Swap:              0           0           0
 ```
 
-- python 3.12.13 (Linux-6.18.44-fc-v114-x86_64-with-glibc2.39), onnxruntime 1.31.0
+## Container (host `vm`)
 
 ### Parameters (`results/params.json`, written by `tools/count_params.py`)
 
-Generated 2026-10-12T15:15:32Z.
+Generated 2026-10-12T15:55:09Z.
 
 | Component | File | Params | Trained | Note |
 |---|---|---|---|---|
@@ -31,14 +34,14 @@ Generated 2026-10-12T15:15:32Z.
 | SentimentHead | `heads/sentiment.npz` | 0.002 M | trained | lr 772-3, k=0, variant text_only; standardizer 1544 elements not counted |
 | Prosody, discrepancy, selector | - | 0.000 M | none | no learned parameters |
 | **Total on the inference path** | | **359.003 M** | | 5.98 % of the 6 B cap; pending: AudioCalibrator, Fusion |
-| Piper en_US-lessac-medium | `piper/en_US-lessac-medium/en_US-lessac-medium.onnx` | 15.651 M | frozen | 396 initializers; optional, not on the measured path |
-| Total with Piper enabled | | 374.654 M | | |
+| Piper en_US-lessac-medium | `piper/en_US-lessac-medium/en_US-lessac-medium.onnx` | 15.651 M | frozen | 396 initializers, used by tools/make_proxy_clips.py only, not on the inference path |
+| Total including Piper | | 374.654 M | | |
 
 ### Component bench (`bench_components_vm.json`, written by `tools/bench_components.py`)
 
-Generated 2026-10-12T15:10:03Z on `vm`; 7 timed runs after 1 warm-up, p50 / p95 in ms; load average [0.52, 0.53, 0.51] at start, [1.81, 0.87, 0.63] at the end; wall 78.8 s. Clips: 2 s (slice), 3.3 s (slice), 5 s (slice), 7.15 s (slice), 10 s (tile), 15 s (tile) from `models/sensevoice/test_wavs/en.wav`.
+Generated 2026-10-12T15:10:03Z on `vm` by `python tools/bench_components.py --threads 1,2,4 --clips bench_clips/ --out results/bench_components_vm.json`. Each cell is the p50 or p95 in ms of 7 timed runs after 1 warm-up run. The load average was [0.52, 0.53, 0.51] at the start and [1.81, 0.87, 0.63] at the end. The bench took 78.8 s. Clips: 2 s (slice), 3.3 s (slice), 5 s (slice), 7.15 s (slice), 10 s (tile), 15 s (tile) from `models/sensevoice/test_wavs/en.wav`.
 
-**SenseVoice-small int8, onnxruntime call** (p50, ms)
+#### SenseVoice-small int8, onnxruntime call (p50, ms)
 
 | threads | 2 s | 3.3 s | 5 s | 7.15 s | 10 s | 15 s |
 |---|---|---|---|---|---|---|
@@ -46,7 +49,7 @@ Generated 2026-10-12T15:10:03Z on `vm`; 7 timed runs after 1 warm-up, p50 / p95 
 | 2 | 118.5 | 172.5 | 248.2 | 343.2 | 482.3 | 648.6 |
 | 4 | 83.3 | 117.3 | 184.7 | 232.3 | 278.4 | 420.9 |
 
-**SenseVoice-small int8, onnxruntime call** (p95, ms)
+#### SenseVoice-small int8, onnxruntime call (p95, ms)
 
 | threads | 2 s | 3.3 s | 5 s | 7.15 s | 10 s | 15 s |
 |---|---|---|---|---|---|---|
@@ -54,7 +57,7 @@ Generated 2026-10-12T15:10:03Z on `vm`; 7 timed runs after 1 warm-up, p50 / p95 
 | 2 | 120.8 | 180.9 | 272.7 | 388.8 | 511.7 | 706.1 |
 | 4 | 158.5 | 145.7 | 216.4 | 257.6 | 312.1 | 501.0 |
 
-**SenseVoice total (front end + model + CTC decode)** (p50, ms)
+#### SenseVoice total (front end + model + CTC decode) (p50, ms)
 
 | threads | 2 s | 3.3 s | 5 s | 7.15 s | 10 s | 15 s |
 |---|---|---|---|---|---|---|
@@ -62,7 +65,7 @@ Generated 2026-10-12T15:10:03Z on `vm`; 7 timed runs after 1 warm-up, p50 / p95 
 | 2 | 123.1 | 180.6 | 264.4 | 358.5 | 506.6 | 688.1 |
 | 4 | 87.9 | 124.8 | 197.1 | 251.5 | 302.8 | 451.1 |
 
-**Front end (fbank + LFR + CMVN)** (p50, ms)
+#### Front end (fbank + LFR + CMVN) (p50, ms)
 
 | threads | 2 s | 3.3 s | 5 s | 7.15 s | 10 s | 15 s |
 |---|---|---|---|---|---|---|
@@ -70,7 +73,7 @@ Generated 2026-10-12T15:10:03Z on `vm`; 7 timed runs after 1 warm-up, p50 / p95 
 | 2 | 3.8 | 5.8 | 9.0 | 11.6 | 17.3 | 25.0 |
 | 4 | 3.6 | 5.8 | 8.5 | 11.8 | 15.9 | 23.7 |
 
-**Prosody (parselmouth)** (p50, ms)
+#### Prosody (parselmouth) (p50, ms)
 
 | threads | 2 s | 3.3 s | 5 s | 7.15 s | 10 s | 15 s |
 |---|---|---|---|---|---|---|
@@ -78,7 +81,7 @@ Generated 2026-10-12T15:10:03Z on `vm`; 7 timed runs after 1 warm-up, p50 / p95 
 | 2 | 6.3 | 10.9 | 14.4 | 20.0 | 27.0 | 34.7 |
 | 4 | 10.8 | 11.3 | 14.7 | 19.1 | 28.2 | 39.4 |
 
-**RoBERTa-base text expert by input length** (p50, ms)
+#### RoBERTa-base text expert by input length (p50, ms)
 
 | threads | 16 tok | 32 tok | 64 tok |
 |---|---|---|---|
@@ -86,7 +89,7 @@ Generated 2026-10-12T15:10:03Z on `vm`; 7 timed runs after 1 warm-up, p50 / p95 
 | 2 | 27.4 | 45.7 | 64.2 |
 | 4 | 16.9 | 25.3 | 41.4 |
 
-**RoBERTa-base text expert by input length** (p95, ms)
+#### RoBERTa-base text expert by input length (p95, ms)
 
 | threads | 16 tok | 32 tok | 64 tok |
 |---|---|---|---|
@@ -94,7 +97,7 @@ Generated 2026-10-12T15:10:03Z on `vm`; 7 timed runs after 1 warm-up, p50 / p95 
 | 2 | 28.3 | 63.9 | 151.5 |
 | 4 | 23.0 | 29.0 | 43.4 |
 
-**VAD, heads, rules, selector, session loads**
+#### VAD, heads, rules, selector, session loads
 
 | threads | VAD per 512-sample frame (1 thread) | heads (p50 ms) | selector (p50 ms) | load: sensevoice / text / vad / heads / selector (s) |
 |---|---|---|---|---|
@@ -102,15 +105,20 @@ Generated 2026-10-12T15:10:03Z on `vm`; 7 timed runs after 1 warm-up, p50 / p95 
 | 2 | 0.157 / p95 0.212 | text_ctx 0.057, sentiment 0.014, fuse_poe 0.025, build_fusion_features 0.012, discrepancy 0.055 | 0.005 | 1.246 / 0.79 / 0.009 / 0.003 / 0.022 |
 | 4 | 0.316 / p95 0.378 | text_ctx 0.088, sentiment 0.024, fuse_poe 0.042, build_fusion_features 0.020, discrepancy 0.095 | 0.009 | 1.234 / 0.791 / 0.009 / 0.003 / 0.023 |
 
-Model files on disk: `silero_vad.onnx` 0.6 MB, `sensevoice/model.int8.onnx` 228.2 MB, `sensevoice/model_enc.int8.onnx` 228.2 MB, `roberta-base-11.onnx` 475.5 MB, `piper/en_US-lessac-medium.onnx` 60.2 MB; heads: `sentiment.npz` 18 KB, `text_ctx.npz` 790 KB, `text_ctx_k0.npz` 790 KB.
+Model files on disk: `silero_vad.onnx` 0.6 MB, `sensevoice/model.int8.onnx` 228.2 MB, `sensevoice/model_enc.int8.onnx` 228.2 MB, `roberta-base-11.onnx` 475.5 MB, `piper/en_US-lessac-medium.onnx` 60.2 MB. Heads: `sentiment.npz` 18 KB, `text_ctx.npz` 790 KB, `text_ctx_k0.npz` 790 KB.
 
-Machine recorded by the bench: Intel(R) Xeon(R) Processor @ 2.10GHz, nproc 4, python 3.12.13, onnxruntime 1.31.0, numpy 2.5.4.
+Machine recorded by the bench: Intel(R) Xeon(R) Processor @ 2.10GHz, nproc 4, MemTotal 16093 MB, python 3.12.13, onnxruntime 1.31.0, numpy 2.5.4. Flags of interest: avx2 yes, fma yes, avx512f yes, avx512bw yes, avx512_vnni yes, amx_tile yes, amx_int8 yes, amx_bf16 yes.
 
 ### Replay bench (`replay_bench_vm.json`, written by `tools/replay_bench.py`)
 
-Generated 2026-10-12T15:12:46Z on `vm`: 20 clips from `proxy` (durations p50 2.58 s, max 5.00 s), real-time pace, 1.0 s of silence after each clip, one stream, 1 warm-up clip(s) not measured; service with 4 SenseVoice threads, 2 RoBERTa threads, endpoint silence 400 ms, provisionals 1.0 Hz over a 4.0 s window, fusion mode `poe`, heads ['sentiment.npz', 'text_ctx.npz', 'text_ctx_k0.npz']. Models loaded in 2.98 s. Load average [1.6, 0.85, 0.63] at start, [1.03, 0.85, 0.65] at the end. 20 finals, 20 responses, 51 provisionals, errors: none.
+Generated 2026-10-12T15:12:46Z on `vm` by `python tools/replay_bench.py --clips proxy/*.wav --n 20 --realtime --out results/replay_bench_vm.json`.
 
-**Final state after the endpoint, by utterance length (design 1.10 targets at 4 threads)**
+- Clips: 20 from `proxy` (duration p50 2.58 s, max 5.00 s), streamed at real-time pace on one stream with 1.0 s of silence after each clip. Before the measured run, the first clip was streamed once on a separate stream as a warm-up. Streaming the 73.536 s of audio took 73.504 s.
+- Service: 4 SenseVoice threads, 2 RoBERTa threads, endpoint silence 400 ms, provisionals at 1.0 Hz over a 4.0 s window, fusion mode `auto` resolved to `poe`, head files in `heads/`: sentiment.npz, text_ctx.npz, text_ctx_k0.npz. The finals report `fused.mode` `poe_uncalibrated` (20).
+- Models loaded in 2.98 s. The load average was [1.6, 0.85, 0.63] at the start and [1.03, 0.85, 0.65] at the end.
+- Messages: 20 finals, 20 responses, 51 provisionals, errors: none.
+
+#### Final state after the endpoint, by utterance length (targets of design 1.10, at 4 threads)
 
 | bucket | n | service-side p50 / p95 ms | target p50 / p95 | client-side p50 / p95 ms | endpoint to response p50 / p95 ms | stages p50 (fe / sv / pros / txt / heads) | prov. in flight p50 | pass |
 |---|---|---|---|---|---|---|---|---|
@@ -119,7 +127,7 @@ Generated 2026-10-12T15:12:46Z on `vm`: 20 clips from `proxy` (durations p50 2.5
 | 8 s to the 15 s cap (99.7 % cumulative) | 0 | no utterances in this bucket | 700 / 1000 | - | - | - | - | n/a |
 | all | 20 | 182.1 / 269.9 | - | 184.2 / 270.8 | 182.3 / 270.2 | 5.6 / 115.4 / 8.0 / 44.7 / 0.7 | - | - |
 
-**Other targets of design 1.10**
+#### Other targets of design 1.10
 
 | target | measured | pass |
 |---|---|---|
@@ -130,13 +138,25 @@ Generated 2026-10-12T15:12:46Z on `vm`: 20 clips from `proxy` (durations p50 2.5
 | worker lag | max health queue_s 0.169 s; degraded finals 0, empty transcripts 0 | - |
 | clip attribution (t_media_end within [media_start, media_end + 0.25 s]) | clips without a final: none; clips split into several finals: none; finals outside every clip span: none | - |
 
-Notes: service, replay client and monitor run in one process on this host; rss and cpu include all three. service_total_ms is the service-side latency: endpoint frame arrival (t_service_recv_ns) to the final's emission. client_ms is the monitor's arrival time minus the capture time of the endpoint frame, valid because both run here. response_ms is from the endpoint frame arrival to the response's emission. proxy clips are piper tts: latencies are real, emotion labels are not a result. a final is attributed to the clip whose media span holds its t_media_end (the time the speech stopped), 0.25 s past the clip end allowed; the segment start carries the vad pre-roll and is not used.
+Definitions:
+
+- Service-side latency runs from the arrival of the endpoint frame (`t_service_recv_ns`) to the emission of the final state.
+- Client-side latency is the monitor's arrival time minus the capture time of the endpoint frame. It is valid because client and monitor run on one host.
+- Endpoint to response runs from the arrival of the endpoint frame to the emission of the response.
+- The service, the replay client and the monitor run in one process, so RSS and CPU include all three.
+- A final belongs to the clip whose media span holds its `t_media_end`, the time the speech stopped (rule: `t_media_end within [media_start, media_end + 0.25 s]`). The segment start is not used because it carries the VAD pre-roll.
+- The proxy clips are Piper TTS of MELD dev text. Their latencies are real. Their emotion labels are not a result.
 
 ### Replay bench (`replay_bench_vm_long.json`, written by `tools/replay_bench.py`)
 
-Generated 2026-10-12T15:15:26Z on `vm`: 12 clips from `bench_clips/long` (durations p50 10.50 s, max 15.00 s), real-time pace, 1.0 s of silence after each clip, one stream, 1 warm-up clip(s) not measured; service with 4 SenseVoice threads, 2 RoBERTa threads, endpoint silence 500 ms, provisionals 1.0 Hz over a 4.0 s window, fusion mode `poe`, heads ['sentiment.npz', 'text_ctx.npz', 'text_ctx_k0.npz']. Models loaded in 2.93 s. Load average [0.8, 0.81, 0.64] at start, [0.73, 0.72, 0.62] at the end. 12 finals, 12 responses, 84 provisionals, errors: none.
+Generated 2026-10-12T15:15:26Z on `vm` by `python tools/replay_bench.py --clips bench_clips/long/*.wav --n 0 --repeat 3 --realtime --endpoint-silence-ms 500 --out results/replay_bench_vm_long.json`.
 
-**Final state after the endpoint, by utterance length (design 1.10 targets at 4 threads)**
+- Clips: 12 from `bench_clips/long` (duration p50 10.50 s, max 15.00 s), streamed at real-time pace on one stream with 1.0 s of silence after each clip. Before the measured run, the first clip was streamed once on a separate stream as a warm-up. Streaming the 138.432 s of audio took 138.4 s.
+- Service: 4 SenseVoice threads, 2 RoBERTa threads, endpoint silence 500 ms, provisionals at 1.0 Hz over a 4.0 s window, fusion mode `auto` resolved to `poe`, head files in `heads/`: sentiment.npz, text_ctx.npz, text_ctx_k0.npz. The finals report `fused.mode` `poe_uncalibrated` (12).
+- Models loaded in 2.93 s. The load average was [0.8, 0.81, 0.64] at the start and [0.73, 0.72, 0.62] at the end.
+- Messages: 12 finals, 12 responses, 84 provisionals, errors: none.
+
+#### Final state after the endpoint, by utterance length (targets of design 1.10, at 4 threads)
 
 | bucket | n | service-side p50 / p95 ms | target p50 / p95 | client-side p50 / p95 ms | endpoint to response p50 / p95 ms | stages p50 (fe / sv / pros / txt / heads) | prov. in flight p50 | pass |
 |---|---|---|---|---|---|---|---|---|
@@ -145,7 +165,7 @@ Generated 2026-10-12T15:15:26Z on `vm`: 12 clips from `bench_clips/long` (durati
 | 8 s to the 15 s cap (99.7 % cumulative) | 9 | 490.8 / 654.0 | 700 / 1000 | 491.8 / 655.5 | 491.0 / 654.2 | 21.2 / 373.5 / 45.2 / 47.0 / 0.8 | 0.0 | pass |
 | all | 12 | 459.8 / 646.2 | - | 460.8 / 647.9 | 460.0 / 646.4 | 20.1 / 352.4 / 42.4 / 45.6 / 0.8 | - | - |
 
-**Other targets of design 1.10**
+#### Other targets of design 1.10
 
 | target | measured | pass |
 |---|---|---|
@@ -156,19 +176,28 @@ Generated 2026-10-12T15:15:26Z on `vm`: 12 clips from `bench_clips/long` (durati
 | worker lag | max health queue_s 0.385 s; degraded finals 0, empty transcripts 0 | - |
 | clip attribution (t_media_end within [media_start, media_end + 0.25 s]) | clips without a final: none; clips split into several finals: none; finals outside every clip span: none | - |
 
-Notes: service, replay client and monitor run in one process on this host; rss and cpu include all three. service_total_ms is the service-side latency: endpoint frame arrival (t_service_recv_ns) to the final's emission. client_ms is the monitor's arrival time minus the capture time of the endpoint frame, valid because both run here. response_ms is from the endpoint frame arrival to the response's emission. proxy clips are piper tts: latencies are real, emotion labels are not a result. a final is attributed to the clip whose media span holds its t_media_end (the time the speech stopped), 0.25 s past the clip end allowed; the segment start carries the vad pre-roll and is not used.
+Definitions:
+
+- Service-side latency runs from the arrival of the endpoint frame (`t_service_recv_ns`) to the emission of the final state.
+- Client-side latency is the monitor's arrival time minus the capture time of the endpoint frame. It is valid because client and monitor run on one host.
+- Endpoint to response runs from the arrival of the endpoint frame to the emission of the response.
+- The service, the replay client and the monitor run in one process, so RSS and CPU include all three.
+- A final belongs to the clip whose media span holds its `t_media_end`, the time the speech stopped (rule: `t_media_end within [media_start, media_end + 0.25 s]`). The segment start is not used because it carries the VAD pre-roll.
+- The clips are cut and tiled from `models/sensevoice/test_wavs/en.wav` by `tools/bench_components.py`.
 
 ## Laptop (user-run)
 
-Every cell below stays `[laptop: not yet measured]` until the user runs the same scripts on the laptop and pastes the block they print (design 1.12). Nothing here is typed from memory.
+Every cell below reads `[laptop: not yet measured]` until the benches run on the laptop. When their JSON files are in `results/`, this section shows them in place of the table. docs/runbook_laptop.md gives the steps. Nothing here is typed from memory.
 
 Commands:
 
 ```
-python tools/count_params.py --models models/ --heads heads/ --out results/params.md
-python tools/bench_components.py --threads 1,2,4 --clips bench_clips/ --out results/bench_components_$(hostname).json
-python tools/replay_bench.py --clips "proxy/*.wav" --n 20 --realtime --out results/replay_bench_$(hostname).json
-python tools/render_measurements.py --out results/measurements.md
+uv run python tools/count_params.py --models models/ --heads heads/ --out results/params.md
+uv run python tools/bench_components.py --threads 1,2,4 --clips bench_clips/ --out results/bench_components_$(hostname).json
+uv run python tools/replay_bench.py --clips "proxy/*.wav" --n 20 --realtime --out results/replay_bench_$(hostname).json
+uv run python tools/bench_components.py --build-only --trim-silence --durations 6,9,12,15 --clips bench_clips/long
+uv run python tools/replay_bench.py --clips "bench_clips/long/*.wav" --n 0 --repeat 3 --realtime --endpoint-silence-ms 500 --out results/replay_bench_$(hostname)_long.json
+uv run python tools/render_measurements.py --out results/measurements.md
 ```
 
 | item | laptop |

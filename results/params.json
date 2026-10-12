@@ -97,7 +97,7 @@
  "total_inference_path": 359003359,
  "piper": {
   "component": "Piper en_US-lessac-medium",
-  "role": "TTS (optional spoken reply)",
+  "role": "TTS for the proxy clips (offline)",
   "file": "piper/en_US-lessac-medium/en_US-lessac-medium.onnx",
   "trained": "frozen",
   "params": 15650546,
@@ -107,7 +107,7 @@
    "FLOAT": 15650472,
    "INT32": 1
   },
-  "note": "396 initializers; optional, not on the measured path"
+  "note": "396 initializers, used by tools/make_proxy_clips.py only, not on the inference path"
  },
  "total_with_piper": 374653905,
  "heads_pending": [
@@ -122,7 +122,7 @@
   }
  ],
  "cap": 6000000000,
- "generated_at": "2026-10-12T15:15:32Z",
- "wall_s": 5.61,
+ "generated_at": "2026-10-12T15:55:09Z",
+ "wall_s": 1.25,
  "command": "python tools/count_params.py --models models --heads heads --out results/params.md"
 }

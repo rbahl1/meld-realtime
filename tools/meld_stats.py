@@ -68,16 +68,20 @@ def _pct(num: int, den: int) -> str:
 
 def render(stats: dict[str, dict], inputs: list[tuple[str, int, str]], cmd: str) -> str:
     names = list(stats)
-    out = ["# MELD csv statistics", ""]
-    out.append(f"Computed from the csvs below by `{cmd}`. No audio was used.")
+    out = ["# MELD CSV statistics", ""]
+    out.append(f"Computed from the CSV files below by `{cmd}`. No audio was used.")
     out.append("")
     out.append(_table(["file", "bytes", "sha256"], [[f"`{n}`", b, f"`{h}`"] for n, b, h in inputs]))
     out.append("")
-    out.append("Definitions: duration = EndTime - StartTime of the subtitle timestamps; percentiles are numpy "
-               "linear interpolation; words = whitespace-separated tokens of the Utterance column; "
-               "consecutive pairs = adjacent rows of the same dialogue in Utterance_ID order (utterance ids have "
-               "gaps in some dialogues, so a pair need not have consecutive ids); speaker and emotion change rates "
-               "are over those pairs. `all` pools the three splits.")
+    out.append("Definitions:")
+    out.append("")
+    out.append("- Duration is EndTime minus StartTime of the subtitle timestamps.")
+    out.append("- Percentiles use numpy linear interpolation.")
+    out.append("- Words are the whitespace-separated tokens of the Utterance column.")
+    out.append("- Consecutive pairs are adjacent rows of the same dialogue in Utterance_ID order. Utterance ids have "
+               "gaps in some dialogues, so a pair need not have consecutive ids. The speaker and emotion change rates "
+               "are over these pairs.")
+    out.append("- The `all` rows pool the three splits.")
     out.append("")
     out.append("## Counts")
     out.append("")
@@ -130,7 +134,8 @@ def render(stats: dict[str, dict], inputs: list[tuple[str, int, str]], cmd: str)
     out.append(_table(["split", "dialogue_id", "utterance_id", "start s", "end s", "duration s", "words"], rows)
                if rows else "none")
     out.append("")
-    out.append(f"MELD README emotion class weights, index order {labels.EMOTIONS}: `{labels.MELD_README_WEIGHTS}`.")
+    out.append(f"The MELD README gives these emotion class weights, in the index order {', '.join(labels.EMOTIONS)}: "
+               f"`{labels.MELD_README_WEIGHTS}`.")
     out.append("")
     return "\n".join(out)
 
