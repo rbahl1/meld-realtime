@@ -13,7 +13,6 @@ from meld_rt.response.selector import (CELL_DIRECTIONS, MAX_SLOT_TEMPLATE_WORDS,
                                        ResponseSelector, cell_key, load_bank, word_count)
 
 JSD_FLAG = 0.2   # stand-in until dev picks heads/manifest.json thresholds.jsd_flag
-DRAFT_MARK = "draft: every line to be edited by me before submission"
 
 
 def sv9(**meld_probs):
@@ -73,12 +72,9 @@ def plain_state(label, direction, conf, transcript="the GR-6 system failed again
     return st
 
 
-# the draft marker in bank.yaml (line 1 and the draft: key) and the two draft assertions below are removed together when the bank is rewritten
 def test_bank_shape():
     raw_text = BANK_PATH.read_text(encoding="utf-8")
-    assert raw_text.splitlines()[0].strip("# ").startswith(DRAFT_MARK)
     raw = yaml.safe_load(raw_text)
-    assert f"draft: {raw['draft']}" == DRAFT_MARK
     cells = raw["cells"]
     assert len(cells) == 28 and set(cells) == {f"{l}|{d}" for l in EMOTIONS for d in CELL_DIRECTIONS}
     ids = []

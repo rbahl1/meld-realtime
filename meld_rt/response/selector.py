@@ -106,8 +106,7 @@ def load_bank(path: Path) -> dict:
         for s in v:
             if "!" in s or word_count(s) > MAX_WORDS:
                 raise ValueError(f"event_prefix.{k}: bad clause {s!r}")
-    return {"cells": cells, "hold_back": hold, "asr_failed": asr, "event_prefix": prefix,
-            "draft": raw.get("draft")}
+    return {"cells": cells, "hold_back": hold, "asr_failed": asr, "event_prefix": prefix}
 
 
 def _style_order(bucket: str, flagged: bool) -> list[str]:
