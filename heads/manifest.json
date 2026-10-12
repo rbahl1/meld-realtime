@@ -4888,5 +4888,713 @@
  "sklearn_version": "1.9.1",
  "numpy_version": "2.5.4",
  "python": "3.12.13",
- "command": "python tools/train_heads.py --cache cache/ --out heads/ --config configs/heads.yaml"
+ "command": "python tools/train_heads.py --cache cache/ --out heads/ --config configs/heads.yaml",
+ "ablations": {
+  "base": "audio calibrator A, 24 inputs: 9 emotion slots, 11 events, 4 prosody",
+  "text_head": {
+   "file": "text_ctx.npz",
+   "bytes": 808726,
+   "sha256": "916806bf4f0a0055e989c6e73a289441378c719b9a4fb68c0628ad652d97dd92"
+  },
+  "selection": "dev weighted f1",
+  "rows": {
+   "train": 9988,
+   "dev": 1108
+  },
+  "cross_fit": {
+   "folds": 5,
+   "seed": 0,
+   "fold_sizes": [
+    1948,
+    2001,
+    2092,
+    1921,
+    2026
+   ]
+  },
+  "variants": {
+   "no_events": {
+    "dropped": [
+     "events"
+    ],
+    "audio_cal": {
+     "C": 0.1,
+     "class_weight_scheme": "none",
+     "input_dim": 13,
+     "columns": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      20,
+      21,
+      22,
+      23
+     ],
+     "dev": {
+      "weighted_f1": 0.4643,
+      "macro_f1": 0.2876,
+      "accuracy": 0.5235
+     },
+     "dev_scores": {
+      "C=0.1,cw=none": {
+       "weighted_f1": 0.4643,
+       "macro_f1": 0.2876,
+       "accuracy": 0.5235,
+       "wall_s": 0.1
+      },
+      "C=1,cw=none": {
+       "weighted_f1": 0.463,
+       "macro_f1": 0.2868,
+       "accuracy": 0.5217,
+       "wall_s": 0.1
+      },
+      "C=10,cw=none": {
+       "weighted_f1": 0.463,
+       "macro_f1": 0.2869,
+       "accuracy": 0.5217,
+       "wall_s": 0.1
+      },
+      "C=0.1,cw=balanced": {
+       "weighted_f1": 0.4029,
+       "macro_f1": 0.3176,
+       "accuracy": 0.3917,
+       "wall_s": 0.0
+      },
+      "C=1,cw=balanced": {
+       "weighted_f1": 0.4039,
+       "macro_f1": 0.3186,
+       "accuracy": 0.3926,
+       "wall_s": 0.0
+      },
+      "C=10,cw=balanced": {
+       "weighted_f1": 0.405,
+       "macro_f1": 0.3191,
+       "accuracy": 0.3935,
+       "wall_s": 0.0
+      }
+     },
+     "calibration_dev": {
+      "temperature": 0.9898,
+      "nll_before": 1.3455,
+      "nll_after": 1.3454,
+      "ece_before": 0.024,
+      "ece_after": 0.0234
+     },
+     "file": "ablation_no_events_audio_cal.npz"
+    },
+    "oof_audio_train_scores": {
+     "weighted_f1": 0.4623,
+     "macro_f1": 0.2598,
+     "accuracy": 0.5265
+    },
+    "fusion": {
+     "C": 1.0,
+     "class_weight_scheme": "none",
+     "input_dim": 18,
+     "columns": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      18
+     ],
+     "dropped_inputs": [
+      "p_laughter"
+     ],
+     "dev": {
+      "weighted_f1": 0.5896,
+      "macro_f1": 0.4144,
+      "accuracy": 0.6209
+     },
+     "dev_scores": {
+      "C=0.1,cw=none": {
+       "weighted_f1": 0.5834,
+       "macro_f1": 0.403,
+       "accuracy": 0.6164,
+       "wall_s": 0.1
+      },
+      "C=1,cw=none": {
+       "weighted_f1": 0.5896,
+       "macro_f1": 0.4144,
+       "accuracy": 0.6209,
+       "wall_s": 0.1
+      },
+      "C=10,cw=none": {
+       "weighted_f1": 0.5896,
+       "macro_f1": 0.4144,
+       "accuracy": 0.6209,
+       "wall_s": 0.1
+      },
+      "C=0.1,cw=balanced": {
+       "weighted_f1": 0.548,
+       "macro_f1": 0.4358,
+       "accuracy": 0.5108,
+       "wall_s": 0.1
+      },
+      "C=1,cw=balanced": {
+       "weighted_f1": 0.5498,
+       "macro_f1": 0.4368,
+       "accuracy": 0.5117,
+       "wall_s": 0.1
+      },
+      "C=10,cw=balanced": {
+       "weighted_f1": 0.5487,
+       "macro_f1": 0.4363,
+       "accuracy": 0.5108,
+       "wall_s": 0.1
+      }
+     },
+     "calibration_dev": {
+      "temperature": 0.8521,
+      "nll_before": 1.0913,
+      "nll_after": 1.08,
+      "ece_before": 0.056,
+      "ece_after": 0.0333
+     },
+     "file": "ablation_no_events_fusion.npz"
+    }
+   },
+   "no_prosody": {
+    "dropped": [
+     "prosody"
+    ],
+    "audio_cal": {
+     "C": 0.1,
+     "class_weight_scheme": "none",
+     "input_dim": 20,
+     "columns": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19
+     ],
+     "dev": {
+      "weighted_f1": 0.4595,
+      "macro_f1": 0.283,
+      "accuracy": 0.5181
+     },
+     "dev_scores": {
+      "C=0.1,cw=none": {
+       "weighted_f1": 0.4595,
+       "macro_f1": 0.283,
+       "accuracy": 0.5181,
+       "wall_s": 0.1
+      },
+      "C=1,cw=none": {
+       "weighted_f1": 0.4593,
+       "macro_f1": 0.2834,
+       "accuracy": 0.5171,
+       "wall_s": 0.1
+      },
+      "C=10,cw=none": {
+       "weighted_f1": 0.4593,
+       "macro_f1": 0.2834,
+       "accuracy": 0.5171,
+       "wall_s": 0.1
+      },
+      "C=0.1,cw=balanced": {
+       "weighted_f1": 0.4128,
+       "macro_f1": 0.3247,
+       "accuracy": 0.4007,
+       "wall_s": 0.1
+      },
+      "C=1,cw=balanced": {
+       "weighted_f1": 0.413,
+       "macro_f1": 0.3248,
+       "accuracy": 0.4007,
+       "wall_s": 0.1
+      },
+      "C=10,cw=balanced": {
+       "weighted_f1": 0.4113,
+       "macro_f1": 0.323,
+       "accuracy": 0.3989,
+       "wall_s": 0.1
+      }
+     },
+     "calibration_dev": {
+      "temperature": 1.0003,
+      "nll_before": 1.3524,
+      "nll_after": 1.3524,
+      "ece_before": 0.0345,
+      "ece_after": 0.0345
+     },
+     "file": "ablation_no_prosody_audio_cal.npz"
+    },
+    "oof_audio_train_scores": {
+     "weighted_f1": 0.4606,
+     "macro_f1": 0.2568,
+     "accuracy": 0.5247
+    },
+    "fusion": {
+     "C": 10.0,
+     "class_weight_scheme": "none",
+     "input_dim": 19,
+     "columns": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18
+     ],
+     "dropped_inputs": [],
+     "dev": {
+      "weighted_f1": 0.5832,
+      "macro_f1": 0.4014,
+      "accuracy": 0.6164
+     },
+     "dev_scores": {
+      "C=0.1,cw=none": {
+       "weighted_f1": 0.5789,
+       "macro_f1": 0.3868,
+       "accuracy": 0.6137,
+       "wall_s": 0.1
+      },
+      "C=1,cw=none": {
+       "weighted_f1": 0.5822,
+       "macro_f1": 0.4006,
+       "accuracy": 0.6155,
+       "wall_s": 0.1
+      },
+      "C=10,cw=none": {
+       "weighted_f1": 0.5832,
+       "macro_f1": 0.4014,
+       "accuracy": 0.6164,
+       "wall_s": 0.1
+      },
+      "C=0.1,cw=balanced": {
+       "weighted_f1": 0.5485,
+       "macro_f1": 0.4349,
+       "accuracy": 0.5126,
+       "wall_s": 0.1
+      },
+      "C=1,cw=balanced": {
+       "weighted_f1": 0.55,
+       "macro_f1": 0.4334,
+       "accuracy": 0.5135,
+       "wall_s": 0.1
+      },
+      "C=10,cw=balanced": {
+       "weighted_f1": 0.5493,
+       "macro_f1": 0.4326,
+       "accuracy": 0.5126,
+       "wall_s": 0.1
+      }
+     },
+     "calibration_dev": {
+      "temperature": 0.8489,
+      "nll_before": 1.092,
+      "nll_after": 1.0801,
+      "ece_before": 0.0539,
+      "ece_after": 0.029
+     },
+     "file": "ablation_no_prosody_fusion.npz"
+    }
+   },
+   "no_events_no_prosody": {
+    "dropped": [
+     "events",
+     "prosody"
+    ],
+    "audio_cal": {
+     "C": 1.0,
+     "class_weight_scheme": "none",
+     "input_dim": 9,
+     "columns": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8
+     ],
+     "dev": {
+      "weighted_f1": 0.4633,
+      "macro_f1": 0.2867,
+      "accuracy": 0.5217
+     },
+     "dev_scores": {
+      "C=0.1,cw=none": {
+       "weighted_f1": 0.4616,
+       "macro_f1": 0.285,
+       "accuracy": 0.5208,
+       "wall_s": 0.0
+      },
+      "C=1,cw=none": {
+       "weighted_f1": 0.4633,
+       "macro_f1": 0.2867,
+       "accuracy": 0.5217,
+       "wall_s": 0.1
+      },
+      "C=10,cw=none": {
+       "weighted_f1": 0.4633,
+       "macro_f1": 0.2867,
+       "accuracy": 0.5217,
+       "wall_s": 0.1
+      },
+      "C=0.1,cw=balanced": {
+       "weighted_f1": 0.417,
+       "macro_f1": 0.3279,
+       "accuracy": 0.407,
+       "wall_s": 0.0
+      },
+      "C=1,cw=balanced": {
+       "weighted_f1": 0.4158,
+       "macro_f1": 0.3257,
+       "accuracy": 0.4052,
+       "wall_s": 0.0
+      },
+      "C=10,cw=balanced": {
+       "weighted_f1": 0.4148,
+       "macro_f1": 0.3252,
+       "accuracy": 0.4043,
+       "wall_s": 0.0
+      }
+     },
+     "calibration_dev": {
+      "temperature": 0.9901,
+      "nll_before": 1.3466,
+      "nll_after": 1.3465,
+      "ece_before": 0.0161,
+      "ece_after": 0.0195
+     },
+     "file": "ablation_no_events_no_prosody_audio_cal.npz"
+    },
+    "oof_audio_train_scores": {
+     "weighted_f1": 0.4615,
+     "macro_f1": 0.2581,
+     "accuracy": 0.5259
+    },
+    "fusion": {
+     "C": 10.0,
+     "class_weight_scheme": "none",
+     "input_dim": 18,
+     "columns": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      18
+     ],
+     "dropped_inputs": [
+      "p_laughter"
+     ],
+     "dev": {
+      "weighted_f1": 0.5872,
+      "macro_f1": 0.4121,
+      "accuracy": 0.6191
+     },
+     "dev_scores": {
+      "C=0.1,cw=none": {
+       "weighted_f1": 0.5819,
+       "macro_f1": 0.3915,
+       "accuracy": 0.6164,
+       "wall_s": 0.1
+      },
+      "C=1,cw=none": {
+       "weighted_f1": 0.5853,
+       "macro_f1": 0.4002,
+       "accuracy": 0.6182,
+       "wall_s": 0.1
+      },
+      "C=10,cw=none": {
+       "weighted_f1": 0.5872,
+       "macro_f1": 0.4121,
+       "accuracy": 0.6191,
+       "wall_s": 0.1
+      },
+      "C=0.1,cw=balanced": {
+       "weighted_f1": 0.5523,
+       "macro_f1": 0.4415,
+       "accuracy": 0.5135,
+       "wall_s": 0.1
+      },
+      "C=1,cw=balanced": {
+       "weighted_f1": 0.5564,
+       "macro_f1": 0.4424,
+       "accuracy": 0.5171,
+       "wall_s": 0.1
+      },
+      "C=10,cw=balanced": {
+       "weighted_f1": 0.5555,
+       "macro_f1": 0.442,
+       "accuracy": 0.5162,
+       "wall_s": 0.1
+      }
+     },
+     "calibration_dev": {
+      "temperature": 0.8517,
+      "nll_before": 1.0889,
+      "nll_after": 1.0774,
+      "ece_before": 0.0548,
+      "ece_after": 0.0417
+     },
+     "file": "ablation_no_events_no_prosody_fusion.npz"
+    }
+   }
+  },
+  "reference": {
+   "dropped": [],
+   "audio_cal": {
+    "C": 1.0,
+    "class_weight_scheme": "none",
+    "input_dim": 24,
+    "columns": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15,
+     16,
+     17,
+     18,
+     19,
+     20,
+     21,
+     22,
+     23
+    ],
+    "dev": {
+     "weighted_f1": 0.4596,
+     "macro_f1": 0.2825,
+     "accuracy": 0.5199
+    },
+    "dev_scores": {
+     "C=0.1,cw=none": {
+      "weighted_f1": 0.4581,
+      "macro_f1": 0.281,
+      "accuracy": 0.519,
+      "wall_s": 0.1
+     },
+     "C=1,cw=none": {
+      "weighted_f1": 0.4596,
+      "macro_f1": 0.2825,
+      "accuracy": 0.5199,
+      "wall_s": 0.1
+     },
+     "C=10,cw=none": {
+      "weighted_f1": 0.4589,
+      "macro_f1": 0.2821,
+      "accuracy": 0.519,
+      "wall_s": 0.1
+     },
+     "C=0.1,cw=balanced": {
+      "weighted_f1": 0.4051,
+      "macro_f1": 0.319,
+      "accuracy": 0.3935,
+      "wall_s": 0.1
+     },
+     "C=1,cw=balanced": {
+      "weighted_f1": 0.4038,
+      "macro_f1": 0.3181,
+      "accuracy": 0.3917,
+      "wall_s": 0.1
+     },
+     "C=10,cw=balanced": {
+      "weighted_f1": 0.4025,
+      "macro_f1": 0.3169,
+      "accuracy": 0.3899,
+      "wall_s": 0.1
+     }
+    },
+    "calibration_dev": {
+     "temperature": 1.0155,
+     "nll_before": 1.3551,
+     "nll_after": 1.355,
+     "ece_before": 0.0328,
+     "ece_after": 0.0288
+    }
+   },
+   "oof_audio_train_scores": {
+    "weighted_f1": 0.4663,
+    "macro_f1": 0.2645,
+    "accuracy": 0.5283
+   },
+   "fusion": {
+    "C": 10.0,
+    "class_weight_scheme": "none",
+    "input_dim": 19,
+    "columns": [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15,
+     16,
+     17,
+     18
+    ],
+    "dropped_inputs": [],
+    "dev": {
+     "weighted_f1": 0.5795,
+     "macro_f1": 0.3886,
+     "accuracy": 0.6137
+    },
+    "dev_scores": {
+     "C=0.1,cw=none": {
+      "weighted_f1": 0.5781,
+      "macro_f1": 0.3869,
+      "accuracy": 0.6128,
+      "wall_s": 0.1
+     },
+     "C=1,cw=none": {
+      "weighted_f1": 0.5781,
+      "macro_f1": 0.387,
+      "accuracy": 0.6128,
+      "wall_s": 0.1
+     },
+     "C=10,cw=none": {
+      "weighted_f1": 0.5795,
+      "macro_f1": 0.3886,
+      "accuracy": 0.6137,
+      "wall_s": 0.1
+     },
+     "C=0.1,cw=balanced": {
+      "weighted_f1": 0.5461,
+      "macro_f1": 0.431,
+      "accuracy": 0.509,
+      "wall_s": 0.1
+     },
+     "C=1,cw=balanced": {
+      "weighted_f1": 0.5466,
+      "macro_f1": 0.4319,
+      "accuracy": 0.509,
+      "wall_s": 0.1
+     },
+     "C=10,cw=balanced": {
+      "weighted_f1": 0.5476,
+      "macro_f1": 0.4325,
+      "accuracy": 0.5099,
+      "wall_s": 0.1
+     }
+    },
+    "calibration_dev": {
+     "temperature": 0.8459,
+     "nll_before": 1.0955,
+     "nll_after": 1.0832,
+     "ece_before": 0.0517,
+     "ece_after": 0.0314
+    }
+   },
+   "reproduces_deployed": {
+    "audio_cal_A.npz": true,
+    "fusion.npz": true
+   }
+  },
+  "files": {
+   "ablation_no_events_audio_cal.npz": {
+    "bytes": 3914,
+    "sha256": "78d7d422f66c6b05063c7f432eda1a798e5467583676c61833703c58f7b88e43"
+   },
+   "ablation_no_events_fusion.npz": {
+    "bytes": 4134,
+    "sha256": "34aff92fe1310121b84ce7e0b1508ce0a426f66a09566a6dbf46238a8bd2fd4c"
+   },
+   "ablation_no_prosody_audio_cal.npz": {
+    "bytes": 4230,
+    "sha256": "5076cfbf31deb33a0b3e3f74e937d08991a56e094c20e89effa87fcd4423ac35"
+   },
+   "ablation_no_prosody_fusion.npz": {
+    "bytes": 4186,
+    "sha256": "dd45f19b505091ba6a2f61368e9e6484b2f76d4d580bf5ffd9f9b086fbb42e73"
+   },
+   "ablation_no_events_no_prosody_audio_cal.npz": {
+    "bytes": 3814,
+    "sha256": "62fc27d16bcd2ed08df600748942915fe08015dbe8c573b1bad4ccb2a5da769b"
+   },
+   "ablation_no_events_no_prosody_fusion.npz": {
+    "bytes": 4210,
+    "sha256": "2d5f52fa8083caec2761124f31ec13902ab1d7084057317b2be61713dc3fbf4d"
+   }
+  },
+  "status": "trained",
+  "wall_time_s": 34.0,
+  "command": "python tools/train_heads.py --cache cache/ --out heads/ --config configs/heads.yaml --ablation"
+ }
 }

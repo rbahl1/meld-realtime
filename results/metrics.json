@@ -3,7 +3,7 @@
  "split": "test",
  "n_resamples": 1000,
  "seed": 0,
- "wall_s": 1.6,
+ "wall_s": 3.3,
  "inputs": {
   "cache/text_test.npy": {
    "bytes": 8018048,
@@ -16,6 +16,30 @@
   "cache/audio_test.npz": {
    "bytes": 30360152,
    "sha256": "a9e22761afa2096ec65841c9f8adc9af541a05e2517e8c0b9e7a1337c58007e2"
+  },
+  "heads/ablation_no_events_audio_cal.npz": {
+   "bytes": 3914,
+   "sha256": "78d7d422f66c6b05063c7f432eda1a798e5467583676c61833703c58f7b88e43"
+  },
+  "heads/ablation_no_events_fusion.npz": {
+   "bytes": 4134,
+   "sha256": "34aff92fe1310121b84ce7e0b1508ce0a426f66a09566a6dbf46238a8bd2fd4c"
+  },
+  "heads/ablation_no_events_no_prosody_audio_cal.npz": {
+   "bytes": 3814,
+   "sha256": "62fc27d16bcd2ed08df600748942915fe08015dbe8c573b1bad4ccb2a5da769b"
+  },
+  "heads/ablation_no_events_no_prosody_fusion.npz": {
+   "bytes": 4210,
+   "sha256": "2d5f52fa8083caec2761124f31ec13902ab1d7084057317b2be61713dc3fbf4d"
+  },
+  "heads/ablation_no_prosody_audio_cal.npz": {
+   "bytes": 4230,
+   "sha256": "5076cfbf31deb33a0b3e3f74e937d08991a56e094c20e89effa87fcd4423ac35"
+  },
+  "heads/ablation_no_prosody_fusion.npz": {
+   "bytes": 4186,
+   "sha256": "dd45f19b505091ba6a2f61368e9e6484b2f76d4d580bf5ffd9f9b086fbb42e73"
   },
   "heads/audio_cal.npz": {
    "bytes": 3622,
@@ -44,6 +68,18 @@
   "heads/text_ctx_k0.npz": {
    "bytes": 808726,
    "sha256": "916806bf4f0a0055e989c6e73a289441378c719b9a4fb68c0628ad652d97dd92"
+  },
+  "cache/text_asr_test.npy": {
+   "bytes": 8018048,
+   "sha256": "241d14d7567d99dc4d27f94a43e7278581ab0221460b113e8d9453cd74070f8b"
+  },
+  "cache/text_asr_test_p2.npy": {
+   "bytes": 8018048,
+   "sha256": "cdf06ab64553082240ed46debf44f142e67716ad2aac1d8ae4448357857a71f0"
+  },
+  "cache/text_asr_test_p4.npy": {
+   "bytes": 8018048,
+   "sha256": "7bfd045932117bfeda275bc99c0654d8166000c2360a54404caabc5867fe5179"
   }
  },
  "manifest": {
@@ -56,7 +92,8 @@
    "jsd_flag": 0.3831
   },
   "text_only": false,
-  "sklearn_version": "1.9.1"
+  "sklearn_version": "1.9.1",
+  "audio_cal_variant": "A"
  },
  "published": [
   {
@@ -375,7 +412,7 @@
    "ece": 0.038314,
    "note": "class weights none, T=1.223",
    "description": "2. text only, k = 0 (heads/text_ctx_k0.npz, gold transcripts)",
-   "wall_s": 0.12
+   "wall_s": 0.1
   },
   "text_best_k": {
    "condition": "text_best_k",
@@ -476,7 +513,7 @@
    "ece": 0.038314,
    "note": "k=0, class weights none, T=1.223",
    "description": "2. text only, best k on dev, full-dialogue window (heads/text_ctx.npz)",
-   "wall_s": 0.06
+   "wall_s": 0.07
   },
   "text_runtime_regime": {
    "condition": "text_runtime_regime",
@@ -679,7 +716,7 @@
    "note": "argmax over the seven named tokens",
    "abstain_rate": 0.975096,
    "description": "3. audio only, raw sensevoice tag: argmax over the seven named tokens",
-   "wall_s": 0.09
+   "wall_s": 0.08
   },
   "audio_cal_A": {
    "condition": "audio_cal_A",
@@ -881,7 +918,7 @@
    "ece": 0.047269,
    "note": "T=2.061",
    "description": "4. audio only, AudioCalibrator B (+ encoder states)",
-   "wall_s": 0.11
+   "wall_s": 0.21
   },
   "fused_stacked": {
    "condition": "fused_stacked",
@@ -982,7 +1019,7 @@
    "ece": 0.015236,
    "note": "T=0.846",
    "description": "5. fused, stacked logistic regression (deployed)",
-   "wall_s": 0.11
+   "wall_s": 0.12
   },
   "fused_poe": {
    "condition": "fused_poe",
@@ -1083,7 +1120,7 @@
    "ece": 0.111237,
    "note": "w=0.75; calibrated audio posterior",
    "description": "5. fused, product of experts with the dev-chosen weight",
-   "wall_s": 0.14
+   "wall_s": 0.13
   },
   "fused_poe_uncalibrated": {
    "condition": "fused_poe_uncalibrated",
@@ -1184,49 +1221,1237 @@
    "ece": 0.131399,
    "note": "w=0.5; raw sensevoice posterior, uncalibrated",
    "description": "5. fused, fixed poe_uncalibrated fallback (w = 0.5)",
-   "wall_s": 0.13
+   "wall_s": 0.14
   },
   "ablation_no_events": {
    "condition": "ablation_no_events",
    "task": "emotion",
-   "status": "pending (needs MELD audio); also needs the ablation heads of experiment 02",
-   "description": "6. fused without event features",
-   "wall_s": 0.0
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.609137,
+   "macro_f1": 0.395282,
+   "accuracy": 0.640996,
+   "per_class_f1": {
+    "neutral": 0.778367,
+    "surprise": 0.555354,
+    "fear": 0.0,
+    "sadness": 0.292857,
+    "joy": 0.564356,
+    "disgust": 0.109589,
+    "anger": 0.466454
+   },
+   "confusion": [
+    [
+     1101,
+     42,
+     0,
+     13,
+     62,
+     1,
+     37
+    ],
+    [
+     60,
+     153,
+     1,
+     0,
+     41,
+     0,
+     26
+    ],
+    [
+     24,
+     2,
+     0,
+     8,
+     4,
+     0,
+     12
+    ],
+    [
+     112,
+     10,
+     2,
+     41,
+     16,
+     0,
+     27
+    ],
+    [
+     131,
+     24,
+     0,
+     3,
+     228,
+     0,
+     16
+    ],
+    [
+     35,
+     4,
+     0,
+     3,
+     5,
+     4,
+     17
+    ],
+    [
+     110,
+     35,
+     0,
+     4,
+     50,
+     0,
+     146
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.588170320100596,
+     0.6332516439904061
+    ],
+    "macro_f1": [
+     0.37150568884528273,
+     0.41824993154452667
+    ],
+    "accuracy": [
+     0.6222444537994383,
+     0.662028516533522
+    ]
+   },
+   "ece": 0.029033,
+   "note": "calibrator A without events (13 inputs, T=0.990), fusion with 18 inputs (T=0.852)",
+   "dropped": [
+    "events"
+   ],
+   "audio_cal_input_dim": 13,
+   "fusion_input_dim": 18,
+   "audio_only": {
+    "weighted_f1": 0.482294,
+    "macro_f1": 0.271162,
+    "accuracy": 0.54023
+   },
+   "description": "6. fused without event features (calibrator A without the 11 events, fusion without p_laughter)",
+   "wall_s": 0.13
   },
   "ablation_no_prosody": {
    "condition": "ablation_no_prosody",
    "task": "emotion",
-   "status": "pending (needs MELD audio); also needs the ablation heads of experiment 02",
-   "description": "6. fused without prosody",
-   "wall_s": 0.0
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.609055,
+   "macro_f1": 0.393791,
+   "accuracy": 0.641379,
+   "per_class_f1": {
+    "neutral": 0.779029,
+    "surprise": 0.554745,
+    "fear": 0.0,
+    "sadness": 0.27957,
+    "joy": 0.559598,
+    "disgust": 0.105263,
+    "anger": 0.478331
+   },
+   "confusion": [
+    [
+     1107,
+     39,
+     0,
+     15,
+     58,
+     3,
+     34
+    ],
+    [
+     59,
+     152,
+     1,
+     1,
+     42,
+     1,
+     25
+    ],
+    [
+     25,
+     2,
+     0,
+     7,
+     4,
+     0,
+     12
+    ],
+    [
+     114,
+     10,
+     3,
+     39,
+     15,
+     0,
+     27
+    ],
+    [
+     135,
+     25,
+     0,
+     4,
+     223,
+     0,
+     15
+    ],
+    [
+     36,
+     4,
+     0,
+     3,
+     5,
+     4,
+     16
+    ],
+    [
+     110,
+     35,
+     1,
+     2,
+     48,
+     0,
+     149
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.5880492635749897,
+     0.6309299175320087
+    ],
+    "macro_f1": [
+     0.37191634377394817,
+     0.4153104380579915
+    ],
+    "accuracy": [
+     0.622131539957064,
+     0.6609225556639635
+    ]
+   },
+   "ece": 0.01648,
+   "note": "calibrator A without prosody (20 inputs, T=1.000), fusion with 19 inputs (T=0.849)",
+   "dropped": [
+    "prosody"
+   ],
+   "audio_cal_input_dim": 20,
+   "fusion_input_dim": 19,
+   "audio_only": {
+    "weighted_f1": 0.476228,
+    "macro_f1": 0.264413,
+    "accuracy": 0.535632
+   },
+   "description": "6. fused without prosody (calibrator A without the 4 prosody inputs)",
+   "wall_s": 0.12
   },
   "ablation_no_events_no_prosody": {
    "condition": "ablation_no_events_no_prosody",
    "task": "emotion",
-   "status": "pending (needs MELD audio); also needs the ablation heads of experiment 02",
-   "description": "6. fused without events and prosody",
-   "wall_s": 0.0
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.60821,
+   "macro_f1": 0.39398,
+   "accuracy": 0.639847,
+   "per_class_f1": {
+    "neutral": 0.777778,
+    "surprise": 0.551724,
+    "fear": 0.0,
+    "sadness": 0.283688,
+    "joy": 0.560399,
+    "disgust": 0.109589,
+    "anger": 0.474684
+   },
+   "confusion": [
+    [
+     1099,
+     42,
+     0,
+     13,
+     62,
+     1,
+     39
+    ],
+    [
+     59,
+     152,
+     1,
+     2,
+     41,
+     0,
+     26
+    ],
+    [
+     24,
+     2,
+     0,
+     8,
+     3,
+     0,
+     13
+    ],
+    [
+     115,
+     10,
+     1,
+     40,
+     16,
+     0,
+     26
+    ],
+    [
+     132,
+     24,
+     0,
+     5,
+     225,
+     0,
+     16
+    ],
+    [
+     34,
+     5,
+     0,
+     3,
+     5,
+     4,
+     17
+    ],
+    [
+     107,
+     35,
+     1,
+     3,
+     49,
+     0,
+     150
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.5872508726303027,
+     0.6308285153581253
+    ],
+    "macro_f1": [
+     0.37175798792378123,
+     0.41678262395810656
+    ],
+    "accuracy": [
+     0.6214001026612207,
+     0.6603367999394826
+    ]
+   },
+   "ece": 0.020484,
+   "note": "calibrator A without events and prosody (9 inputs, T=0.990), fusion with 18 inputs (T=0.852)",
+   "dropped": [
+    "events",
+    "prosody"
+   ],
+   "audio_cal_input_dim": 9,
+   "fusion_input_dim": 18,
+   "audio_only": {
+    "weighted_f1": 0.475487,
+    "macro_f1": 0.264341,
+    "accuracy": 0.534866
+   },
+   "description": "6. fused without events and prosody (calibrator A on the 9 emotion slots, fusion without p_laughter)",
+   "wall_s": 0.11
+  },
+  "live_asr_text_only": {
+   "condition": "live_asr_text_only",
+   "task": "emotion",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.426081,
+   "macro_f1": 0.238595,
+   "accuracy": 0.480843,
+   "per_class_f1": {
+    "neutral": 0.65061,
+    "surprise": 0.197183,
+    "fear": 0.09375,
+    "sadness": 0.162162,
+    "joy": 0.315121,
+    "disgust": 0.044444,
+    "anger": 0.206897
+   },
+   "confusion": [
+    [
+     1013,
+     13,
+     1,
+     18,
+     136,
+     8,
+     67
+    ],
+    [
+     178,
+     35,
+     0,
+     2,
+     40,
+     3,
+     23
+    ],
+    [
+     32,
+     2,
+     3,
+     0,
+     9,
+     0,
+     4
+    ],
+    [
+     121,
+     6,
+     0,
+     21,
+     28,
+     1,
+     31
+    ],
+    [
+     249,
+     7,
+     4,
+     2,
+     124,
+     3,
+     13
+    ],
+    [
+     45,
+     2,
+     0,
+     0,
+     8,
+     2,
+     11
+    ],
+    [
+     220,
+     9,
+     6,
+     8,
+     40,
+     5,
+     57
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.402752950521087,
+     0.4537261260460452
+    ],
+    "macro_f1": [
+     0.21489261660649908,
+     0.2637179311929982
+    ],
+    "accuracy": [
+     0.45879416184948474,
+     0.5058488975439728
+    ]
+   },
+   "ece": 0.115051,
+   "note": "sensevoice transcripts, corpus WER 0.348488 over 2610 utterances (cache/wer_test.json), service asr gate: 35 empty transcripts (asr_failed) and 38 with asr_conf below 0.3 (low_asr_conf) get a uniform posterior and the label neutral, heads trained on gold text",
+   "wer": 0.348488,
+   "wer_n": 2610,
+   "n_empty_transcripts": 35,
+   "n_low_asr_conf": 38,
+   "n_degraded": 73,
+   "min_asr_conf": 0.3,
+   "without_gate": {
+    "weighted_f1": 0.426778,
+    "macro_f1": 0.239325,
+    "accuracy": 0.481226
+   },
+   "gold_text_same_rows": {
+    "weighted_f1": 0.596152,
+    "macro_f1": 0.412159,
+    "accuracy": 0.627586
+   },
+   "description": "7. text only, deployed text head on the sensevoice transcripts instead of gold text, with the service's asr gate (empty transcript or asr_conf below min_asr_conf: uniform posterior, label neutral)",
+   "wall_s": 0.13
   },
   "live_asr_text": {
    "condition": "live_asr_text",
    "task": "emotion",
-   "status": "pending (needs MELD audio); also needs cache/text_asr_test.npy (embed_text.py on the sensevoice transcripts)",
-   "description": "7. fused with sensevoice transcripts instead of gold text, plus WER",
-   "wall_s": 0.0
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.470541,
+   "macro_f1": 0.274976,
+   "accuracy": 0.525287,
+   "per_class_f1": {
+    "neutral": 0.675341,
+    "surprise": 0.19943,
+    "fear": 0.075472,
+    "sadness": 0.266187,
+    "joy": 0.356241,
+    "disgust": 0.0,
+    "anger": 0.352159
+   },
+   "confusion": [
+    [
+     1064,
+     16,
+     0,
+     20,
+     99,
+     0,
+     57
+    ],
+    [
+     180,
+     35,
+     0,
+     2,
+     31,
+     1,
+     32
+    ],
+    [
+     34,
+     0,
+     2,
+     3,
+     5,
+     0,
+     6
+    ],
+    [
+     118,
+     3,
+     0,
+     37,
+     20,
+     0,
+     30
+    ],
+    [
+     258,
+     5,
+     0,
+     2,
+     127,
+     2,
+     8
+    ],
+    [
+     40,
+     1,
+     0,
+     2,
+     7,
+     0,
+     18
+    ],
+    [
+     201,
+     10,
+     1,
+     4,
+     22,
+     1,
+     106
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.4453349548530856,
+     0.4957247668716929
+    ],
+    "macro_f1": [
+     0.2518077741259229,
+     0.2978735452457804
+    ],
+    "accuracy": [
+     0.5040631450299199,
+     0.5482339507947591
+    ]
+   },
+   "ece": 0.097079,
+   "note": "T=0.846, sensevoice transcripts, corpus WER 0.348488 over 2610 utterances (cache/wer_test.json), service asr gate: 35 empty transcripts (asr_failed) and 38 with asr_conf below 0.3 (low_asr_conf) get a uniform posterior and the label neutral, heads trained on gold text",
+   "wer": 0.348488,
+   "wer_n": 2610,
+   "n_empty_transcripts": 35,
+   "n_low_asr_conf": 38,
+   "n_degraded": 73,
+   "min_asr_conf": 0.3,
+   "without_gate": {
+    "weighted_f1": 0.471222,
+    "macro_f1": 0.275697,
+    "accuracy": 0.52567
+   },
+   "gold_text_same_rows": {
+    "weighted_f1": 0.607679,
+    "macro_f1": 0.392359,
+    "accuracy": 0.639847
+   },
+   "description": "7. fused, deployed stacked fusion with the text posterior from the sensevoice transcripts and the service's asr gate, plus WER",
+   "wall_s": 0.13
   },
   "disagreement_subset": {
    "condition": "disagreement_subset",
    "task": "emotion",
-   "status": "pending (needs MELD audio); needs the jsd threshold chosen on dev with audio",
-   "description": "8. utterances with jsd above the dev threshold: size, per-branch accuracy, fused gain",
-   "wall_s": 0.0
+   "status": "done",
+   "n": 489,
+   "weighted_f1": 0.496166,
+   "macro_f1": 0.377284,
+   "accuracy": 0.523517,
+   "per_class_f1": {
+    "neutral": 0.64433,
+    "surprise": 0.568047,
+    "fear": 0.0,
+    "sadness": 0.233333,
+    "joy": 0.493976,
+    "disgust": 0.285714,
+    "anger": 0.415584
+   },
+   "confusion": [
+    [
+     125,
+     18,
+     0,
+     3,
+     10,
+     3,
+     11
+    ],
+    [
+     12,
+     48,
+     0,
+     0,
+     8,
+     1,
+     6
+    ],
+    [
+     5,
+     3,
+     0,
+     2,
+     1,
+     0,
+     6
+    ],
+    [
+     21,
+     3,
+     3,
+     7,
+     5,
+     0,
+     7
+    ],
+    [
+     25,
+     9,
+     0,
+     0,
+     41,
+     0,
+     6
+    ],
+    [
+     7,
+     1,
+     0,
+     1,
+     2,
+     3,
+     0
+    ],
+    [
+     23,
+     12,
+     0,
+     1,
+     18,
+     0,
+     32
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.4454006711763385,
+     0.5432179829136665
+    ],
+    "macro_f1": [
+     0.3248161458687278,
+     0.4251222724588693
+    ],
+    "accuracy": [
+     0.4740042674253201,
+     0.5680898060326411
+    ]
+   },
+   "ece": 0.058717,
+   "note": "stacked fusion on the 489 of 2610 rows with jsd above 0.3831 (thresholds.jsd_flag, chosen on dev), jsd of the gold-text posterior against the raw sensevoice posterior",
+   "jsd_flag": 0.3831,
+   "n_rows": 2610,
+   "n_subset": 489,
+   "n_complement": 2121,
+   "share": 0.187356,
+   "subset": {
+    "n": 489,
+    "text": {
+     "weighted_f1": 0.514445,
+     "macro_f1": 0.427796,
+     "accuracy": 0.533742
+    },
+    "audio_cal": {
+     "weighted_f1": 0.234396,
+     "macro_f1": 0.152843,
+     "accuracy": 0.267894
+    },
+    "fused_stacked": {
+     "weighted_f1": 0.496166,
+     "macro_f1": 0.377284,
+     "accuracy": 0.523517
+    }
+   },
+   "complement": {
+    "n": 2121,
+    "text": {
+     "weighted_f1": 0.613443,
+     "macro_f1": 0.398174,
+     "accuracy": 0.649222
+    },
+    "audio_cal": {
+     "weighted_f1": 0.539353,
+     "macro_f1": 0.299918,
+     "accuracy": 0.599246
+    },
+    "fused_stacked": {
+     "weighted_f1": 0.632848,
+     "macro_f1": 0.391363,
+     "accuracy": 0.666667
+    }
+   },
+   "description": "8. utterances with jsd above the dev threshold: size, share, per-branch scores on the subset and its complement",
+   "wall_s": 0.17
   },
-  "early_commit": {
-   "condition": "early_commit",
+  "early_commit_audio_2s": {
+   "condition": "early_commit_audio_2s",
    "task": "emotion",
-   "status": "pending (needs MELD audio); needs the _p2/_p4 prefix features of cache/audio_test.npz",
-   "description": "9. audio-only and fused label on 2 s and 4 s prefixes versus the full clip",
-   "wall_s": 0.0
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.458644,
+   "macro_f1": 0.241955,
+   "accuracy": 0.531801,
+   "per_class_f1": {
+    "neutral": 0.69415,
+    "surprise": 0.287526,
+    "fear": 0.0,
+    "sadness": 0.121739,
+    "joy": 0.271074,
+    "disgust": 0.0,
+    "anger": 0.319192
+   },
+   "confusion": [
+    [
+     1145,
+     37,
+     0,
+     4,
+     48,
+     0,
+     22
+    ],
+    [
+     168,
+     68,
+     0,
+     0,
+     28,
+     0,
+     17
+    ],
+    [
+     37,
+     2,
+     0,
+     1,
+     6,
+     0,
+     4
+    ],
+    [
+     159,
+     19,
+     0,
+     14,
+     8,
+     0,
+     8
+    ],
+    [
+     273,
+     33,
+     0,
+     2,
+     82,
+     0,
+     12
+    ],
+    [
+     52,
+     3,
+     0,
+     0,
+     5,
+     0,
+     8
+    ],
+    [
+     209,
+     30,
+     0,
+     1,
+     26,
+     0,
+     79
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.4347562340364166,
+     0.4854722918102947
+    ],
+    "macro_f1": [
+     0.2228210633929162,
+     0.2599784153818733
+    ],
+    "accuracy": [
+     0.5109756545476518,
+     0.5545987570955222
+    ]
+   },
+   "ece": 0.022392,
+   "note": "offline prefix experiment: first 2 s, 925 of 2610 clips are not longer than 2 s and use their full-clip values",
+   "branch": "audio",
+   "prefix_s": 2.0,
+   "n_full_clip_values": 925,
+   "full_clip": {
+    "weighted_f1": 0.480169,
+    "macro_f1": 0.269173,
+    "accuracy": 0.537165,
+    "reference": "deployed calibrator (heads/audio_cal.npz) on the full clip"
+   },
+   "label_agreement_with_full_clip": 0.894636,
+   "cut_rows": {
+    "n": 1685,
+    "prefix": {
+     "weighted_f1": 0.431516,
+     "macro_f1": 0.233462,
+     "accuracy": 0.510979
+    },
+    "full_clip": {
+     "weighted_f1": 0.463372,
+     "macro_f1": 0.271379,
+     "accuracy": 0.519288
+    },
+    "label_agreement_with_full_clip": 0.836795
+   },
+   "provisional_inputs": {
+    "weighted_f1": 0.464946,
+    "macro_f1": 0.242157,
+    "accuracy": 0.524904,
+    "cut": {
+     "weighted_f1": 0.432195,
+     "macro_f1": 0.229819,
+     "accuracy": 0.499703
+    }
+   },
+   "description": "9. audio only, deployed calibrator on the first 2 s with the cached prefix prosody, versus the full clip (offline prefix experiment, not the service's provisional state)",
+   "wall_s": 0.09
+  },
+  "early_commit_fused_2s": {
+   "condition": "early_commit_fused_2s",
+   "task": "emotion",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.443473,
+   "macro_f1": 0.245251,
+   "accuracy": 0.515709,
+   "per_class_f1": {
+    "neutral": 0.668259,
+    "surprise": 0.236559,
+    "fear": 0.072727,
+    "sadness": 0.167331,
+    "joy": 0.279294,
+    "disgust": 0.0,
+    "anger": 0.292585
+   },
+   "confusion": [
+    [
+     1119,
+     21,
+     1,
+     13,
+     73,
+     0,
+     29
+    ],
+    [
+     191,
+     44,
+     1,
+     1,
+     22,
+     1,
+     21
+    ],
+    [
+     38,
+     1,
+     2,
+     2,
+     5,
+     0,
+     2
+    ],
+    [
+     148,
+     6,
+     1,
+     21,
+     15,
+     0,
+     17
+    ],
+    [
+     303,
+     8,
+     0,
+     1,
+     87,
+     0,
+     3
+    ],
+    [
+     54,
+     1,
+     0,
+     2,
+     2,
+     0,
+     9
+    ],
+    [
+     240,
+     10,
+     0,
+     3,
+     17,
+     2,
+     73
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.41860673843881707,
+     0.46946564866772866
+    ],
+    "macro_f1": [
+     0.22336165024358237,
+     0.26683842061182983
+    ],
+    "accuracy": [
+     0.4930602384402205,
+     0.5390856136569891
+    ]
+   },
+   "ece": 0.146762,
+   "note": "offline prefix experiment: first 2 s, 925 of 2610 clips are not longer than 2 s and use their full-clip values",
+   "branch": "fused",
+   "prefix_s": 2.0,
+   "n_full_clip_values": 925,
+   "full_clip": {
+    "weighted_f1": 0.471222,
+    "macro_f1": 0.275697,
+    "accuracy": 0.52567,
+    "reference": "stacked fusion on the full clip and its transcript, without the service's asr gate (live_asr_text without_gate)"
+   },
+   "label_agreement_with_full_clip": 0.858238,
+   "cut_rows": {
+    "n": 1685,
+    "prefix": {
+     "weighted_f1": 0.430894,
+     "macro_f1": 0.244401,
+     "accuracy": 0.50089
+    },
+    "full_clip": {
+     "weighted_f1": 0.469761,
+     "macro_f1": 0.282496,
+     "accuracy": 0.51632
+    },
+    "label_agreement_with_full_clip": 0.780415
+   },
+   "description": "9. stacked fusion on the first 2 s (prefix audio and prefix transcript), versus the full clip (offline prefix experiment, a provisional state runs no text expert)",
+   "wall_s": 0.18
+  },
+  "early_commit_audio_4s": {
+   "condition": "early_commit_audio_4s",
+   "task": "emotion",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.473439,
+   "macro_f1": 0.257854,
+   "accuracy": 0.536398,
+   "per_class_f1": {
+    "neutral": 0.693242,
+    "surprise": 0.288889,
+    "fear": 0.0,
+    "sadness": 0.133333,
+    "joy": 0.31875,
+    "disgust": 0.0,
+    "anger": 0.370766
+   },
+   "confusion": [
+    [
+     1113,
+     41,
+     0,
+     10,
+     48,
+     0,
+     44
+    ],
+    [
+     161,
+     65,
+     0,
+     0,
+     34,
+     0,
+     21
+    ],
+    [
+     33,
+     2,
+     0,
+     1,
+     6,
+     0,
+     8
+    ],
+    [
+     151,
+     14,
+     0,
+     16,
+     11,
+     0,
+     16
+    ],
+    [
+     262,
+     25,
+     0,
+     2,
+     102,
+     0,
+     11
+    ],
+    [
+     47,
+     1,
+     0,
+     1,
+     7,
+     0,
+     12
+    ],
+    [
+     188,
+     21,
+     0,
+     2,
+     30,
+     0,
+     104
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.4488245565885463,
+     0.4987502590891091
+    ],
+    "macro_f1": [
+     0.2391652187363346,
+     0.27572261838978557
+    ],
+    "accuracy": [
+     0.5143209920490271,
+     0.5590716472612484
+    ]
+   },
+   "ece": 0.024564,
+   "note": "offline prefix experiment: first 4 s, 1920 of 2610 clips are not longer than 4 s and use their full-clip values",
+   "branch": "audio",
+   "prefix_s": 4.0,
+   "n_full_clip_values": 1920,
+   "full_clip": {
+    "weighted_f1": 0.480169,
+    "macro_f1": 0.269173,
+    "accuracy": 0.537165,
+    "reference": "deployed calibrator (heads/audio_cal.npz) on the full clip"
+   },
+   "label_agreement_with_full_clip": 0.966284,
+   "cut_rows": {
+    "n": 690,
+    "prefix": {
+     "weighted_f1": 0.426507,
+     "macro_f1": 0.235577,
+     "accuracy": 0.497101
+    },
+    "full_clip": {
+     "weighted_f1": 0.450628,
+     "macro_f1": 0.272737,
+     "accuracy": 0.5
+    },
+    "label_agreement_with_full_clip": 0.872464
+   },
+   "provisional_inputs": {
+    "weighted_f1": 0.480335,
+    "macro_f1": 0.258946,
+    "accuracy": 0.5341,
+    "cut": {
+     "weighted_f1": 0.429688,
+     "macro_f1": 0.234036,
+     "accuracy": 0.491304
+    }
+   },
+   "description": "9. audio only, deployed calibrator on the first 4 s with the cached prefix prosody, versus the full clip (offline prefix experiment, not the service's provisional state)",
+   "wall_s": 0.12
+  },
+  "early_commit_fused_4s": {
+   "condition": "early_commit_fused_4s",
+   "task": "emotion",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.460611,
+   "macro_f1": 0.261614,
+   "accuracy": 0.521839,
+   "per_class_f1": {
+    "neutral": 0.674115,
+    "surprise": 0.222841,
+    "fear": 0.072727,
+    "sadness": 0.200772,
+    "joy": 0.342105,
+    "disgust": 0.0,
+    "anger": 0.318739
+   },
+   "confusion": [
+    [
+     1086,
+     17,
+     0,
+     15,
+     89,
+     0,
+     49
+    ],
+    [
+     181,
+     40,
+     1,
+     2,
+     30,
+     0,
+     27
+    ],
+    [
+     34,
+     1,
+     2,
+     2,
+     4,
+     0,
+     7
+    ],
+    [
+     132,
+     4,
+     0,
+     26,
+     21,
+     0,
+     25
+    ],
+    [
+     269,
+     5,
+     0,
+     1,
+     117,
+     2,
+     8
+    ],
+    [
+     44,
+     1,
+     0,
+     1,
+     3,
+     0,
+     19
+    ],
+    [
+     220,
+     10,
+     2,
+     4,
+     18,
+     0,
+     91
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.4379398914915053,
+     0.48410247019195074
+    ],
+    "macro_f1": [
+     0.24129934075473472,
+     0.2838628870012495
+    ],
+    "accuracy": [
+     0.5009144157315691,
+     0.5447603664156386
+    ]
+   },
+   "ece": 0.113587,
+   "note": "offline prefix experiment: first 4 s, 1920 of 2610 clips are not longer than 4 s and use their full-clip values",
+   "branch": "fused",
+   "prefix_s": 4.0,
+   "n_full_clip_values": 1920,
+   "full_clip": {
+    "weighted_f1": 0.471222,
+    "macro_f1": 0.275697,
+    "accuracy": 0.52567,
+    "reference": "stacked fusion on the full clip and its transcript, without the service's asr gate (live_asr_text without_gate)"
+   },
+   "label_agreement_with_full_clip": 0.944828,
+   "cut_rows": {
+    "n": 690,
+    "prefix": {
+     "weighted_f1": 0.426242,
+     "macro_f1": 0.245191,
+     "accuracy": 0.485507
+    },
+    "full_clip": {
+     "weighted_f1": 0.459893,
+     "macro_f1": 0.278772,
+     "accuracy": 0.5
+    },
+    "label_agreement_with_full_clip": 0.791304
+   },
+   "description": "9. stacked fusion on the first 4 s (prefix audio and prefix transcript), versus the full clip (offline prefix experiment, a provisional state runs no text expert)",
+   "wall_s": 0.18
   },
   "sentiment_text_only": {
    "condition": "sentiment_text_only",
@@ -1282,7 +2507,7 @@
    "ece": 0.018808,
    "note": "T=0.805",
    "description": "10. sentiment, fused head over the 19 fusion features",
-   "wall_s": 0.11
+   "wall_s": 0.1
   }
  }
 }

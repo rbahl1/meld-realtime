@@ -15,7 +15,14 @@ product-of-experts weight, jsd threshold. skipped (and said so in the manifest)
 when the caches are absent or --text-only is given. csv rows with no cached clip
 are dropped from this stage; manifest.json audio_rows_dropped counts them per split.
 
-usage: python tools/train_heads.py --cache cache/ --out heads/ --config configs/heads.yaml [--text-only]
+--ablation (experiment 6): with the deployed heads and manifest in place, trains
+calibrator A without the event inputs, without prosody, and without both, plus a
+fusion head for each (without events the fusion also drops p_laughter), with the
+same folds, grids and dev selection as stage 2. writes
+heads/ablation_<name>_{audio_cal,fusion}.npz and adds an "ablations" section to
+manifest.json. the deployed heads and the other manifest entries are not touched.
+
+usage: python tools/train_heads.py --cache cache/ --out heads/ --config configs/heads.yaml [--text-only | --ablation]
 """
 
 from __future__ import annotations
@@ -49,6 +56,13 @@ N_EMO = len(labels.EMOTIONS)
 N_SENT = len(labels.SENTIMENTS)
 MIN_BUCKET = 20  # dev predictions needed before a threshold rule may fire
 
+# calibrator A columns (layout in meld_rt/heads.py) and the ablations of experiment 6
+N_SLOTS, N_EVENTS = len(labels.SV_EMO_TOKENS), len(labels.SV_EVENT_TOKENS)
+AUDIO_BLOCKS = {"slots": range(N_SLOTS), "events": range(N_SLOTS, N_SLOTS + N_EVENTS),
+                "prosody": range(N_SLOTS + N_EVENTS, heads.AUDIO_SLOT_DIM)}
+FUSION_LAUGHTER_COL = 2 * N_EMO + 3  # [log p_text(7), log p_audio(7), H_text, H_audio, asr_conf, p_laughter, p_unknown]
+ABLATIONS = {"no_events": ("events",), "no_prosody": ("prosody",), "no_events_no_prosody": ("events", "prosody")}
+
 
 # ---------------------------------------------------------------- caches and features
 
@@ -76,10 +90,14 @@ def load_text_cache(cache: Path, split: str, utts: list[Utt]) -> np.ndarray:
     return emb.astype(np.float32)
 
 
-def text_matrix(emb: np.ndarray, utts: list[Utt], k: int, same_speaker_only: bool = False) -> np.ndarray:
+def text_matrix(emb: np.ndarray, utts: list[Utt], k: int, same_speaker_only: bool = False,
+                emb_prev: np.ndarray | None = None) -> np.ndarray:
     """(n, 768*(k+1)+4) context features for a split. turn_index is the position in
     the dialogue; in the runtime regime it is the number of the same speaker's
-    earlier utterances (what one user at the lamp has said so far)."""
+    earlier utterances (what one user at the lamp has said so far). emb_prev, when
+    given, holds the previous utterances' embeddings (early commit: the current
+    utterance is a prefix, the earlier ones are complete)."""
+    prev_emb = emb if emb_prev is None else emb_prev
     row = {key(u): i for i, u in enumerate(utts)}
     turn = {}
     for dia in dialogues(utts):
@@ -89,7 +107,7 @@ def text_matrix(emb: np.ndarray, utts: list[Utt], k: int, same_speaker_only: boo
             seen[u.speaker] = seen.get(u.speaker, 0) + 1
     X = np.zeros((len(utts), heads.TextContextHead.input_dim_for(k)), dtype=np.float32)
     for i, (u, prev) in enumerate(context_rows(utts, k, same_speaker_only)):
-        X[i] = heads.TextContextHead.features(emb[row[key(u)]], [emb[row[key(p)]] for p in prev],
+        X[i] = heads.TextContextHead.features(emb[row[key(u)]], [prev_emb[row[key(p)]] for p in prev],
                                               [p.speaker == u.speaker for p in prev], turn[key(u)], k)
     return X
 
@@ -229,6 +247,31 @@ def cross_fit(fit_fn: Callable[[np.ndarray, np.ndarray], heads.NpzHead], X: np.n
         oof[te] = lp
         train_rows.append(tr)
     return oof, fold_id, train_rows
+
+
+def text_fitter(text_sel: dict, cfg: dict, w: np.ndarray, Xdev: np.ndarray, ydev: np.ndarray,
+                seed: int) -> Callable[[np.ndarray, np.ndarray], heads.NpzHead]:
+    """refits the selected text head on a fold (early stopping on dev, as in stage 1)."""
+    tcfg = cfg["text_ctx"]
+    mlp_cfg = {**tcfg["mlp"], "learning_rate_init": text_sel.get("learning_rate_init", tcfg["mlp"]["learning_rate_init"])}
+
+    def fit_text(X: np.ndarray, yy: np.ndarray) -> heads.NpzHead:
+        mean, scale = standardizer(X)
+        arrays, _ = fit_mlp((X - mean) / scale, yy, w[yy], (Xdev - mean) / scale, ydev, mlp_cfg, seed, N_EMO)
+        return head_from(arrays, mean, scale, labels.EMOTIONS)
+
+    return fit_text
+
+
+def audio_fitter(choice: dict, w: np.ndarray, cfg: dict, seed: int) -> Callable[[np.ndarray, np.ndarray], heads.NpzHead]:
+    """refits an audio calibrator with its dev-chosen C and class weights on a fold."""
+
+    def fit_audio(X: np.ndarray, yy: np.ndarray) -> heads.NpzHead:
+        mean, scale = standardizer(X)
+        sw = None if choice["class_weight_scheme"] == "none" else w[yy]
+        return head_from(fit_lr((X - mean) / scale, yy, choice["C"], sw, seed, cfg["lr"]["max_iter"]), mean, scale, labels.EMOTIONS)
+
+    return fit_audio
 
 
 # ---------------------------------------------------------------- stage 1: text
@@ -400,25 +443,12 @@ def train_audio_stage(cache: Path, out: Path, cfg: dict, utts: dict[str, list[Ut
 
     # cross-fitted expert posteriors on train (never in-sample), full-train heads on dev
     k = int(text_sel["k"])
-    tcfg = cfg["text_ctx"]
     Xt = {s: text_matrix(emb[s], utts[s], k)[keep[s]] for s in ("train", "dev")}
     Xa = {"train": cal_X[best_variant][0], "dev": cal_X[best_variant][1]}
     groups = groups_of(train_kept)
-    w = w_emo(text_sel["class_weight_scheme"])
-    mlp_cfg = {**tcfg["mlp"], "learning_rate_init": text_sel.get("learning_rate_init", tcfg["mlp"]["learning_rate_init"])}
-
-    def fit_text(X: np.ndarray, yy: np.ndarray) -> heads.NpzHead:
-        mean, scale = standardizer(X)
-        arrays, _ = fit_mlp((X - mean) / scale, yy, w[yy], (Xt["dev"] - mean) / scale, y["dev"], mlp_cfg, seed, N_EMO)
-        return head_from(arrays, mean, scale, labels.EMOTIONS)
-
+    fit_text = text_fitter(text_sel, cfg, w_emo(text_sel["class_weight_scheme"]), Xt["dev"], y["dev"], seed)
     choice_a = rep[f"audio_cal_{best_variant}"]
-    wa = w_emo(choice_a["class_weight_scheme"])
-
-    def fit_audio(X: np.ndarray, yy: np.ndarray) -> heads.NpzHead:
-        mean, scale = standardizer(X)
-        sw = None if choice_a["class_weight_scheme"] == "none" else wa[yy]
-        return head_from(fit_lr((X - mean) / scale, yy, choice_a["C"], sw, seed, cfg["lr"]["max_iter"]), mean, scale, labels.EMOTIONS)
+    fit_audio = audio_fitter(choice_a, w_emo(choice_a["class_weight_scheme"]), cfg, seed)
 
     n_folds = int(cfg["fusion"]["cross_fit_folds"])
     oof_t, fold_id, _ = cross_fit(fit_text, Xt["train"], y["train"], groups, n_folds, seed)
@@ -464,6 +494,111 @@ def train_audio_stage(cache: Path, out: Path, cfg: dict, utts: dict[str, list[Ut
     return rep
 
 
+# ---------------------------------------------------------------- experiment 6: ablations
+
+def ablation_columns(dropped: tuple[str, ...]) -> tuple[list[int], list[int]]:
+    """(calibrator A columns kept, fusion columns kept). without events the fusion
+    also loses p_laughter, which is an event output. p_unknown is an emotion slot and stays."""
+    gone = {c for b in dropped for c in AUDIO_BLOCKS[b]}
+    audio = [c for c in range(heads.AUDIO_SLOT_DIM) if c not in gone]
+    fusion = [c for c in range(heads.FUSION_DIM) if not ("events" in dropped and c == FUSION_LAUGHTER_COL)]
+    return audio, fusion
+
+
+def same_weights(h: heads.NpzHead, path: Path) -> bool | None:
+    """True when a refit head has exactly the arrays of a saved one (None when the file is absent)."""
+    if not path.exists():
+        return None
+    ref = heads.NpzHead.load(path)
+    names = ("W", "b", "mean", "scale", "temperature")
+    return all(n in h.params and n in ref.params and np.array_equal(np.asarray(h.params[n]), np.asarray(ref.params[n])) for n in names)
+
+
+def train_ablations(cache: Path, out: Path, cfg: dict, utts: dict[str, list[Utt]], emb: dict[str, np.ndarray],
+                    manifest: dict, seed: int) -> dict:
+    """experiment 6. the text side is the deployed one: the selected text head refit
+    in the same folds for the out-of-fold train posteriors, heads/text_ctx.npz on dev.
+    each ablation refits calibrator A on its columns over the stage 2 grid (dev
+    weighted f1, temperature on dev), cross-fits it, and fits a fusion head on the
+    ablated fusion columns the same way. a "reference" run with nothing dropped goes
+    through the same code and is compared with the deployed A and fusion heads but
+    not saved."""
+    t0 = time.perf_counter()
+    loaded = {s: read_audio_cache(cache, s, utts[s]) for s in ("train", "dev")}
+    if any(v is None for v in loaded.values()):
+        raise SystemExit(f"--ablation needs {cache / 'audio_train.npz'} and {cache / 'audio_dev.npz'}")
+    aud = {s: loaded[s][0] for s in loaded}
+    keep = {s: loaded[s][1] for s in loaded}
+    y = {s: emotion_ids(utts[s])[keep[s]] for s in ("train", "dev")}
+    train_kept = [utts["train"][i] for i in keep["train"]]
+    w_emo = lambda scheme: emotion_class_weights(scheme, train_kept)  # noqa: E731
+
+    text_sel = manifest["selected"]["text_ctx"]
+    Xt = {s: text_matrix(emb[s], utts[s], int(text_sel["k"]))[keep[s]] for s in ("train", "dev")}
+    groups = groups_of(train_kept)
+    n_folds = int(cfg["fusion"]["cross_fit_folds"])
+    fit_text = text_fitter(text_sel, cfg, w_emo(text_sel["class_weight_scheme"]), Xt["dev"], y["dev"], seed)
+    oof_t, fold_id, _ = cross_fit(fit_text, Xt["train"], y["train"], groups, n_folds, seed)
+    lp_t_dev = heads.TextContextHead.load(out / "text_ctx.npz").predict_log_proba_batch(Xt["dev"])
+    XA = {s: audio_matrix(aud[s], with_enc=False) for s in ("train", "dev")}
+
+    def dev_scores(h: heads.NpzHead, X: np.ndarray) -> dict:
+        s = metrics.summary(metrics.confusion(y["dev"], h.predict_log_proba_batch(X).argmax(axis=1), N_EMO))
+        return {m: round(v, 4) for m, v in s.items()}
+
+    rep: dict = {"base": f"audio calibrator A, {heads.AUDIO_SLOT_DIM} inputs: {N_SLOTS} emotion slots, {N_EVENTS} events, "
+                         f"{len(AUDIO_BLOCKS['prosody'])} prosody",
+                 "text_head": {"file": "text_ctx.npz", **file_record(out / "text_ctx.npz")}, "selection": "dev weighted f1",
+                 "rows": {s: len(keep[s]) for s in keep},
+                 "cross_fit": {"folds": n_folds, "seed": seed, "fold_sizes": np.bincount(fold_id, minlength=n_folds).tolist()},
+                 "variants": {}}
+    saved = []
+    for name, dropped in (("reference", ()), *ABLATIONS.items()):
+        acols, fcols = ablation_columns(dropped)
+        meta = {"variant": f"ablation_{name}", "dropped": ",".join(dropped) or "none"}
+        Xtr, Xdev = XA["train"][:, acols], XA["dev"][:, acols]
+        cal, choice, scores = lr_grid(Xtr, y["train"], Xdev, y["dev"], labels.EMOTIONS, cfg["lr"]["C"], cfg["audio_cal"]["class_weight"],
+                                      w_emo, cfg["lr"], seed, columns=acols, **meta)
+        cal_rec = calibrate(cal, Xdev, y["dev"])
+        oof_a, fold_id_a, _ = cross_fit(audio_fitter(choice, w_emo(choice["class_weight_scheme"]), cfg, seed),
+                                        Xtr, y["train"], groups, n_folds, seed)
+        assert np.array_equal(fold_id, fold_id_a)
+        F = {"train": fusion_rows(oof_t, oof_a, aud["train"])[:, fcols],
+             "dev": fusion_rows(lp_t_dev, cal.predict_log_proba_batch(Xdev), aud["dev"])[:, fcols]}
+        fh, fchoice, fscores = lr_grid(F["train"], y["train"], F["dev"], y["dev"], labels.EMOTIONS, cfg["lr"]["C"],
+                                       cfg["fusion"]["class_weight"], w_emo, cfg["lr"], seed, columns=fcols, **meta)
+        f_rec = calibrate(fh, F["dev"], y["dev"])
+        r = {"dropped": list(dropped),
+             "audio_cal": {**choice, "input_dim": len(acols), "columns": acols, "dev": dev_scores(cal, Xdev), "dev_scores": scores,
+                           "calibration_dev": cal_rec},
+             "oof_audio_train_scores": {m: round(v, 4) for m, v in
+                                        metrics.summary(metrics.confusion(y["train"], oof_a.argmax(axis=1), N_EMO)).items()},
+             "fusion": {**fchoice, "input_dim": len(fcols), "columns": fcols,
+                        "dropped_inputs": ["p_laughter"] if "events" in dropped else [], "dev": dev_scores(fh, F["dev"]),
+                        "dev_scores": fscores, "calibration_dev": f_rec}}
+        if name == "reference":
+            # same code path with nothing dropped: should give the deployed A and, when A is deployed, the deployed fusion
+            deployed_a = manifest.get("audio_fusion", {}).get("audio_cal", {}).get("variant") == "A"
+            r["reproduces_deployed"] = {"audio_cal_A.npz": same_weights(cal, out / "audio_cal_A.npz"),
+                                        "fusion.npz": same_weights(fh, out / "fusion.npz") if deployed_a else None}
+            rep["reference"] = r
+            print(f"reference: dev weighted f1 audio {r['audio_cal']['dev']['weighted_f1']:.4f} fusion {r['fusion']['dev']['weighted_f1']:.4f}, "
+                  f"reproduces deployed {r['reproduces_deployed']}", flush=True)
+            continue
+        for part, h in (("audio_cal", cal), ("fusion", fh)):
+            path = out / f"ablation_{name}_{part}.npz"
+            h.save(path)
+            r[part]["file"] = path.name
+            saved.append(path)
+        rep["variants"][name] = r
+        print(f"ablation {name}: calibrator {len(acols)} inputs, dev weighted f1 {r['audio_cal']['dev']['weighted_f1']:.4f}, "
+              f"fusion {len(fcols)} inputs, dev weighted f1 {r['fusion']['dev']['weighted_f1']:.4f}", flush=True)
+    rep["files"] = {p.name: file_record(p) for p in saved}
+    rep["status"] = "trained"
+    rep["wall_time_s"] = round(time.perf_counter() - t0, 1)
+    return rep
+
+
 def _jsd(p: np.ndarray, q: np.ndarray) -> float:
     m = 0.5 * (p + q)
     kl = lambda a: float(np.sum(a[a > 0] * np.log2(a[a > 0] / m[a > 0])))  # noqa: E731
@@ -479,12 +614,18 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--config", type=Path, default=ROOT / "configs" / "heads.yaml")
     ap.add_argument("--meld", type=Path, default=ROOT / "meld")
     ap.add_argument("--text-only", action="store_true", help="skip the audio and fusion stage; write a text-only sentiment head")
+    ap.add_argument("--ablation", action="store_true",
+                    help="train the ablation heads of experiment 6 next to the deployed heads, which stay as they are")
     args = ap.parse_args(argv)
+    if args.ablation and args.text_only:
+        ap.error("--ablation and --text-only exclude each other")
     cfg = yaml.safe_load(args.config.read_text())
     seed = int(cfg.get("seed", 0))
     import sklearn
     import threadpoolctl
 
+    if args.ablation:
+        return run_ablation(args, cfg, seed, argv)
     t_all = time.perf_counter()
     with threadpoolctl.threadpool_limits(int(cfg.get("threads", 2))):
         utts = {s: load_split(s, args.meld) for s in ("train", "dev")}
@@ -517,7 +658,8 @@ def main(argv: list[str] | None = None) -> int:
         # per split, csv rows the audio stage dropped because they have no cached clip (None when the stage did not run)
         "audio_rows_dropped": stages["audio_fusion"].get("rows_dropped"),
         "histories": text["histories"],
-        "files": {p.name: file_record(p) for p in sorted(args.out.glob("*.npz"))},
+        # the ablation heads are listed in their own section (--ablation)
+        "files": {p.name: file_record(p) for p in sorted(args.out.glob("*.npz")) if not p.name.startswith("ablation_")},
         "inputs": {str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p): file_record(p)
                    for p in [args.cache / f"text_{s}.npy" for s in ("train", "dev")] + [args.meld / f"{s}_sent_emo.csv" for s in ("train", "dev")]},
         "config": cfg, "seed": seed, "threads": int(cfg.get("threads", 2)),
@@ -529,6 +671,28 @@ def main(argv: list[str] | None = None) -> int:
     (args.out / "manifest.json").write_text(json.dumps(manifest, indent=1))
     print(f"selected {sel['grid_point']}: dev weighted f1 {sel['dev']['weighted_f1']:.4f}, T={sel['calibration_dev']['temperature']}, "
           f"thresholds {manifest['thresholds']}; total {manifest['wall_time_s']['total']} s -> {args.out / 'manifest.json'}")
+    return 0
+
+
+def run_ablation(args: argparse.Namespace, cfg: dict, seed: int, argv: list[str] | None) -> int:
+    """--ablation: reads the deployed manifest, adds its "ablations" section and writes it back.
+    every other manifest entry and every deployed head file stays as it is."""
+    import threadpoolctl
+
+    path = args.out / "manifest.json"
+    if not path.exists() or not (args.out / "text_ctx.npz").exists():
+        raise SystemExit(f"--ablation needs the deployed heads and {path} (run tools/train_heads.py first)")
+    manifest = json.loads(path.read_text())
+    if manifest.get("audio_fusion", {}).get("status") != "trained":
+        raise SystemExit("--ablation needs a manifest whose audio stage is trained")
+    with threadpoolctl.threadpool_limits(int(cfg.get("threads", 2))):
+        utts = {s: load_split(s, args.meld) for s in ("train", "dev")}
+        emb = {s: load_text_cache(args.cache, s, utts[s]) for s in ("train", "dev")}
+        section = train_ablations(args.cache, args.out, cfg, utts, emb, manifest, seed)
+    section["command"] = "python tools/train_heads.py " + " ".join(sys.argv[1:] if argv is None else argv)
+    manifest["ablations"] = section
+    path.write_text(json.dumps(manifest, indent=1))
+    print(f"ablations: {', '.join(section['variants'])} in {section['wall_time_s']} s -> {path}")
     return 0
 
 

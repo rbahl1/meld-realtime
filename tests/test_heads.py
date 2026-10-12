@@ -184,6 +184,16 @@ def test_text_matrix_windows():
     assert R[2, 768] == 1.0 and not R[2, 1536:2304].any() and list(R[2, -4:]) == pytest.approx([1.0, 0.0, 0.05, 0.0])
 
 
+def test_text_matrix_emb_prev():
+    """early commit: the current slot reads emb (the prefix), the context slot reads emb_prev (the full earlier utterance)."""
+    utts = [Utt("test", 0, 0, "A", "t", "neutral", "neutral", 0.0, 1.0), Utt("test", 0, 1, "B", "t", "neutral", "neutral", 1.0, 2.0)]
+    emb = np.array([1.0, 2.0], dtype=np.float32)[:, None] * np.ones((2, 768), dtype=np.float32)
+    X = text_matrix(emb, utts, 1, emb_prev=emb + 10)
+    assert (X[1, :768] == 2.0).all() and (X[1, 768:1536] == 11.0).all()
+    assert (X[0, :768] == 1.0).all() and not X[0, 768:1536].any()
+    assert np.array_equal(text_matrix(emb, utts, 1, emb_prev=emb), text_matrix(emb, utts, 1))
+
+
 def test_head_input_checks(tmp_path):
     p = heads.head_params(heads.lr_params(np.zeros((7, 24)), np.zeros(7)), np.zeros(24), np.ones(24), labels.EMOTIONS)
     assert heads.AudioCalibrator(p).input_dim == 24 and not heads.AudioCalibrator(p).uses_encoder_states
