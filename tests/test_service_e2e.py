@@ -134,12 +134,12 @@ def test_realtime_replay_gives_provisionals_one_final_and_one_reply(service, cli
     assert r["utt_id"] == f["utt_id"] and r["text"].strip() and r["grounding"] and r["template_id"] and r["style"]
     assert 0 <= (r["t_emitted_ns"] - f["t_emitted_ns"]) / 1e6 < REPLY_WITHIN_MS
 
-    # uncalibrated fusion: the confidence is the text head's max, the label the product's argmax,
+    # uncalibrated fusion: the label is the product's argmax and the confidence the text head's probability of it,
     # and the selector never asserts (bucket capped at mid, so ask or hold_back on a fresh stream)
     fu = f["fused"]
     if fu["mode"] == "poe_uncalibrated":
         assert fu["calibrated"] is False
-        assert fu["confidence"] == pytest.approx(max(f["text"]["emotion"].values()), abs=1e-4)
+        assert fu["confidence"] == pytest.approx(f["text"]["emotion"][fu["label"]], abs=1e-4)
         assert fu["label"] == max(fu["emotion"], key=fu["emotion"].get)
     if not fu["calibrated"]:
         assert r["style"] in ("ask", "hold_back"), r

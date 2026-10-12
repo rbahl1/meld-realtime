@@ -15,14 +15,24 @@ AUDIO = {"neutral": 0.4634, "surprise": 0.0, "fear": 0.0, "sadness": 0.0064, "jo
          "other": 0.0001, "unknown": 0.5289}
 
 
-def test_uncalibrated_confidence_is_the_text_heads_max():
+def test_uncalibrated_confidence_is_the_text_heads_probability_of_the_fused_label():
     p_text = np.array([TEXT[e] for e in EMOTIONS])
     p_text /= p_text.sum()
     fused = fuse_poe(p_text, np.array(audio_emotion_vec9(AUDIO)), 0.5)
     assert EMOTIONS[int(fused.argmax())] == "neutral" and fused.max() > 0.9
-    assert reported_confidence("poe_uncalibrated", fused, p_text) == pytest.approx(p_text.max(), abs=1e-9)
-    assert reported_confidence("poe_uncalibrated", fused, p_text) == pytest.approx(0.4229, abs=2e-4)
+    # the label is neutral, so the confidence is the text head's neutral probability, not its joy max
+    assert reported_confidence("poe_uncalibrated", fused, p_text) == pytest.approx(p_text[EMOTIONS.index("neutral")], abs=1e-9)
+    assert reported_confidence("poe_uncalibrated", fused, p_text) == pytest.approx(0.3467, abs=2e-4)
     for mode in ("stacked", "poe", "text_only"):
         assert reported_confidence(mode, fused, p_text) == pytest.approx(fused.max(), abs=1e-9)
     # no text head or text_failed: uniform text posterior -> 1/7, below any low_conf threshold
     assert reported_confidence("poe_uncalibrated", fused, np.full(7, 1 / 7)) == pytest.approx(1 / 7)
+
+
+def test_poe_weight_is_read_where_train_heads_writes_it():
+    from meld_rt.service import poe_weight_from
+
+    assert poe_weight_from({"audio_fusion": {"poe": {"weight": 0.7}}}, 0.5) == 0.7
+    assert poe_weight_from({"poe_weight": 0.3}, 0.5) == 0.3
+    assert poe_weight_from({"audio_fusion": None}, 0.5) == 0.5
+    assert poe_weight_from(None, 0.5) == 0.5

@@ -76,14 +76,24 @@ def _num(v, default: float) -> float:
     return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else float(default)
 
 
+def poe_weight_from(manifest, default: float) -> float:
+    """the dev-chosen product-of-experts weight, where train_heads.py writes it
+    (audio_fusion.poe.weight); a top-level poe_weight is read too; else the default."""
+    m = manifest if isinstance(manifest, dict) else {}
+    w = ((m.get("audio_fusion") or {}).get("poe") or {}).get("weight", m.get("poe_weight"))
+    return _num(w, default)
+
+
 def reported_confidence(mode: str, fused: np.ndarray, p_text: np.ndarray) -> float:
     """the confidence the selector buckets on: the fused posterior's max, except in
-    poe_uncalibrated mode, where it is the calibrated text head's max probability
-    (temperature applied). the fixed product's max is not a probability of being
-    right. a uniform text posterior (no text head, text_failed) gives 1/7, which
-    the selector holds back on."""
-    p = p_text if mode == "poe_uncalibrated" else fused
-    return float(np.max(np.asarray(p, dtype=np.float64)))
+    poe_uncalibrated mode, where it is the calibrated text head's probability of the
+    fused label (temperature applied). the fixed product's max is not a probability of
+    being right, and the text head's own max can belong to another class. a uniform
+    text posterior (no text head, text_failed) gives 1/7, which the selector holds back on."""
+    fused = np.asarray(fused, dtype=np.float64)
+    if mode == "poe_uncalibrated":
+        return float(np.asarray(p_text, dtype=np.float64)[int(np.argmax(fused))])
+    return float(np.max(fused))
 
 
 @dataclass
@@ -583,7 +593,7 @@ class Service:
         self.low_conf = _num(th.get("low_conf"), c.low_conf)
         self.high_conf = _num(th.get("high_conf"), c.high_conf)
         self.jsd_flag = _num(th.get("jsd_flag"), c.jsd_flag)
-        self.poe_weight = _num(self.manifest.get("poe_weight") if isinstance(self.manifest, dict) else None, c.poe_weight)
+        self.poe_weight = poe_weight_from(self.manifest, c.poe_weight)
         self.selector = ResponseSelector(c.bank_path, low_conf=self.low_conf, high_conf=self.high_conf,
                                          no_repeat_turns=N_RECENT_TEMPLATES)
         mode = c.fusion_mode
@@ -759,7 +769,8 @@ class Service:
         s.fused.confidence = round(reported_confidence(mode, fused, p_text), 4) if asr_ok else 0.0
         s.fused.sentiment = self._sentiment(fused, feats, text_x) if asr_ok else "neutral"
         if r is not None and asr_ok and job.kind != "text" and self.mode != "text_only":
-            d, flag, direction = discrepancy(p_text, p_audio, self.jsd_flag)
+            # the raw sensevoice posterior, the same one train_heads.py chose the jsd threshold on
+            d, flag, direction = discrepancy(p_text, r.emo_probs, self.jsd_flag)
             s.discrepancy.jsd, s.discrepancy.flag, s.discrepancy.direction = round(d, 4), flag, direction
         s.text.keyphrase = keyphrase(s.asr.text) if asr_ok else None
 

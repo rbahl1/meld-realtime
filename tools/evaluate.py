@@ -213,8 +213,14 @@ def _audio_condition(name, task, y, groups, aud, heads_dir, manifest, lp_text):
         except ValueError:
             return None
         return scored(name, task, y, np.exp(h.predict_log_proba_batch(X)), groups, f"T={h.temperature:.3f}")
+    if lp_text is None:
+        return None
+    if name == "fused_poe_uncalibrated":
+        # the raw sensevoice posterior at w = 0.5: needs no audio head, as on the live path
+        p = np.stack([heads.fuse_poe(np.exp(lp_text[i]), aud["emo_probs"][i], 0.5) for i in range(len(y))])
+        return scored(name, task, y, p, groups, "w=0.5; raw sensevoice posterior, uncalibrated")
     cal = head_or_none(heads.AudioCalibrator, heads_dir / "audio_cal.npz")
-    if cal is None or lp_text is None:
+    if cal is None:
         return None
     lp_audio = cal.predict_log_proba_batch(audio_matrix(aud, cal.uses_encoder_states))
     if name == "fused_stacked":
@@ -248,16 +254,16 @@ def ci(r: dict, m: str) -> str:
 
 
 def render(results: dict, meta: dict, cmd: str) -> str:
-    intro = (f"Written by `{cmd}`. Every number below was computed by that command from the inputs listed; "
-             "model selection, temperature and thresholds were chosen on dev by `tools/train_heads.py` and the test split was read once per condition. "
-             "Weighted F1 is the primary metric (as in the published rows); CIs are 95 % percentile bootstrap intervals over test dialogues "
-             f"({N_RESAMPLES} resamples, seed {SEED}); ECE uses 10 equal-width confidence bins. All metrics in percent.")
+    intro = (f"Written by `{cmd}`. Every number below was computed by that command from the inputs listed. "
+             "Model selection, temperature and thresholds were chosen on dev by `tools/train_heads.py`, and the test split was read once per condition. "
+             "Weighted F1 is the primary metric, as in the published rows. The CIs are 95 % percentile bootstrap intervals over test dialogues "
+             f"({N_RESAMPLES} resamples, seed {SEED}). ECE uses 10 equal-width confidence bins. All metrics are in percent.")
     L = ["# Results on MELD test", "", intro, ""]
     L += ["## Inputs", "", "| file | bytes | sha256 |", "| --- | --- | --- |"]
     L += [f"| `{k}` | {v['bytes']} | `{v['sha256']}` |" for k, v in meta["inputs"].items()]
     m = meta["manifest"]
-    deployed = (f"Deployed text head from `heads/manifest.json`: k = {m.get('k')}, class weights `{m.get('class_weight_scheme')}`, "
-                f"temperature {m.get('temperature')}, thresholds {json.dumps(m.get('thresholds'))}, text_only = {m.get('text_only')}, "
+    deployed = (f"Deployed text head, from `heads/manifest.json`: k = {m.get('k')}, class weights `{m.get('class_weight_scheme')}`, "
+                f"temperature {m.get('temperature')}, thresholds `{json.dumps(m.get('thresholds'))}`, text_only = {m.get('text_only')}, "
                 f"scikit-learn {m.get('sklearn_version')}.")
     L += ["", deployed, ""]
     for task, title in (("emotion", "Emotion (7 classes)"), ("sentiment", "Sentiment (3 classes)")):
@@ -267,8 +273,11 @@ def render(results: dict, meta: dict, cmd: str) -> str:
             if r["task"] != task:
                 continue
             if r["status"] == "done":
+                note = r.get("note", "")
+                if "text_best_k_same_rows_weighted_f1" in r:
+                    note += f", text head on the same rows {pct(r['text_best_k_same_rows_weighted_f1'])}"
                 L.append(f"| {name} | done | {pct(r['weighted_f1'])} | {ci(r, 'weighted_f1')} | {pct(r['macro_f1'])} | "
-                         f"{pct(r['accuracy'])} | {pct(r['ece'])} | {r.get('note', '')} |")
+                         f"{pct(r['accuracy'])} | {pct(r['ece'])} | {note} |")
             else:
                 L.append(f"| {name} | {r['status']} | | | | | | {r['description']} |")
         L += ["", f"### Published rows ({task})", "", "| row | weighted F1 | source |", "| --- | --- | --- |"]
@@ -282,19 +291,23 @@ def render(results: dict, meta: dict, cmd: str) -> str:
         L.append("")
     for r in [r for r in results.values() if r["status"] == "done"]:
         classes = labels.EMOTIONS if r["task"] == "emotion" else labels.SENTIMENTS
-        L += [f"### Confusion matrix: {r['condition']} (rows true, columns predicted)", "",
+        L += [f"### Confusion matrix of {r['condition']} (rows true, columns predicted)", "",
               "| true \\ pred | " + " | ".join(classes) + " |", "| --- |" + " --- |" * len(classes)]
         L += [f"| {c} | " + " | ".join(str(v) for v in row) + " |" for c, row in zip(classes, r["confusion"])]
         if "abstain_rate" in r:
             L.append(f"\nAbstain rate (OTHER + EMO_UNKNOWN above half the mass): {pct(r['abstain_rate'])} %.")
         L.append("")
-    runtime = ("- runtime-regime window: previous utterances restricted to the same speaker within the dialogue, same-speaker flags 1, "
-               "turn index = number of that speaker's earlier utterances (what a single user at the lamp has said so far); "
-               "the head is the one trained on the full-dialogue window.")
-    majority = ("- majority floor: every test utterance labelled with the train majority class; its posterior is the train class prior, "
+    runtime = ("- Runtime-regime window: the previous utterances are restricted to the same speaker within the dialogue, the same-speaker "
+               "flags are 1, and the turn index counts that speaker's earlier utterances (what a single user in front of the robot has said so far). "
+               "The head is the one trained on the full-dialogue window.")
+    majority = ("- Majority floor: every test utterance gets the train majority class. Its posterior is the train class prior, "
                 "which is what the ECE column scores.")
-    L += ["## Definitions", "", runtime, majority,
-          "- pending rows wait for MELD audio (`tools/extract_audio.py`, `tools/cache_audio_features.py`) and the heads of experiment 02.", ""]
+    no_clip = ("- Rows without a clip: the audio and fused conditions leave out test rows that have no cached clip. The note says how many, "
+               "and `results/metrics.json` gives the text head's weighted F1 on the same rows (`text_best_k_same_rows_weighted_f1`).")
+    pending_rows = ("- Pending rows: the audio and fused rows wait for MELD audio (`tools/extract_audio.py`, `tools/cache_audio_features.py`, "
+                    "then `tools/train_heads.py` without `--text-only`). The ablation, live ASR, disagreement and early-commit rows also need "
+                    "code that this script does not have yet.")
+    L += ["## Definitions", "", runtime, majority, no_clip, pending_rows, ""]
     return "\n".join(L)
 
 
