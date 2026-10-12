@@ -1,0 +1,115 @@
+{
+ "generated_by": "tools/fetch_models.py",
+ "generated_at": "2026-10-12T04:08:18",
+ "all_ok": true,
+ "files": [
+  {
+   "asset": "silero_vad.onnx",
+   "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx",
+   "path": "models/silero_vad.onnx",
+   "exists": true,
+   "expected_sha256": "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6",
+   "bytes": 643854,
+   "sha256": "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6",
+   "ok": true
+  },
+  {
+   "asset": "sensevoice",
+   "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2",
+   "path": "models/sensevoice/model.int8.onnx",
+   "exists": true,
+   "expected_sha256": "c71f0ce00bec95b07744e116345e33d8cbbe08cef896382cf907bf4b51a2cd51",
+   "bytes": 239233841,
+   "sha256": "c71f0ce00bec95b07744e116345e33d8cbbe08cef896382cf907bf4b51a2cd51",
+   "ok": true
+  },
+  {
+   "asset": "sensevoice",
+   "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2",
+   "path": "models/sensevoice/tokens.txt",
+   "exists": true,
+   "expected_sha256": "f449eb28dc567533d7fa59be34e2abca8784f771850c78a47fb731a31429a1dc",
+   "bytes": 315894,
+   "sha256": "f449eb28dc567533d7fa59be34e2abca8784f771850c78a47fb731a31429a1dc",
+   "ok": true
+  },
+  {
+   "asset": "sensevoice",
+   "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17.tar.bz2",
+   "path": "models/sensevoice/test_wavs",
+   "exists": true,
+   "expected_sha256": null,
+   "n_files": 5,
+   "ok": true
+  },
+  {
+   "asset": "piper",
+   "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-lessac-medium.tar.bz2",
+   "path": "models/piper/en_US-lessac-medium/en_US-lessac-medium.onnx",
+   "exists": true,
+   "expected_sha256": "4ba07d8549906668ee855fd9abf9faf66c5db74742712ff026a159f7277fca9f",
+   "bytes": 63149198,
+   "sha256": "4ba07d8549906668ee855fd9abf9faf66c5db74742712ff026a159f7277fca9f",
+   "ok": true
+  },
+  {
+   "asset": "piper",
+   "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-lessac-medium.tar.bz2",
+   "path": "models/piper/en_US-lessac-medium/en_US-lessac-medium.onnx.json",
+   "exists": true,
+   "expected_sha256": "efe19c417bed055f2d69908248c6ba650fa135bc868b0e6abb3da181dab690a0",
+   "bytes": 4885,
+   "sha256": "efe19c417bed055f2d69908248c6ba650fa135bc868b0e6abb3da181dab690a0",
+   "ok": true
+  },
+  {
+   "asset": "piper",
+   "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-lessac-medium.tar.bz2",
+   "path": "models/piper/en_US-lessac-medium/tokens.txt",
+   "exists": true,
+   "expected_sha256": "87c8ef66eae5473ed0cc0366b3964c736ca6c5f676c979522ea31234e47430b9",
+   "bytes": 921,
+   "sha256": "87c8ef66eae5473ed0cc0366b3964c736ca6c5f676c979522ea31234e47430b9",
+   "ok": true
+  },
+  {
+   "asset": "piper",
+   "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-lessac-medium.tar.bz2",
+   "path": "models/piper/en_US-lessac-medium/MODEL_CARD",
+   "exists": true,
+   "expected_sha256": null,
+   "bytes": 351,
+   "sha256": "ce49eb457742208166d399a40cdec2c7fa9db77960930031564ab56f12882645",
+   "ok": true
+  },
+  {
+   "asset": "piper",
+   "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-lessac-medium.tar.bz2",
+   "path": "models/piper/en_US-lessac-medium/espeak-ng-data",
+   "exists": true,
+   "expected_sha256": null,
+   "n_files": 355,
+   "ok": true
+  },
+  {
+   "asset": "roberta-base-11.onnx",
+   "url": "https://media.githubusercontent.com/media/onnx/models/main/validated/text/machine_comprehension/roberta/model/roberta-base-11.onnx",
+   "path": "models/roberta-base-11.onnx",
+   "exists": true,
+   "expected_sha256": "ad476a33a4b227f6e6b2e1c7192df1b61640657f26b390857ab943de66236c0b",
+   "bytes": 498649858,
+   "sha256": "ad476a33a4b227f6e6b2e1c7192df1b61640657f26b390857ab943de66236c0b",
+   "ok": true
+  },
+  {
+   "asset": "en_core_web_trf wheel",
+   "url": "https://github.com/explosion/spacy-models/releases/download/en_core_web_trf-3.8.0/en_core_web_trf-3.8.0-py3-none-any.whl",
+   "path": "verify_dl/en_core_web_trf-3.8.0-py3-none-any.whl",
+   "exists": true,
+   "expected_sha256": "272a31e9d8530d1e075351d30a462d7e80e31da23574f1b274e200f3fff35bf5",
+   "bytes": 457421864,
+   "sha256": "272a31e9d8530d1e075351d30a462d7e80e31da23574f1b274e200f3fff35bf5",
+   "ok": true
+  }
+ ]
+}
