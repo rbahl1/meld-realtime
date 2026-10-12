@@ -171,3 +171,28 @@ def test_audio_stage_drops_rows_without_a_clip(workspace):
     assert af["audio_cal_B"]["status"].startswith("skipped") and "all zero" in af["audio_cal_B"]["status"]
     assert af["audio_cal"]["variant"] == "A" and heads.AudioCalibrator.load(out / "audio_cal.npz").input_dim == 24
     assert (out / "fusion.npz").exists() and man["sentiment"]["variant"] == "fused"
+
+
+def test_evaluate_leaves_out_test_rows_without_a_clip(workspace):
+    """a few test clips missing: audio and fused rows are scored on the rows that have a clip,
+    say how many were left out, and carry the text head's f1 on those same rows."""
+    root, meld, cache, out = workspace
+    if not (out / "fusion.npz").exists():
+        assert train_heads.main(["--cache", str(cache), "--out", str(out), "--config", str(root / "heads.yaml"), "--meld", str(meld)]) == 0
+    ev_cache = root / "cache_eval_drop"
+    ev_cache.mkdir(exist_ok=True)
+    for name in ("text_test.npy", "text_test_keys.json"):
+        (ev_cache / name).write_bytes((cache / name).read_bytes())
+    with np.load(cache / "audio_test.npz") as z:
+        d = {k: z[k] for k in z.files}
+    n = len(d["keys"])
+    np.savez(ev_cache / "audio_test.npz", **{k: v[2:] for k, v in d.items()})
+    md, js = root / "RESULTS_drop.md", root / "metrics_drop.json"
+    assert evaluate.main(["--cache", str(ev_cache), "--heads", str(out), "--meld", str(meld), "--out", str(md), str(js)]) == 0
+    met = json.loads(js.read_text())["conditions"]
+    for name in ("audio_raw_tag", "fused_stacked", "fused_poe_uncalibrated", "sentiment_fused"):
+        r = met[name]
+        assert r["status"] == "done" and r["n"] == n - 2 and r["n_no_audio"] == 2, name
+        assert "left out" in r["note"]
+    assert 0.0 <= met["fused_stacked"]["text_best_k_same_rows_weighted_f1"] <= 1.0
+    assert met["text_best_k"]["n"] == n and "n_no_audio" not in met["text_best_k"]

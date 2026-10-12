@@ -22,7 +22,11 @@ from meld_rt.clients import connect_push, wait_ready
 
 
 def load_wav(path: Path) -> np.ndarray:
-    """int16 mono at 16 khz; other rates are resampled (scipy), stereo is mixed."""
+    """int16 mono at 16 khz; other rates are resampled (scipy), stereo is mixed. a 16 khz mono
+    pcm16 file is read as int16 directly so the samples on the wire equal the file."""
+    info = sf.info(str(path))
+    if info.samplerate == P.SR and info.channels == 1 and info.subtype == "PCM_16":
+        return sf.read(str(path), dtype="int16")[0]
     x, sr = sf.read(str(path), dtype="float32", always_2d=True)
     x = x.mean(axis=1)
     if sr != P.SR:

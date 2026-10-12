@@ -39,7 +39,7 @@ from meld_rt import heads, labels, metrics  # noqa: E402
 from meld_rt.data import emotion_counts, emotion_ids, load_split, sentiment_ids  # noqa: E402
 
 sys.path.insert(0, str(ROOT / "tools"))
-from train_heads import audio_matrix, file_record, fusion_rows, groups_of, load_audio_cache, load_text_cache, text_matrix  # noqa: E402
+from train_heads import audio_matrix, file_record, fusion_rows, groups_of, read_audio_cache, load_text_cache, text_matrix  # noqa: E402
 
 N_RESAMPLES = 1000
 SEED = 0
@@ -122,7 +122,10 @@ def run_conditions(cache: Path, heads_dir: Path, meld: Path, wanted: set[str] | 
     text_head = head_or_none(heads.TextContextHead, heads_dir / "text_ctx.npz")
     text_k0 = head_or_none(heads.TextContextHead, heads_dir / "text_ctx_k0.npz")
     sent_head = head_or_none(heads.SentimentHead, heads_dir / "sentiment.npz")
-    aud = load_audio_cache(cache, "test", test)
+    # rows without a cached clip are left out of the audio and fused conditions; each of those rows
+    # reports n_no_audio and the text head's weighted f1 on exactly the same rows, so the comparison stays fair
+    ra = read_audio_cache(cache, "test", test)
+    aud, keep, no_audio = (None, None, []) if ra is None else ra
     out: dict[str, dict] = {}
     lp_text = text_head.predict_log_proba_batch(text_matrix(emb, test, text_head.k)) if text_head else None
     inputs = {"cache/text_test.npy": file_record(cache / "text_test.npy"), "meld/test_sent_emo.csv": file_record(meld / "test_sent_emo.csv")}
@@ -153,9 +156,11 @@ def run_conditions(cache: Path, heads_dir: Path, meld: Path, wanted: set[str] | 
             lp = sent_head.predict_log_proba_batch(text_matrix(emb, test, sent_head.k))
             r = scored(name, task, ys, np.exp(lp), groups, f"k={sent_head.k}, C={sent_head.params.get('C', '?')}, T={sent_head.temperature:.3f}")
         elif name == "sentiment_fused" and sent_head is not None and sent_head.variant == "fused" and aud is not None:
-            r = _fused_sentiment(name, task, ys, groups, sent_head, heads_dir, lp_text, aud)
+            r = _fused_sentiment(name, task, ys[keep], groups[keep], sent_head, heads_dir, _rows(lp_text, keep), aud)
+            r = _audio_rows_note(r, no_audio, ys[keep], None)
         elif aud is not None and name in ("audio_raw_tag", "audio_cal_A", "audio_cal_B", "fused_stacked", "fused_poe", "fused_poe_uncalibrated"):
-            r = _audio_condition(name, task, y, groups, aud, heads_dir, manifest, lp_text)
+            r = _audio_condition(name, task, y[keep], groups[keep], aud, heads_dir, manifest, _rows(lp_text, keep))
+            r = _audio_rows_note(r, no_audio, y[keep], _rows(lp_text, keep))
         if r is None:
             why = PENDING
             if name.startswith("ablation"):
@@ -175,6 +180,23 @@ def run_conditions(cache: Path, heads_dir: Path, meld: Path, wanted: set[str] | 
         status = f"wF1 {100 * r['weighted_f1']:.2f}  mF1 {100 * r['macro_f1']:.2f}  acc {100 * r['accuracy']:.2f}" if r["status"] == "done" else r["status"]
         print(f"{name:32s} {status}", flush=True)
     return out, {"inputs": inputs, "manifest": {k: manifest.get(k) for k in ("k", "class_weight_scheme", "temperature", "thresholds", "text_only", "sklearn_version")}}
+
+
+def _rows(a, keep):
+    return None if a is None else a[keep]
+
+
+def _audio_rows_note(r, no_audio, y_rows, lp_text_rows):
+    """mark a result computed on the rows that have audio: how many test rows had no clip, and the
+    text head's weighted f1 on the same rows (none when every row has audio, the rows are then identical)."""
+    if r is None or not no_audio:
+        return r
+    r["n_no_audio"] = len(no_audio)
+    r["note"] = (r.get("note") or "") + f"; {len(no_audio)} test rows without a clip left out (see cache/audio_test_meta.json)"
+    if lp_text_rows is not None:
+        cm = metrics.confusion(y_rows, np.argmax(lp_text_rows, axis=1), len(labels.EMOTIONS))
+        r["text_best_k_same_rows_weighted_f1"] = round(float(metrics.summary(cm)["weighted_f1"]), 6)
+    return r
 
 
 def _audio_condition(name, task, y, groups, aud, heads_dir, manifest, lp_text):

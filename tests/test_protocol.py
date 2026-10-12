@@ -93,3 +93,14 @@ def test_pcm16_frames_pad_and_convert():
     stereo = np.stack([x, -x], axis=1)
     assert np.abs(P.to_pcm16(stereo)).max() == 0
     assert P.to_pcm16(np.array([2.0, -2.0], np.float32)).tolist() == [32767, -32767]
+
+
+def test_replay_reads_pcm16_wav_exactly(tmp_path):
+    import soundfile as sf
+    from meld_rt.clients.replay import load_wav
+
+    x = (np.random.default_rng(0).uniform(-1, 1, 1600) * 32767).astype(np.int16)
+    x[:3] = [32767, -32768, 1]
+    p = tmp_path / "a.wav"
+    sf.write(str(p), x, 16000, subtype="PCM_16")
+    assert np.array_equal(load_wav(p), x)
