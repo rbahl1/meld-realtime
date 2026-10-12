@@ -490,8 +490,8 @@ def test_audit_sample_and_tally(workspace, tmp_path):
     if not (out / "fusion.npz").exists():
         assert train_heads.main(["--cache", str(cache), "--out", str(out), "--config", str(root / "heads.yaml"), "--meld", str(meld)]) == 0
     sheet = tmp_path / "audit.csv"
-    # without heads/audio_cal.npz the audit scores the raw sensevoice posterior, as the service does,
-    # which is also what the manifest's jsd threshold was chosen on
+    # the flag uses the raw sensevoice posterior, as the service does, which is also what the
+    # manifest's jsd threshold was chosen on. the calibrator only gives the audio_label column
     no_cal = tmp_path / "heads_no_cal"
     no_cal.mkdir()
     for name in ("text_ctx.npz", "manifest.json"):
@@ -503,6 +503,13 @@ def test_audit_sample_and_tally(workspace, tmp_path):
         rows = list(csv.DictReader(f))
     assert 0 < len(rows) <= 5 and all(r["direction"] != "none" and float(r["jsd"]) > thr - 1e-4 for r in rows)
     assert all(r[c] == "" for r in rows for c in audit.LISTENER_COLUMNS)
+    with_cal = tmp_path / "audit_cal.csv"
+    assert (out / "audio_cal.npz").exists()
+    assert audit.main(["sample", "--n", "5", "--cache", str(cache), "--heads", str(out), "--meld", str(meld),
+                       "--audio", str(tmp_path), "--out", str(with_cal)]) == 0
+    with with_cal.open(newline="", encoding="utf-8") as f:
+        rows_cal = list(csv.DictReader(f))
+    assert [(r["key"], r["jsd"], r["direction"]) for r in rows_cal] == [(r["key"], r["jsd"], r["direction"]) for r in rows]
     for r, mark in zip(rows, ["text", "audio", "both", "neither", "text"]):
         r["right_branch"], r["laughter_source"] = mark, "none"
     with sheet.open("w", newline="", encoding="utf-8") as f:

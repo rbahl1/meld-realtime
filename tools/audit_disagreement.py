@@ -1,12 +1,13 @@
 """the disagreement audit (design 1.9, 1.11): a person listens to MELD test clips that
 the discrepancy rule flags and marks which branch was right.
 
-sample: scores every test row that has a cached clip the way the service does (text
-head on the gold text, the audio calibrator when heads/audio_cal.npz exists, else the
-sensevoice posterior over its seven named classes, jsd threshold from
-heads/manifest.json or the service default), draws --n flagged rows with a fixed
-seed and writes a csv with empty columns for the listener. the csv holds MELD
-utterance text, so it goes to cache/ (not committed).
+sample: flags every test row that has a cached clip the way the service does (jsd
+between the text head's posterior on the gold text and the raw sensevoice posterior,
+threshold from heads/manifest.json or the service default), draws --n flagged rows
+with a fixed seed and writes a csv with empty columns for the listener. the
+audio_label column comes from the audio calibrator when heads/audio_cal.npz exists,
+else from the raw sensevoice posterior. the csv holds MELD utterance text, so it
+goes to cache/ (not committed).
 
 tally: reads the filled csv and writes counts only to results/disagreement_audit.md.
 
@@ -95,6 +96,8 @@ def sample(a: argparse.Namespace) -> int:
     text_head = heads.TextContextHead.load(a.heads / "text_ctx.npz")
     emb = load_text_cache(a.cache, "test", test)
     p_text = np.exp(text_head.predict_log_proba_batch(text_matrix(emb, test, text_head.k)))[keep]
+    # the flag uses the raw sensevoice posterior, as the service and the dev threshold do (design 1.6)
+    p_audio_flag = np.stack([audio7(p) for p in aud["emo_probs"]])
     cal_path = a.heads / "audio_cal.npz"
     if cal_path.exists():
         cal = heads.AudioCalibrator.load(cal_path)
@@ -102,12 +105,12 @@ def sample(a: argparse.Namespace) -> int:
         p_audio = np.exp(cal.predict_log_proba_batch(audio_matrix(aud, cal.uses_encoder_states)))
         audio_source = "heads/audio_cal.npz"
     else:
-        p_audio = np.stack([audio7(p) for p in aud["emo_probs"]])
+        p_audio = p_audio_flag
         audio_source = "sensevoice posterior over its seven named classes"
     manifest = json.loads((a.heads / "manifest.json").read_text()) if (a.heads / "manifest.json").exists() else {}
     thr = (manifest.get("thresholds") or {}).get("jsd_flag")
     threshold = a.threshold if a.threshold is not None else (float(thr) if isinstance(thr, (int, float)) else ServiceConfig().jsd_flag)
-    rows = draw(flagged(p_text, p_audio, threshold), a.n, a.seed)
+    rows = draw(flagged(p_text, p_audio_flag, threshold), a.n, a.seed)
     a.out.parent.mkdir(parents=True, exist_ok=True)
     with a.out.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
@@ -118,7 +121,7 @@ def sample(a: argparse.Namespace) -> int:
             w.writerow([key(u), str(clip_path(u, a.audio)), u.speaker, u.text, u.emotion,
                         labels.EMOTIONS[int(p_text[i].argmax())], labels.EMOTIONS[int(p_audio[i].argmax())],
                         f"{d:.4f}", f"{threshold:g}", direction, f"{float(aud['event_probs'][i][LAUGHTER_IDX]):.4f}", "", "", ""])
-    print(f"{len(rows)} flagged rows (threshold {threshold}, audio from {audio_source}) -> {a.out}. "
+    print(f"{len(rows)} flagged rows (threshold {threshold} on the raw sensevoice posterior, audio label from {audio_source}) -> {a.out}. "
           f"fill right_branch ({' / '.join(BRANCHES)}) and laughter_source ({' / '.join(LAUGHTER)}), then run tally.")
     return 0
 
