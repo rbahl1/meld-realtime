@@ -1,0 +1,195 @@
+"""measurement tools (WP8): parameter counting, bench clip building, the replay
+bench's bucketing and analysis on synthetic messages, and the renderer. no
+sensevoice or roberta session is created here; everything runs in seconds."""
+
+from __future__ import annotations
+
+import json
+import shutil
+import sys
+from pathlib import Path
+
+import numpy as np
+import pytest
+import soundfile as sf
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
+
+import bench_components as bc  # noqa: E402
+import count_params as cp  # noqa: E402
+import render_measurements as rm  # noqa: E402
+import replay_bench as rb  # noqa: E402
+
+SILERO = ROOT / "models/silero_vad.onnx"
+EN_WAV = ROOT / "models/sensevoice/test_wavs/en.wav"
+SENTIMENT = ROOT / "heads/sentiment.npz"
+
+
+# -- count_params ------------------------------------------------------------
+
+@pytest.mark.skipif(not SILERO.exists(), reason="models not fetched")
+def test_count_onnx_silero_initializers():
+    c = cp.count_onnx(SILERO)
+    assert c["params"] == 155_908          # design 0: silero 0.156 M
+    assert c["by_dtype"] == {"FLOAT": 155_908} and c["int8_elements"] == 0
+    assert c["bytes"] == SILERO.stat().st_size and c["n_initializers"] > 0
+
+
+@pytest.mark.skipif(not SENTIMENT.exists(), reason="heads not trained")
+def test_count_npz_counts_weights_not_standardizer():
+    c = cp.count_npz(SENTIMENT)
+    with np.load(SENTIMENT) as z:
+        expect = sum(int(z[k].size) for k in cp.WEIGHT_KEYS if k in z)
+        std = sum(int(z[k].size) for k in cp.STANDARDIZER_KEYS if k in z)
+    assert c["params"] == expect and c["standardizer_elements"] == std and c["kind"] in ("lr", "mlp")
+
+
+@pytest.mark.skipif(not SILERO.exists(), reason="models not fetched")
+def test_build_marks_missing_models_and_pending_heads(tmp_path):
+    models = tmp_path / "models"
+    models.mkdir()
+    shutil.copy(SILERO, models / "silero_vad.onnx")
+    heads = tmp_path / "heads"
+    heads.mkdir()
+    res = cp.build(models, heads)
+    by = {r["component"]: r for r in res["rows"]}
+    assert by["Silero VAD v4"]["params"] == 155_908
+    assert by["SenseVoice-small int8"]["params"] is None and by["SenseVoice-small int8"]["note"] == "file missing"
+    assert by["Fusion"]["params"] is None and by["Fusion"]["note"] == "pending"
+    assert res["total_inference_path"] == 155_908 and res["piper"] is None
+    assert set(res["heads_pending"]) == {"TextContextHead", "AudioCalibrator", "Fusion", "SentimentHead"}
+    res["generated_at"] = "test"
+    md = cp.render(res, models, heads)
+    assert "0.156 M" in md and "pending" in md and "not on disk" in md
+
+
+# -- bench_components --------------------------------------------------------
+
+@pytest.mark.skipif(not EN_WAV.exists(), reason="models not fetched")
+def test_build_clips_slices_and_tiles(tmp_path):
+    rows = bc.build_clips(EN_WAV, tmp_path)
+    assert [r["label"] for r in rows] == ["2", "3.3", "5", "7.15", "10", "15"]
+    assert [r["source"] for r in rows] == ["slice"] * 4 + ["tile"] * 2
+    for r, d in zip(rows, bc.DURATIONS):
+        x, sr = sf.read(r["file"], dtype="int16")
+        assert sr == 16000 and abs(len(x) / sr - d) < 1e-3 and r["duration_s"] == pytest.approx(d, abs=1e-3)
+        assert np.abs(x).max() > 0
+
+
+@pytest.mark.skipif(not (EN_WAV.exists() and SILERO.exists()), reason="models not fetched")
+def test_trim_silence_cuts_to_the_vad_span():
+    x, _ = sf.read(str(EN_WAV), dtype="float32")
+    y = bc.trim_silence(x, SILERO)
+    # en.wav: 1.1 s of leading silence and room tone after the last word (WP3/WP6 reports)
+    assert 4.0 < len(y) / 16000 < len(x) / 16000 - 1.0
+    rows = bc.build_clips(EN_WAV, Path(bc.ROOT / "bench_clips/_test_trim"), (3.0, 12.0), trim=True, vad_model=SILERO)
+    assert [r["name"] for r in rows] == ["en_dense_3s.wav", "en_dense_12s.wav"] and rows[1]["source"].startswith("tile")
+    shutil.rmtree(bc.ROOT / "bench_clips/_test_trim")
+
+
+def test_stats_and_timed_count_calls():
+    s = bc.stats([1.0, 2.0, 3.0, 4.0, 5.0])
+    assert s["p50"] == 3.0 and s["min"] == 1.0 and s["n"] == 5 and s["p95"] == pytest.approx(4.8)
+    calls = []
+    out = bc.timed(lambda: calls.append(1), runs=5, warmup=2)
+    assert len(out) == 5 and len(calls) == 7 and all(t >= 0 for t in out)
+
+
+# -- replay_bench ------------------------------------------------------------
+
+def test_bucket_edges():
+    assert rb.bucket_of(0.5) == "le5s" and rb.bucket_of(5.0) == "le5s"
+    assert rb.bucket_of(5.01) == "le8s" and rb.bucket_of(8.0) == "le8s"
+    assert rb.bucket_of(8.1) == "le15s" and rb.bucket_of(15.3) == "le15s"
+
+
+def test_collect_clips_globs_sorted_first_n(tmp_path):
+    for i in (3, 1, 2):
+        (tmp_path / f"c{i}.wav").write_bytes(b"")
+    got = rb.collect_clips([str(tmp_path / "*.wav")], 2)
+    assert [p.name for p in got] == ["c1.wav", "c2.wav"]
+    got = rb.collect_clips([f"{tmp_path}/c3.wav,{tmp_path}/c1.wav", str(tmp_path / "c1.wav")], 0)
+    assert [p.name for p in got] == ["c3.wav", "c1.wav"]
+
+
+def _final(utt, t_start, t_end, recv, emitted, capture, stages, text="hello there"):
+    return (emitted + 500_000, "state.final", {
+        "kind": "final", "stream_id": "bench", "utt_id": utt, "t_media_start": t_start, "t_media_end": t_end,
+        "t_speech_end_capture_ns": capture, "t_service_recv_ns": recv, "t_emitted_ns": emitted, "continued_from": None,
+        "asr": {"text": text, "conf": 0.9}, "fused": {"label": "neutral", "mode": "poe"},
+        "timing_ms": {"vad_tail": 400.0, "service_total": (emitted - recv) / 1e6, "provisional_in_flight": 0.0, **stages},
+        "degraded": []})
+
+
+def _prov(utt, t_end, window):
+    return (0, "state.provisional", {"stream_id": "bench", "utt_id": utt, "t_media_end": t_end, "window": window,
+                                      "stability": 0.9, "timing_ms": {"frontend": 2.0, "sensevoice": 50.0}})
+
+
+def test_analyze_synthetic_stream():
+    ns = 1_000_000
+    stages = {"frontend": 5.0, "sensevoice": 100.0, "prosody": 10.0, "text_encoder": 20.0, "heads": 1.0}
+    clips = [{"name": "a.wav", "duration_s": 3.0, "media_start": 0.0, "media_end": 3.0},
+             {"name": "b.wav", "duration_s": 6.0, "media_start": 4.0, "media_end": 10.0}]
+    msgs = [
+        (0, "health", {"stream_id": "bench", "dropped_provisionals": 0, "queue_s": 0.0, "rss_mb": 900.0}),
+        _prov(1, 1.0, "full"), _prov(1, 2.0, "full"),
+        _final(1, 0.0, 3.0, recv=1000 * ns, emitted=1150 * ns, capture=999 * ns, stages=stages),
+        (1151 * ns, "response", {"stream_id": "bench", "utt_id": 1, "t_emitted_ns": 1150 * ns + 300_000, "text": "ok"}),
+        _prov(2, 5.0, "full"), _prov(2, 6.0, "full"), _prov(2, 7.0, "full"), _prov(2, 8.0, "full"), _prov(2, 9.0, "tail"), _prov(2, 11.0, "tail"),
+        _final(2, 4.0, 10.0, recv=8000 * ns, emitted=8300 * ns, capture=7999 * ns, stages=stages),
+        (8301 * ns, "response", {"stream_id": "bench", "utt_id": 2, "t_emitted_ns": 8300 * ns + 400_000, "text": "ok"}),
+        (0, "error", {"stream_id": "other", "code": "audio_gap"}),
+        (0, "health", {"stream_id": "bench", "dropped_provisionals": 1, "queue_s": 0.2, "rss_mb": 950.0}),
+    ]
+    r = rb.analyze(msgs, clips, "bench")
+    assert r["n_finals"] == 2 and r["n_responses"] == 2 and r["n_provisionals"] == 8 and r["errors"] == {}
+    assert r["by_bucket"]["le5s"]["n"] == 1 and r["by_bucket"]["le8s"]["n"] == 1 and r["by_bucket"]["le15s"]["n"] == 0
+    assert r["by_bucket"]["le5s"]["service_total_ms"]["p50"] == 150.0 and r["by_bucket"]["le5s"]["pass"] is True
+    assert r["by_bucket"]["le8s"]["service_total_ms"]["p50"] == 300.0 and r["by_bucket"]["le8s"]["pass"] is True
+    assert r["by_bucket"]["le15s"]["pass"] is None
+    assert r["reply_after_final_ms"]["max"] == 0.4 and r["reply_after_final_ms"]["pass"] is True
+    assert r["by_bucket"]["le5s"]["response_ms"]["p50"] == pytest.approx(150.3)
+    assert r["by_bucket"]["le5s"]["client_ms"]["p50"] == pytest.approx(151.5)
+    cad = r["provisionals"]
+    assert cad["full_window_interval_s"]["n"] == 4 and cad["full_window_interval_s"]["p50"] == 1.0
+    assert cad["tail_window_interval_s"]["n"] == 1 and cad["tail_window_interval_s"]["p50"] == 2.0
+    assert cad["full_to_tail_switch_interval_s"]["n"] == 1 and cad["dropped_provisionals"] == 1 and cad["pass"] is True
+    assert cad["first_provisional_offset_s"]["p50"] == 1.0
+    assert r["worker_compute_s"] == pytest.approx((2 * 136.0 + 8 * 52.0) / 1000)
+    assert [u["clip"] for u in r["utterances"]] == ["a.wav", "b.wav"] and r["clips_without_final"] == []
+    assert r["max_queue_s"] == 0.2 and r["health_rss_mb_last"] == 950.0
+
+
+# -- render_measurements -----------------------------------------------------
+
+def test_render_without_json_files_has_placeholders_only(tmp_path):
+    md = rm.render(ROOT, tmp_path)
+    assert md.count("[not yet measured: run") == 3
+    assert md.count(rm.NOT_YET) >= 12 and "## Laptop (user-run)" in md and "## Container (this host)" in md
+    assert "avx512_vnni" in md and "python 3." in md
+
+
+@pytest.mark.skipif(not (ROOT / "results/params.json").exists(), reason="count_params.py has not run")
+def test_render_from_the_committed_json_files():
+    md = rm.render(ROOT, ROOT / "results")
+    assert "unreadable" not in md and "### Parameters" in md
+    params = json.loads((ROOT / "results/params.json").read_text())
+    assert f"{params['total_inference_path'] / 1e6:.3f} M" in md
+    for p in (ROOT / "results").glob("replay_bench_*.json"):
+        r = json.loads(p.read_text())
+        assert p.name in md
+        for b in r["results"]["by_bucket"].values():
+            if b["n"]:
+                assert f"{b['service_total_ms']['p50']:.1f} / {b['service_total_ms']['p95']:.1f}" in md
+    for p in (ROOT / "results").glob("bench_components_*.json"):
+        b = json.loads(p.read_text())
+        t = max(b["by_threads"], key=int)
+        assert f"{b['by_threads'][t]['sensevoice_ms']['2']['p50']:.1f}" in md
+
+
+def test_commit_hash_reads_git_files_without_running_git():
+    h = rm.commit_hash(ROOT)
+    assert h == "unknown" or len(h.split()[0]) == 12
+    assert rm.commit_hash(Path("/nonexistent")) == "unknown"

@@ -1,0 +1,1141 @@
+{
+ "host": "vm",
+ "generated_at": "2026-10-12T05:12:41Z",
+ "command": "python tools/replay_bench.py --clips bench_clips/long/*.wav --n 0 --repeat 3 --realtime --endpoint-silence-ms 500 --out results/replay_bench_vm_long.json",
+ "config": {
+  "threads": 4,
+  "text_threads": 2,
+  "endpoint_silence_ms": 500,
+  "provisional_hz": 1.0,
+  "provisional_window_s": 4.0,
+  "provisional_budget_ms": 0.0,
+  "fusion_mode_requested": "auto",
+  "fusion_mode": "poe",
+  "heads": [
+   "sentiment.npz",
+   "text_ctx.npz",
+   "text_ctx_k0.npz"
+  ],
+  "model_versions": {
+   "vad": "9e2449e10874",
+   "sensevoice": "c71f0ce00bec",
+   "roberta": "ad476a33a4b2",
+   "heads": [
+    "sentiment.npz",
+    "text_ctx.npz",
+    "text_ctx_k0.npz"
+   ]
+  },
+  "realtime": true,
+  "tail_s": 1.0,
+  "warmup_clips": 1,
+  "n_clips": 12,
+  "repeat": 3,
+  "clip_source": "bench_clips/long",
+  "clips": [
+   {
+    "name": "en_dense_12s.wav",
+    "duration_s": 12.0,
+    "media_start": 0.0,
+    "media_end": 12.0
+   },
+   {
+    "name": "en_dense_15s.wav",
+    "duration_s": 15.0,
+    "media_start": 13.024,
+    "media_end": 28.032
+   },
+   {
+    "name": "en_dense_6s.wav",
+    "duration_s": 6.0,
+    "media_start": 29.056,
+    "media_end": 35.072
+   },
+   {
+    "name": "en_dense_9s.wav",
+    "duration_s": 9.0,
+    "media_start": 36.096,
+    "media_end": 45.12
+   },
+   {
+    "name": "en_dense_12s.wav",
+    "duration_s": 12.0,
+    "media_start": 46.144,
+    "media_end": 58.144
+   },
+   {
+    "name": "en_dense_15s.wav",
+    "duration_s": 15.0,
+    "media_start": 59.168,
+    "media_end": 74.176
+   },
+   {
+    "name": "en_dense_6s.wav",
+    "duration_s": 6.0,
+    "media_start": 75.2,
+    "media_end": 81.216
+   },
+   {
+    "name": "en_dense_9s.wav",
+    "duration_s": 9.0,
+    "media_start": 82.24,
+    "media_end": 91.264
+   },
+   {
+    "name": "en_dense_12s.wav",
+    "duration_s": 12.0,
+    "media_start": 92.288,
+    "media_end": 104.288
+   },
+   {
+    "name": "en_dense_15s.wav",
+    "duration_s": 15.0,
+    "media_start": 105.312,
+    "media_end": 120.32
+   },
+   {
+    "name": "en_dense_6s.wav",
+    "duration_s": 6.0,
+    "media_start": 121.344,
+    "media_end": 127.36
+   },
+   {
+    "name": "en_dense_9s.wav",
+    "duration_s": 9.0,
+    "media_start": 128.384,
+    "media_end": 137.408
+   }
+  ],
+  "clip_duration_s": {
+   "n": 12,
+   "p50": 10.5,
+   "p95": 15.0,
+   "max": 15.0,
+   "mean": 10.5
+  }
+ },
+ "load_s": 2.61,
+ "sent": {
+  "frames": 4326,
+  "audio_s": 138.432,
+  "wall_s": 138.4
+ },
+ "finished_cleanly": true,
+ "loadavg_start": [
+  0.93,
+  0.55,
+  0.64
+ ],
+ "loadavg_end": [
+  0.1,
+  0.35,
+  0.55
+ ],
+ "memory": {
+  "rss_mb_before_load": 41.3,
+  "rss_mb_after_load": 1133.0,
+  "peak_rss_mb": 1235.9,
+  "health_rss_mb_last": 1235.9
+ },
+ "compute": {
+  "worker_compute_s": 15.669,
+  "audio_s_streamed": 138.432,
+  "speech_s": 126.0,
+  "worker_compute_s_per_audio_s": 0.1132,
+  "worker_compute_s_per_speech_s": 0.1244,
+  "process_cpu_s": 69.82,
+  "process_cpu_s_per_audio_s": 0.5044,
+  "process_cpu_percent_sampled": {
+   "n": 279,
+   "p50": 4.0,
+   "p95": 164.06,
+   "max": 347.1,
+   "mean": 49.6
+  },
+  "wall_s": 140.31,
+  "target_max": 0.3,
+  "rule": "sum of the per-stage worker timings of every final and provisional, divided by the seconds of audio streamed (speech plus tails)",
+  "pass": true
+ },
+ "targets": {
+  "final_ms": {
+   "le5s": {
+    "p50": 250.0,
+    "p95": 400.0
+   },
+   "le8s": {
+    "p50": 350.0,
+    "p95": 550.0
+   },
+   "le15s": {
+    "p50": 700.0,
+    "p95": 1000.0
+   }
+  },
+  "reply_after_final_ms": {
+   "p95": 5.0
+  },
+  "provisional_full_interval_s": {
+   "target": 1.0,
+   "tolerance": 0.1
+  },
+  "worker_compute_s_per_audio_s": {
+   "max": 0.3
+  }
+ },
+ "notes": [
+  "service, replay client and monitor run in one process on this host; rss and cpu include all three",
+  "service_total_ms is the service-side latency: endpoint frame arrival (t_service_recv_ns) to the final's emission",
+  "client_ms is the monitor's arrival time minus the capture time of the endpoint frame, valid because both run here",
+  "response_ms is from the endpoint frame arrival to the response's emission",
+  "proxy clips are piper tts: latencies are real, emotion labels are not a result"
+ ],
+ "results": {
+  "n_finals": 12,
+  "n_responses": 12,
+  "n_provisionals": 84,
+  "n_health": 140,
+  "errors": {},
+  "max_queue_s": 0.444,
+  "health_rss_mb_last": 1235.9,
+  "clips_without_final": [],
+  "clips_with_several_finals": [],
+  "finals_degraded": 0,
+  "finals_empty_text": 0,
+  "all": {
+   "service_total_ms": {
+    "n": 12,
+    "p50": 421.86,
+    "p95": 568.2,
+    "max": 638.89,
+    "mean": 418.77
+   },
+   "client_ms": {
+    "n": 12,
+    "p50": 422.69,
+    "p95": 569.43,
+    "max": 640.4,
+    "mean": 419.74
+   },
+   "response_ms": {
+    "n": 12,
+    "p50": 422.21,
+    "p95": 568.63,
+    "max": 639.61,
+    "mean": 419.03
+   },
+   "segment_s": {
+    "n": 12,
+    "p50": 10.51,
+    "p95": 15.01,
+    "max": 15.01,
+    "mean": 10.5
+   },
+   "stages_p50_ms": {
+    "frontend": 15.97,
+    "sensevoice": 318.62,
+    "prosody": 36.76,
+    "text_encoder": 41.83,
+    "heads": 0.69
+   }
+  },
+  "by_bucket": {
+   "le5s": {
+    "description": "up to 5 s (83 % of MELD)",
+    "n": 0,
+    "service_total_ms": {
+     "n": 0
+    },
+    "client_ms": {
+     "n": 0
+    },
+    "response_ms": {
+     "n": 0
+    },
+    "reply_after_final_ms": {
+     "n": 0
+    },
+    "stages_p50_ms": {},
+    "provisional_in_flight_p50_ms": null,
+    "segment_s": {
+     "n": 0
+    },
+    "target_ms": {
+     "p50": 250.0,
+     "p95": 400.0
+    },
+    "pass": null
+   },
+   "le8s": {
+    "description": "5 to 8 s (95 % cumulative)",
+    "n": 3,
+    "service_total_ms": {
+     "n": 3,
+     "p50": 293.35,
+     "p95": 298.65,
+     "max": 299.24,
+     "mean": 288.2
+    },
+    "client_ms": {
+     "n": 3,
+     "p50": 294.22,
+     "p95": 299.37,
+     "max": 299.94,
+     "mean": 288.98
+    },
+    "response_ms": {
+     "n": 3,
+     "p50": 293.52,
+     "p95": 298.8,
+     "max": 299.39,
+     "mean": 288.36
+    },
+    "reply_after_final_ms": {
+     "n": 3,
+     "p50": 0.17,
+     "p95": 0.17,
+     "max": 0.17,
+     "mean": 0.16
+    },
+    "stages_p50_ms": {
+     "frontend": 8.86,
+     "sensevoice": 209.87,
+     "prosody": 26.8,
+     "text_encoder": 30.13,
+     "heads": 0.69
+    },
+    "provisional_in_flight_p50_ms": 0.0,
+    "segment_s": {
+     "n": 3,
+     "p50": 5.98,
+     "p95": 5.98,
+     "max": 5.98,
+     "mean": 5.98
+    },
+    "target_ms": {
+     "p50": 350.0,
+     "p95": 550.0
+    },
+    "pass": true
+   },
+   "le15s": {
+    "description": "8 s to the 15 s cap (99.7 % cumulative)",
+    "n": 9,
+    "service_total_ms": {
+     "n": 9,
+     "p50": 455.67,
+     "p95": 587.48,
+     "max": 638.89,
+     "mean": 462.3
+    },
+    "client_ms": {
+     "n": 9,
+     "p50": 456.56,
+     "p95": 588.78,
+     "max": 640.4,
+     "mean": 463.33
+    },
+    "response_ms": {
+     "n": 9,
+     "p50": 455.86,
+     "p95": 587.99,
+     "max": 639.61,
+     "mean": 462.58
+    },
+    "reply_after_final_ms": {
+     "n": 9,
+     "p50": 0.19,
+     "p95": 0.63,
+     "max": 0.72,
+     "mean": 0.28
+    },
+    "stages_p50_ms": {
+     "frontend": 18.53,
+     "sensevoice": 336.4,
+     "prosody": 44.08,
+     "text_encoder": 42.19,
+     "heads": 0.7
+    },
+    "provisional_in_flight_p50_ms": 0.0,
+    "segment_s": {
+     "n": 9,
+     "p50": 12.0,
+     "p95": 15.01,
+     "max": 15.01,
+     "mean": 12.01
+    },
+    "target_ms": {
+     "p50": 700.0,
+     "p95": 1000.0
+    },
+    "pass": true
+   }
+  },
+  "reply_after_final_ms": {
+   "n": 12,
+   "p50": 0.19,
+   "p95": 0.6,
+   "max": 0.72,
+   "mean": 0.25,
+   "target_p95_ms": 5.0,
+   "pass": true
+  },
+  "provisionals": {
+   "n_provisionals": 84,
+   "n_full": 36,
+   "n_tail": 48,
+   "full_window_interval_s": {
+    "n": 24,
+    "p50": 1.02,
+    "p95": 1.02,
+    "max": 1.02,
+    "mean": 1.02
+   },
+   "tail_window_interval_s": {
+    "n": 36,
+    "p50": 2.02,
+    "p95": 2.02,
+    "max": 2.02,
+    "mean": 2.02
+   },
+   "full_to_tail_switch_interval_s": {
+    "n": 12,
+    "p50": 1.02,
+    "p95": 1.02,
+    "max": 1.02,
+    "mean": 1.02
+   },
+   "per_utterance": {
+    "n": 12,
+    "p50": 7.0,
+    "p95": 9.0,
+    "max": 9.0,
+    "mean": 7.0
+   },
+   "first_provisional_offset_s": {
+    "n": 12,
+    "p50": 1.02,
+    "p95": 1.02,
+    "max": 1.02,
+    "mean": 1.02
+   },
+   "utterances_over_1p5s_with_a_provisional": "12/12",
+   "sensevoice_ms": {
+    "n": 84,
+    "p50": 126.97,
+    "p95": 177.01,
+    "max": 298.06,
+    "mean": 121.31
+   },
+   "stability": {
+    "n": 84,
+    "p50": 1.0,
+    "p95": 1.0,
+    "max": 1.0,
+    "mean": 0.99
+   },
+   "dropped_provisionals": 0,
+   "pass": true,
+   "rule": "median media-time gap between consecutive full-window provisionals within 1.0 +- 0.1 s"
+  },
+  "worker_compute_s": 15.669
+ },
+ "utterances": [
+  {
+   "utt_id": 1,
+   "clip": "en_dense_12s.wav",
+   "clip_index": 0,
+   "clip_duration_s": 12.0,
+   "t_media_start": 0.032,
+   "segment_s": 12.0,
+   "bucket": "le15s",
+   "service_total_ms": 461.67,
+   "client_ms": 462.54,
+   "response_ms": 461.86,
+   "reply_after_final_ms": 0.188,
+   "stages_ms": {
+    "frontend": 18.53,
+    "sensevoice": 361.25,
+    "prosody": 37.71,
+    "text_encoder": 41.17,
+    "heads": 0.73
+   },
+   "vad_tail_ms": 512.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 8,
+   "n_full": 3,
+   "n_tail": 5,
+   "prov_media_ends": [
+    1.056,
+    2.08,
+    3.104,
+    4.128,
+    6.144,
+    8.16,
+    10.176,
+    12.192
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full",
+    "tail",
+    "tail",
+    "tail",
+    "tail",
+    "tail"
+   ],
+   "prov_sensevoice_ms": [
+    56.54,
+    96.34,
+    105.65,
+    124.91,
+    146.64,
+    130.53,
+    140.87,
+    140.31
+   ],
+   "asr_text": "the tribal chieftain called for the boy and presented him with fifty0 pieces of code the tribal chieftain called for the boy and presented him with fifty0 pieces of code the",
+   "asr_conf": 0.9227,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 2,
+   "clip": "en_dense_15s.wav",
+   "clip_index": 1,
+   "clip_duration_s": 15.0,
+   "t_media_start": 13.056,
+   "segment_s": 15.008,
+   "bucket": "le15s",
+   "service_total_ms": 510.37,
+   "client_ms": 511.36,
+   "response_ms": 510.56,
+   "reply_after_final_ms": 0.189,
+   "stages_ms": {
+    "frontend": 22.28,
+    "sensevoice": 393.06,
+    "prosody": 46.35,
+    "text_encoder": 46.38,
+    "heads": 0.59
+   },
+   "vad_tail_ms": 0.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 9,
+   "n_full": 3,
+   "n_tail": 6,
+   "prov_media_ends": [
+    14.08,
+    15.104,
+    16.128,
+    17.152,
+    19.168,
+    21.184,
+    23.2,
+    25.216,
+    27.232
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full",
+    "tail",
+    "tail",
+    "tail",
+    "tail",
+    "tail",
+    "tail"
+   ],
+   "prov_sensevoice_ms": [
+    59.46,
+    97.76,
+    111.24,
+    127.24,
+    150.08,
+    121.15,
+    151.34,
+    143.4,
+    153.98
+   ],
+   "asr_text": "the tribal chieftain called for the boy and presented him with fifty pieces of code the tribal chieftain called for the boy and presented him with fifty pieces of code the tribal chieftain called for the boy and presented",
+   "asr_conf": 0.9646,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 3,
+   "clip": "en_dense_6s.wav",
+   "clip_index": 2,
+   "clip_duration_s": 6.0,
+   "t_media_start": 29.088,
+   "segment_s": 5.984,
+   "bucket": "le8s",
+   "service_total_ms": 272.0,
+   "client_ms": 272.78,
+   "response_ms": 272.17,
+   "reply_after_final_ms": 0.167,
+   "stages_ms": {
+    "frontend": 8.86,
+    "sensevoice": 205.11,
+    "prosody": 25.92,
+    "text_encoder": 30.13,
+    "heads": 0.69
+   },
+   "vad_tail_ms": 512.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 5,
+   "n_full": 3,
+   "n_tail": 2,
+   "prov_media_ends": [
+    30.112,
+    31.136,
+    32.16,
+    33.184,
+    35.2
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full",
+    "tail",
+    "tail"
+   ],
+   "prov_sensevoice_ms": [
+    47.25,
+    78.6,
+    125.5,
+    134.7,
+    131.66
+   ],
+   "asr_text": "the tribal chieftain called for the boy and presented him with 50 pieces of code",
+   "asr_conf": 0.9448,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": 2
+  },
+  {
+   "utt_id": 4,
+   "clip": "en_dense_9s.wav",
+   "clip_index": 3,
+   "clip_duration_s": 9.0,
+   "t_media_start": 36.128,
+   "segment_s": 9.024,
+   "bucket": "le15s",
+   "service_total_ms": 395.11,
+   "client_ms": 395.96,
+   "response_ms": 395.62,
+   "reply_after_final_ms": 0.505,
+   "stages_ms": {
+    "frontend": 12.92,
+    "sensevoice": 303.36,
+    "prosody": 35.13,
+    "text_encoder": 41.38,
+    "heads": 0.63
+   },
+   "vad_tail_ms": 512.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 6,
+   "n_full": 3,
+   "n_tail": 3,
+   "prov_media_ends": [
+    37.152,
+    38.176,
+    39.2,
+    40.224,
+    42.24,
+    44.256
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full",
+    "tail",
+    "tail",
+    "tail"
+   ],
+   "prov_sensevoice_ms": [
+    59.02,
+    85.36,
+    99.38,
+    151.5,
+    135.49,
+    137.24
+   ],
+   "asr_text": "the tribal chieftain called for the boy and presented him with 50 pieces of code the tribal chieftain called for the boy and present",
+   "asr_conf": 0.9197,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 5,
+   "clip": "en_dense_12s.wav",
+   "clip_index": 4,
+   "clip_duration_s": 12.0,
+   "t_media_start": 46.176,
+   "segment_s": 12.0,
+   "bucket": "le15s",
+   "service_total_ms": 448.6,
+   "client_ms": 449.41,
+   "response_ms": 448.79,
+   "reply_after_final_ms": 0.19,
+   "stages_ms": {
+    "frontend": 18.94,
+    "sensevoice": 333.89,
+    "prosody": 44.08,
+    "text_encoder": 48.78,
+    "heads": 1.07
+   },
+   "vad_tail_ms": 512.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 8,
+   "n_full": 3,
+   "n_tail": 5,
+   "prov_media_ends": [
+    47.2,
+    48.224,
+    49.248,
+    50.272,
+    52.288,
+    54.304,
+    56.32,
+    58.336
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full",
+    "tail",
+    "tail",
+    "tail",
+    "tail",
+    "tail"
+   ],
+   "prov_sensevoice_ms": [
+    50.0,
+    87.2,
+    105.05,
+    124.72,
+    134.01,
+    136.68,
+    144.96,
+    129.98
+   ],
+   "asr_text": "the tribal chieftain called for the boy and presented him with fifty0 pieces of code the tribal chieftain called for the boy and presented him with fifty0 pieces of code the",
+   "asr_conf": 0.9227,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 6,
+   "clip": "en_dense_15s.wav",
+   "clip_index": 5,
+   "clip_duration_s": 15.0,
+   "t_media_start": 59.2,
+   "segment_s": 15.008,
+   "bucket": "le15s",
+   "service_total_ms": 508.08,
+   "client_ms": 508.78,
+   "response_ms": 508.24,
+   "reply_after_final_ms": 0.161,
+   "stages_ms": {
+    "frontend": 20.33,
+    "sensevoice": 383.08,
+    "prosody": 54.59,
+    "text_encoder": 47.93,
+    "heads": 0.7
+   },
+   "vad_tail_ms": 0.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 9,
+   "n_full": 3,
+   "n_tail": 6,
+   "prov_media_ends": [
+    60.224,
+    61.248,
+    62.272,
+    63.296,
+    65.312,
+    67.328,
+    69.344,
+    71.36,
+    73.376
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full",
+    "tail",
+    "tail",
+    "tail",
+    "tail",
+    "tail",
+    "tail"
+   ],
+   "prov_sensevoice_ms": [
+    57.72,
+    84.13,
+    116.21,
+    130.68,
+    158.63,
+    135.08,
+    298.06,
+    154.06,
+    181.96
+   ],
+   "asr_text": "the tribal chieftain called for the boy and presented him with fifty pieces of code the tribal chieftain called for the boy and presented him with fifty pieces of code the tribal chieftain called for the boy and presented",
+   "asr_conf": 0.9646,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 7,
+   "clip": "en_dense_6s.wav",
+   "clip_index": 6,
+   "clip_duration_s": 6.0,
+   "t_media_start": 75.232,
+   "segment_s": 5.984,
+   "bucket": "le8s",
+   "service_total_ms": 299.24,
+   "client_ms": 299.94,
+   "response_ms": 299.39,
+   "reply_after_final_ms": 0.149,
+   "stages_ms": {
+    "frontend": 13.62,
+    "sensevoice": 209.87,
+    "prosody": 30.87,
+    "text_encoder": 42.8,
+    "heads": 0.65
+   },
+   "vad_tail_ms": 512.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 5,
+   "n_full": 3,
+   "n_tail": 2,
+   "prov_media_ends": [
+    76.256,
+    77.28,
+    78.304,
+    79.328,
+    81.344
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full",
+    "tail",
+    "tail"
+   ],
+   "prov_sensevoice_ms": [
+    55.86,
+    91.07,
+    103.23,
+    149.87,
+    150.82
+   ],
+   "asr_text": "the tribal chieftain called for the boy and presented him with 50 pieces of code",
+   "asr_conf": 0.9448,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": 6
+  },
+  {
+   "utt_id": 8,
+   "clip": "en_dense_9s.wav",
+   "clip_index": 7,
+   "clip_duration_s": 9.0,
+   "t_media_start": 82.272,
+   "segment_s": 9.024,
+   "bucket": "le15s",
+   "service_total_ms": 370.89,
+   "client_ms": 371.63,
+   "response_ms": 371.06,
+   "reply_after_final_ms": 0.178,
+   "stages_ms": {
+    "frontend": 13.65,
+    "sensevoice": 283.5,
+    "prosody": 30.08,
+    "text_encoder": 41.47,
+    "heads": 0.82
+   },
+   "vad_tail_ms": 512.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 6,
+   "n_full": 3,
+   "n_tail": 3,
+   "prov_media_ends": [
+    83.296,
+    84.32,
+    85.344,
+    86.368,
+    88.384,
+    90.4
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full",
+    "tail",
+    "tail",
+    "tail"
+   ],
+   "prov_sensevoice_ms": [
+    74.23,
+    95.54,
+    98.65,
+    178.67,
+    120.57,
+    156.82
+   ],
+   "asr_text": "the tribal chieftain called for the boy and presented him with 50 pieces of code the tribal chieftain called for the boy and present",
+   "asr_conf": 0.9197,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 9,
+   "clip": "en_dense_12s.wav",
+   "clip_index": 8,
+   "clip_duration_s": 12.0,
+   "t_media_start": 92.32,
+   "segment_s": 12.0,
+   "bucket": "le15s",
+   "service_total_ms": 455.67,
+   "client_ms": 456.56,
+   "response_ms": 455.86,
+   "reply_after_final_ms": 0.186,
+   "stages_ms": {
+    "frontend": 16.47,
+    "sensevoice": 336.4,
+    "prosody": 58.34,
+    "text_encoder": 42.19,
+    "heads": 0.62
+   },
+   "vad_tail_ms": 512.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 8,
+   "n_full": 3,
+   "n_tail": 5,
+   "prov_media_ends": [
+    93.344,
+    94.368,
+    95.392,
+    96.416,
+    98.432,
+    100.448,
+    102.464,
+    104.48
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full",
+    "tail",
+    "tail",
+    "tail",
+    "tail",
+    "tail"
+   ],
+   "prov_sensevoice_ms": [
+    56.55,
+    76.85,
+    113.57,
+    134.21,
+    155.63,
+    183.4,
+    152.51,
+    167.61
+   ],
+   "asr_text": "the tribal chieftain called for the boy and presented him with fifty0 pieces of code the tribal chieftain called for the boy and presented him with fifty0 pieces of code the",
+   "asr_conf": 0.9227,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 10,
+   "clip": "en_dense_15s.wav",
+   "clip_index": 9,
+   "clip_duration_s": 15.0,
+   "t_media_start": 105.344,
+   "segment_s": 15.008,
+   "bucket": "le15s",
+   "service_total_ms": 638.89,
+   "client_ms": 640.4,
+   "response_ms": 639.61,
+   "reply_after_final_ms": 0.721,
+   "stages_ms": {
+    "frontend": 20.75,
+    "sensevoice": 502.02,
+    "prosody": 56.42,
+    "text_encoder": 56.61,
+    "heads": 0.94
+   },
+   "vad_tail_ms": 0.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 9,
+   "n_full": 3,
+   "n_tail": 6,
+   "prov_media_ends": [
+    106.368,
+    107.392,
+    108.416,
+    109.44,
+    111.456,
+    113.472,
+    115.488,
+    117.504,
+    119.52
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full",
+    "tail",
+    "tail",
+    "tail",
+    "tail",
+    "tail",
+    "tail"
+   ],
+   "prov_sensevoice_ms": [
+    56.19,
+    74.73,
+    106.48,
+    143.94,
+    129.27,
+    154.28,
+    160.67,
+    153.11,
+    126.71
+   ],
+   "asr_text": "the tribal chieftain called for the boy and presented him with fifty pieces of code the tribal chieftain called for the boy and presented him with fifty pieces of code the tribal chieftain called for the boy and presented",
+   "asr_conf": 0.9646,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 11,
+   "clip": "en_dense_6s.wav",
+   "clip_index": 10,
+   "clip_duration_s": 6.0,
+   "t_media_start": 121.376,
+   "segment_s": 5.984,
+   "bucket": "le8s",
+   "service_total_ms": 293.35,
+   "client_ms": 294.22,
+   "response_ms": 293.52,
+   "reply_after_final_ms": 0.175,
+   "stages_ms": {
+    "frontend": 8.72,
+    "sensevoice": 226.11,
+    "prosody": 26.8,
+    "text_encoder": 29.58,
+    "heads": 0.77
+   },
+   "vad_tail_ms": 512.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 5,
+   "n_full": 3,
+   "n_tail": 2,
+   "prov_media_ends": [
+    122.4,
+    123.424,
+    124.448,
+    125.472,
+    127.488
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full",
+    "tail",
+    "tail"
+   ],
+   "prov_sensevoice_ms": [
+    55.68,
+    81.44,
+    113.59,
+    140.78,
+    275.73
+   ],
+   "asr_text": "the tribal chieftain called for the boy and presented him with 50 pieces of code",
+   "asr_conf": 0.9448,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": 10
+  },
+  {
+   "utt_id": 12,
+   "clip": "en_dense_9s.wav",
+   "clip_index": 11,
+   "clip_duration_s": 9.0,
+   "t_media_start": 128.416,
+   "segment_s": 9.024,
+   "bucket": "le15s",
+   "service_total_ms": 371.39,
+   "client_ms": 373.29,
+   "response_ms": 371.64,
+   "reply_after_final_ms": 0.243,
+   "stages_ms": {
+    "frontend": 15.48,
+    "sensevoice": 277.54,
+    "prosody": 35.81,
+    "text_encoder": 39.88,
+    "heads": 0.62
+   },
+   "vad_tail_ms": 512.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 6,
+   "n_full": 3,
+   "n_tail": 3,
+   "prov_media_ends": [
+    129.44,
+    130.464,
+    131.488,
+    132.512,
+    134.528,
+    136.544
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full",
+    "tail",
+    "tail",
+    "tail"
+   ],
+   "prov_sensevoice_ms": [
+    51.27,
+    73.51,
+    106.36,
+    121.84,
+    144.96,
+    131.89
+   ],
+   "asr_text": "the tribal chieftain called for the boy and presented him with 50 pieces of code the tribal chieftain called for the boy and present",
+   "asr_conf": 0.9197,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  }
+ ]
+}

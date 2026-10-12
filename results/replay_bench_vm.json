@@ -1,0 +1,1382 @@
+{
+ "host": "vm",
+ "generated_at": "2026-10-12T05:10:02Z",
+ "command": "python tools/replay_bench.py --clips proxy/*.wav --n 20 --realtime --out results/replay_bench_vm.json",
+ "config": {
+  "threads": 4,
+  "text_threads": 2,
+  "endpoint_silence_ms": 400,
+  "provisional_hz": 1.0,
+  "provisional_window_s": 4.0,
+  "provisional_budget_ms": 0.0,
+  "fusion_mode_requested": "auto",
+  "fusion_mode": "poe",
+  "heads": [
+   "sentiment.npz",
+   "text_ctx.npz",
+   "text_ctx_k0.npz"
+  ],
+  "model_versions": {
+   "vad": "9e2449e10874",
+   "sensevoice": "c71f0ce00bec",
+   "roberta": "ad476a33a4b2",
+   "heads": [
+    "sentiment.npz",
+    "text_ctx.npz",
+    "text_ctx_k0.npz"
+   ]
+  },
+  "realtime": true,
+  "tail_s": 1.0,
+  "warmup_clips": 1,
+  "n_clips": 20,
+  "repeat": 1,
+  "clip_source": "proxy",
+  "clips": [
+   {
+    "name": "dev_0001.wav",
+    "duration_s": 2.917,
+    "media_start": 0.0,
+    "media_end": 2.944
+   },
+   {
+    "name": "dev_0002.wav",
+    "duration_s": 4.298,
+    "media_start": 3.968,
+    "media_end": 8.288
+   },
+   {
+    "name": "dev_0003.wav",
+    "duration_s": 0.987,
+    "media_start": 9.312,
+    "media_end": 10.304
+   },
+   {
+    "name": "dev_0004.wav",
+    "duration_s": 2.796,
+    "media_start": 11.328,
+    "media_end": 14.144
+   },
+   {
+    "name": "dev_0005.wav",
+    "duration_s": 1.637,
+    "media_start": 15.168,
+    "media_end": 16.832
+   },
+   {
+    "name": "dev_0006.wav",
+    "duration_s": 4.286,
+    "media_start": 17.856,
+    "media_end": 22.144
+   },
+   {
+    "name": "dev_0007.wav",
+    "duration_s": 0.789,
+    "media_start": 23.168,
+    "media_end": 23.968
+   },
+   {
+    "name": "dev_0008.wav",
+    "duration_s": 0.935,
+    "media_start": 24.992,
+    "media_end": 25.952
+   },
+   {
+    "name": "dev_0009.wav",
+    "duration_s": 4.995,
+    "media_start": 26.976,
+    "media_end": 32.0
+   },
+   {
+    "name": "dev_0010.wav",
+    "duration_s": 3.592,
+    "media_start": 33.024,
+    "media_end": 36.64
+   },
+   {
+    "name": "dev_0011.wav",
+    "duration_s": 4.782,
+    "media_start": 37.664,
+    "media_end": 42.464
+   },
+   {
+    "name": "dev_0012.wav",
+    "duration_s": 1.057,
+    "media_start": 43.488,
+    "media_end": 44.576
+   },
+   {
+    "name": "dev_0013.wav",
+    "duration_s": 1.289,
+    "media_start": 45.6,
+    "media_end": 46.912
+   },
+   {
+    "name": "dev_0014.wav",
+    "duration_s": 1.335,
+    "media_start": 47.936,
+    "media_end": 49.28
+   },
+   {
+    "name": "dev_0015.wav",
+    "duration_s": 4.502,
+    "media_start": 50.304,
+    "media_end": 54.816
+   },
+   {
+    "name": "dev_0016.wav",
+    "duration_s": 3.761,
+    "media_start": 55.84,
+    "media_end": 59.616
+   },
+   {
+    "name": "dev_0017.wav",
+    "duration_s": 1.727,
+    "media_start": 60.64,
+    "media_end": 62.368
+   },
+   {
+    "name": "dev_0018.wav",
+    "duration_s": 1.699,
+    "media_start": 63.392,
+    "media_end": 65.12
+   },
+   {
+    "name": "dev_0019.wav",
+    "duration_s": 2.922,
+    "media_start": 66.144,
+    "media_end": 69.088
+   },
+   {
+    "name": "dev_0020.wav",
+    "duration_s": 2.368,
+    "media_start": 70.112,
+    "media_end": 72.512
+   }
+  ],
+  "clip_duration_s": {
+   "n": 20,
+   "p50": 2.58,
+   "p95": 4.79,
+   "max": 5.0,
+   "mean": 2.63
+  }
+ },
+ "load_s": 2.57,
+ "sent": {
+  "frames": 2298,
+  "audio_s": 73.536,
+  "wall_s": 73.504
+ },
+ "finished_cleanly": true,
+ "loadavg_start": [
+  0.27,
+  0.42,
+  0.62
+ ],
+ "loadavg_end": [
+  0.62,
+  0.47,
+  0.62
+ ],
+ "memory": {
+  "rss_mb_before_load": 40.8,
+  "rss_mb_after_load": 1117.2,
+  "peak_rss_mb": 1186.8,
+  "health_rss_mb_last": 1186.8
+ },
+ "compute": {
+  "worker_compute_s": 9.433,
+  "audio_s_streamed": 73.536,
+  "speech_s": 52.674,
+  "worker_compute_s_per_audio_s": 0.1283,
+  "worker_compute_s_per_speech_s": 0.1791,
+  "process_cpu_s": 40.51,
+  "process_cpu_s_per_audio_s": 0.5509,
+  "process_cpu_percent_sampled": {
+   "n": 149,
+   "p50": 33.9,
+   "p95": 163.26,
+   "max": 271.9,
+   "mean": 54.02
+  },
+  "wall_s": 75.011,
+  "target_max": 0.3,
+  "rule": "sum of the per-stage worker timings of every final and provisional, divided by the seconds of audio streamed (speech plus tails)",
+  "pass": true
+ },
+ "targets": {
+  "final_ms": {
+   "le5s": {
+    "p50": 250.0,
+    "p95": 400.0
+   },
+   "le8s": {
+    "p50": 350.0,
+    "p95": 550.0
+   },
+   "le15s": {
+    "p50": 700.0,
+    "p95": 1000.0
+   }
+  },
+  "reply_after_final_ms": {
+   "p95": 5.0
+  },
+  "provisional_full_interval_s": {
+   "target": 1.0,
+   "tolerance": 0.1
+  },
+  "worker_compute_s_per_audio_s": {
+   "max": 0.3
+  }
+ },
+ "notes": [
+  "service, replay client and monitor run in one process on this host; rss and cpu include all three",
+  "service_total_ms is the service-side latency: endpoint frame arrival (t_service_recv_ns) to the final's emission",
+  "client_ms is the monitor's arrival time minus the capture time of the endpoint frame, valid because both run here",
+  "response_ms is from the endpoint frame arrival to the response's emission",
+  "proxy clips are piper tts: latencies are real, emotion labels are not a result"
+ ],
+ "results": {
+  "n_finals": 20,
+  "n_responses": 20,
+  "n_provisionals": 51,
+  "n_health": 75,
+  "errors": {},
+  "max_queue_s": 0.183,
+  "health_rss_mb_last": 1186.8,
+  "clips_without_final": [],
+  "clips_with_several_finals": [],
+  "finals_degraded": 0,
+  "finals_empty_text": 0,
+  "all": {
+   "service_total_ms": {
+    "n": 20,
+    "p50": 201.81,
+    "p95": 339.35,
+    "max": 367.52,
+    "mean": 201.83
+   },
+   "client_ms": {
+    "n": 20,
+    "p50": 202.61,
+    "p95": 343.7,
+    "max": 368.45,
+    "mean": 203.09
+   },
+   "response_ms": {
+    "n": 20,
+    "p50": 202.02,
+    "p95": 339.55,
+    "max": 367.71,
+    "mean": 202.09
+   },
+   "segment_s": {
+    "n": 20,
+    "p50": 2.62,
+    "p95": 4.9,
+    "max": 5.06,
+    "mean": 2.71
+   },
+   "stages_p50_ms": {
+    "frontend": 5.3,
+    "sensevoice": 133.08,
+    "prosody": 8.8,
+    "text_encoder": 42.48,
+    "heads": 0.62
+   }
+  },
+  "by_bucket": {
+   "le5s": {
+    "description": "up to 5 s (83 % of MELD)",
+    "n": 19,
+    "service_total_ms": {
+     "n": 19,
+     "p50": 199.11,
+     "p95": 261.25,
+     "max": 337.87,
+     "mean": 193.11
+    },
+    "client_ms": {
+     "n": 19,
+     "p50": 200.03,
+     "p95": 262.35,
+     "max": 342.4,
+     "mean": 194.39
+    },
+    "response_ms": {
+     "n": 19,
+     "p50": 199.33,
+     "p95": 261.42,
+     "max": 338.07,
+     "mean": 193.37
+    },
+    "reply_after_final_ms": {
+     "n": 19,
+     "p50": 0.21,
+     "p95": 0.45,
+     "max": 0.93,
+     "mean": 0.26
+    },
+    "stages_p50_ms": {
+     "frontend": 5.28,
+     "sensevoice": 131.34,
+     "prosody": 8.7,
+     "text_encoder": 42.03,
+     "heads": 0.62
+    },
+    "provisional_in_flight_p50_ms": 0.0,
+    "segment_s": {
+     "n": 19,
+     "p50": 2.43,
+     "p95": 4.67,
+     "max": 4.9,
+     "mean": 2.58
+    },
+    "target_ms": {
+     "p50": 250.0,
+     "p95": 400.0
+    },
+    "pass": true
+   },
+   "le8s": {
+    "description": "5 to 8 s (95 % cumulative)",
+    "n": 1,
+    "service_total_ms": {
+     "n": 1,
+     "p50": 367.52,
+     "p95": 367.52,
+     "max": 367.52,
+     "mean": 367.52
+    },
+    "client_ms": {
+     "n": 1,
+     "p50": 368.45,
+     "p95": 368.45,
+     "max": 368.45,
+     "mean": 368.45
+    },
+    "response_ms": {
+     "n": 1,
+     "p50": 367.71,
+     "p95": 367.71,
+     "max": 367.71,
+     "mean": 367.71
+    },
+    "reply_after_final_ms": {
+     "n": 1,
+     "p50": 0.19,
+     "p95": 0.19,
+     "max": 0.19,
+     "mean": 0.19
+    },
+    "stages_p50_ms": {
+     "frontend": 11.79,
+     "sensevoice": 266.52,
+     "prosody": 17.33,
+     "text_encoder": 53.54,
+     "heads": 0.61
+    },
+    "provisional_in_flight_p50_ms": 0.0,
+    "segment_s": {
+     "n": 1,
+     "p50": 5.06,
+     "p95": 5.06,
+     "max": 5.06,
+     "mean": 5.06
+    },
+    "target_ms": {
+     "p50": 350.0,
+     "p95": 550.0
+    },
+    "pass": false
+   },
+   "le15s": {
+    "description": "8 s to the 15 s cap (99.7 % cumulative)",
+    "n": 0,
+    "service_total_ms": {
+     "n": 0
+    },
+    "client_ms": {
+     "n": 0
+    },
+    "response_ms": {
+     "n": 0
+    },
+    "reply_after_final_ms": {
+     "n": 0
+    },
+    "stages_p50_ms": {},
+    "provisional_in_flight_p50_ms": null,
+    "segment_s": {
+     "n": 0
+    },
+    "target_ms": {
+     "p50": 700.0,
+     "p95": 1000.0
+    },
+    "pass": null
+   }
+  },
+  "reply_after_final_ms": {
+   "n": 20,
+   "p50": 0.21,
+   "p95": 0.43,
+   "max": 0.93,
+   "mean": 0.26,
+   "target_p95_ms": 5.0,
+   "pass": true
+  },
+  "provisionals": {
+   "n_provisionals": 51,
+   "n_full": 44,
+   "n_tail": 7,
+   "full_window_interval_s": {
+    "n": 24,
+    "p50": 1.02,
+    "p95": 1.02,
+    "max": 1.02,
+    "mean": 1.02
+   },
+   "tail_window_interval_s": {
+    "n": 0
+   },
+   "full_to_tail_switch_interval_s": {
+    "n": 7,
+    "p50": 1.02,
+    "p95": 1.02,
+    "max": 1.02,
+    "mean": 1.02
+   },
+   "per_utterance": {
+    "n": 20,
+    "p50": 2.5,
+    "p95": 4.0,
+    "max": 4.0,
+    "mean": 2.55
+   },
+   "first_provisional_offset_s": {
+    "n": 20,
+    "p50": 1.02,
+    "p95": 1.02,
+    "max": 1.02,
+    "mean": 1.02
+   },
+   "utterances_over_1p5s_with_a_provisional": "14/14",
+   "sensevoice_ms": {
+    "n": 51,
+    "p50": 93.78,
+    "p95": 184.26,
+    "max": 271.88,
+    "mean": 105.51
+   },
+   "stability": {
+    "n": 51,
+    "p50": 0.98,
+    "p95": 1.0,
+    "max": 1.0,
+    "mean": 0.95
+   },
+   "dropped_provisionals": 0,
+   "pass": true,
+   "rule": "median media-time gap between consecutive full-window provisionals within 1.0 +- 0.1 s"
+  },
+  "worker_compute_s": 9.433
+ },
+ "utterances": [
+  {
+   "utt_id": 1,
+   "clip": "dev_0001.wav",
+   "clip_index": 0,
+   "clip_duration_s": 2.917,
+   "t_media_start": 0.0,
+   "segment_s": 2.816,
+   "bucket": "le5s",
+   "service_total_ms": 174.24,
+   "client_ms": 175.03,
+   "response_ms": 174.44,
+   "reply_after_final_ms": 0.195,
+   "stages_ms": {
+    "frontend": 5.33,
+    "sensevoice": 112.78,
+    "prosody": 9.71,
+    "text_encoder": 44.57,
+    "heads": 0.64
+   },
+   "vad_tail_ms": 416.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 3,
+   "n_full": 3,
+   "n_tail": 0,
+   "prov_media_ends": [
+    1.024,
+    2.048,
+    3.072
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full"
+   ],
+   "prov_sensevoice_ms": [
+    70.65,
+    182.28,
+    107.0
+   ],
+   "asr_text": "oh my god he's lost it he's totally lost it",
+   "asr_conf": 0.9895,
+   "degraded": [],
+   "fused_label": "sadness",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 2,
+   "clip": "dev_0002.wav",
+   "clip_index": 1,
+   "clip_duration_s": 4.298,
+   "t_media_start": 3.776,
+   "segment_s": 4.448,
+   "bucket": "le5s",
+   "service_total_ms": 252.74,
+   "client_ms": 253.46,
+   "response_ms": 252.9,
+   "reply_after_final_ms": 0.159,
+   "stages_ms": {
+    "frontend": 6.82,
+    "sensevoice": 193.68,
+    "prosody": 11.06,
+    "text_encoder": 39.34,
+    "heads": 0.62
+   },
+   "vad_tail_ms": 416.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 4,
+   "n_full": 3,
+   "n_tail": 1,
+   "prov_media_ends": [
+    4.8,
+    5.824,
+    6.848,
+    7.872
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full",
+    "tail"
+   ],
+   "prov_sensevoice_ms": [
+    96.94,
+    182.17,
+    215.0,
+    113.36
+   ],
+   "asr_text": "or or we could go to the bank close our accounts and cut them off at the source",
+   "asr_conf": 0.9724,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 3,
+   "clip": "dev_0003.wav",
+   "clip_index": 2,
+   "clip_duration_s": 0.987,
+   "t_media_start": 9.12,
+   "segment_s": 0.992,
+   "bucket": "le5s",
+   "service_total_ms": 144.5,
+   "client_ms": 145.36,
+   "response_ms": 144.65,
+   "reply_after_final_ms": 0.146,
+   "stages_ms": {
+    "frontend": 2.61,
+    "sensevoice": 82.95,
+    "prosody": 4.83,
+    "text_encoder": 51.82,
+    "heads": 0.63
+   },
+   "vad_tail_ms": 416.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 1,
+   "n_full": 1,
+   "n_tail": 0,
+   "prov_media_ends": [
+    10.144
+   ],
+   "prov_windows": [
+    "full"
+   ],
+   "prov_sensevoice_ms": [
+    65.89
+   ],
+   "asr_text": "you're a genius",
+   "asr_conf": 0.997,
+   "degraded": [],
+   "fused_label": "joy",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 4,
+   "clip": "dev_0004.wav",
+   "clip_index": 3,
+   "clip_duration_s": 2.796,
+   "t_media_start": 11.136,
+   "segment_s": 2.848,
+   "bucket": "le5s",
+   "service_total_ms": 214.98,
+   "client_ms": 215.67,
+   "response_ms": 215.16,
+   "reply_after_final_ms": 0.181,
+   "stages_ms": {
+    "frontend": 5.28,
+    "sensevoice": 151.73,
+    "prosody": 8.56,
+    "text_encoder": 47.66,
+    "heads": 0.61
+   },
+   "vad_tail_ms": 416.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 3,
+   "n_full": 3,
+   "n_tail": 0,
+   "prov_media_ends": [
+    12.16,
+    13.184,
+    14.208
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full"
+   ],
+   "prov_sensevoice_ms": [
+    49.46,
+    76.55,
+    99.48
+   ],
+   "asr_text": "or man now we won't be back buddies",
+   "asr_conf": 0.8855,
+   "degraded": [],
+   "fused_label": "anger",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 5,
+   "clip": "dev_0005.wav",
+   "clip_index": 4,
+   "clip_duration_s": 1.637,
+   "t_media_start": 14.976,
+   "segment_s": 1.664,
+   "bucket": "le5s",
+   "service_total_ms": 229.27,
+   "client_ms": 234.75,
+   "response_ms": 229.48,
+   "reply_after_final_ms": 0.212,
+   "stages_ms": {
+    "frontend": 3.69,
+    "sensevoice": 131.34,
+    "prosody": 5.84,
+    "text_encoder": 31.81,
+    "heads": 0.58
+   },
+   "vad_tail_ms": 416.0,
+   "provisional_in_flight_ms": 54.9,
+   "n_provisionals": 2,
+   "n_full": 2,
+   "n_tail": 0,
+   "prov_media_ends": [
+    16.0,
+    17.024
+   ],
+   "prov_windows": [
+    "full",
+    "full"
+   ],
+   "prov_sensevoice_ms": [
+    53.56,
+    90.92
+   ],
+   "asr_text": "now there's two reasons",
+   "asr_conf": 0.8769,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 6,
+   "clip": "dev_0006.wav",
+   "clip_index": 5,
+   "clip_duration_s": 4.286,
+   "t_media_start": 17.664,
+   "segment_s": 4.384,
+   "bucket": "le5s",
+   "service_total_ms": 199.11,
+   "client_ms": 200.03,
+   "response_ms": 199.33,
+   "reply_after_final_ms": 0.219,
+   "stages_ms": {
+    "frontend": 6.84,
+    "sensevoice": 134.82,
+    "prosody": 10.73,
+    "text_encoder": 44.84,
+    "heads": 0.55
+   },
+   "vad_tail_ms": 416.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 4,
+   "n_full": 3,
+   "n_tail": 1,
+   "prov_media_ends": [
+    18.688,
+    19.712,
+    20.736,
+    21.76
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full",
+    "tail"
+   ],
+   "prov_sensevoice_ms": [
+    139.38,
+    82.97,
+    102.96,
+    147.38
+   ],
+   "asr_text": "oh you guys remember that cute client i told you about i bit him",
+   "asr_conf": 0.9958,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 7,
+   "clip": "dev_0007.wav",
+   "clip_index": 6,
+   "clip_duration_s": 0.789,
+   "t_media_start": 22.976,
+   "segment_s": 0.864,
+   "bucket": "le5s",
+   "service_total_ms": 126.1,
+   "client_ms": 127.29,
+   "response_ms": 126.34,
+   "reply_after_final_ms": 0.241,
+   "stages_ms": {
+    "frontend": 3.02,
+    "sensevoice": 70.13,
+    "prosody": 2.78,
+    "text_encoder": 47.66,
+    "heads": 0.92
+   },
+   "vad_tail_ms": 416.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 1,
+   "n_full": 1,
+   "n_tail": 0,
+   "prov_media_ends": [
+    24.0
+   ],
+   "prov_windows": [
+    "full"
+   ],
+   "prov_sensevoice_ms": [
+    58.98
+   ],
+   "asr_text": "on the touchy",
+   "asr_conf": 0.9771,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 8,
+   "clip": "dev_0008.wav",
+   "clip_index": 7,
+   "clip_duration_s": 0.935,
+   "t_media_start": 24.8,
+   "segment_s": 1.088,
+   "bucket": "le5s",
+   "service_total_ms": 158.56,
+   "client_ms": 159.87,
+   "response_ms": 158.96,
+   "reply_after_final_ms": 0.402,
+   "stages_ms": {
+    "frontend": 3.16,
+    "sensevoice": 106.64,
+    "prosody": 6.8,
+    "text_encoder": 39.63,
+    "heads": 0.69
+   },
+   "vad_tail_ms": 416.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 1,
+   "n_full": 1,
+   "n_tail": 0,
+   "prov_media_ends": [
+    25.824
+   ],
+   "prov_windows": [
+    "full"
+   ],
+   "prov_sensevoice_ms": [
+    52.35
+   ],
+   "asr_text": "no i know",
+   "asr_conf": 0.9957,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 9,
+   "clip": "dev_0009.wav",
+   "clip_index": 8,
+   "clip_duration_s": 4.995,
+   "t_media_start": 26.784,
+   "segment_s": 5.056,
+   "bucket": "le8s",
+   "service_total_ms": 367.52,
+   "client_ms": 368.45,
+   "response_ms": 367.71,
+   "reply_after_final_ms": 0.186,
+   "stages_ms": {
+    "frontend": 11.79,
+    "sensevoice": 266.52,
+    "prosody": 17.33,
+    "text_encoder": 53.54,
+    "heads": 0.61
+   },
+   "vad_tail_ms": 416.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 4,
+   "n_full": 3,
+   "n_tail": 1,
+   "prov_media_ends": [
+    27.808,
+    28.832,
+    29.856,
+    30.88
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full",
+    "tail"
+   ],
+   "prov_sensevoice_ms": [
+    125.77,
+    271.88,
+    172.97,
+    155.5
+   ],
+   "asr_text": "i am sorry but the moment i touch him i just want to throw out my old oath and take a you dirty one",
+   "asr_conf": 0.9692,
+   "degraded": [],
+   "fused_label": "joy",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 10,
+   "clip": "dev_0010.wav",
+   "clip_index": 9,
+   "clip_duration_s": 3.592,
+   "t_media_start": 32.832,
+   "segment_s": 3.776,
+   "bucket": "le5s",
+   "service_total_ms": 337.87,
+   "client_ms": 342.4,
+   "response_ms": 338.07,
+   "reply_after_final_ms": 0.201,
+   "stages_ms": {
+    "frontend": 7.3,
+    "sensevoice": 178.88,
+    "prosody": 17.6,
+    "text_encoder": 39.22,
+    "heads": 0.64
+   },
+   "vad_tail_ms": 416.0,
+   "provisional_in_flight_ms": 92.9,
+   "n_provisionals": 4,
+   "n_full": 3,
+   "n_tail": 1,
+   "prov_media_ends": [
+    33.856,
+    34.88,
+    35.904,
+    36.928
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full",
+    "tail"
+   ],
+   "prov_sensevoice_ms": [
+    77.74,
+    113.65,
+    112.7,
+    186.24
+   ],
+   "asr_text": "well next time you're massaging him you should try and distract yourself",
+   "asr_conf": 0.9966,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 11,
+   "clip": "dev_0011.wav",
+   "clip_index": 10,
+   "clip_duration_s": 4.782,
+   "t_media_start": 37.472,
+   "segment_s": 4.896,
+   "bucket": "le5s",
+   "service_total_ms": 228.22,
+   "client_ms": 228.82,
+   "response_ms": 228.37,
+   "reply_after_final_ms": 0.153,
+   "stages_ms": {
+    "frontend": 7.9,
+    "sensevoice": 158.53,
+    "prosody": 17.99,
+    "text_encoder": 42.03,
+    "heads": 0.6
+   },
+   "vad_tail_ms": 416.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 4,
+   "n_full": 3,
+   "n_tail": 1,
+   "prov_media_ends": [
+    38.496,
+    39.52,
+    40.544,
+    41.568
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full",
+    "tail"
+   ],
+   "prov_sensevoice_ms": [
+    53.65,
+    90.58,
+    107.37,
+    147.02
+   ],
+   "asr_text": "yep yep yep like like when i'm doing something exciting and i don't want to get",
+   "asr_conf": 0.9527,
+   "degraded": [],
+   "fused_label": "joy",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 12,
+   "clip": "dev_0012.wav",
+   "clip_index": 11,
+   "clip_duration_s": 1.057,
+   "t_media_start": 43.296,
+   "segment_s": 1.056,
+   "bucket": "le5s",
+   "service_total_ms": 117.61,
+   "client_ms": 118.32,
+   "response_ms": 117.85,
+   "reply_after_final_ms": 0.237,
+   "stages_ms": {
+    "frontend": 2.68,
+    "sensevoice": 72.09,
+    "prosody": 6.03,
+    "text_encoder": 35.08,
+    "heads": 0.59
+   },
+   "vad_tail_ms": 416.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 1,
+   "n_full": 1,
+   "n_tail": 0,
+   "prov_media_ends": [
+    44.32
+   ],
+   "prov_windows": [
+    "full"
+   ],
+   "prov_sensevoice_ms": [
+    53.41
+   ],
+   "asr_text": "thank you joey",
+   "asr_conf": 0.9818,
+   "degraded": [],
+   "fused_label": "joy",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 13,
+   "clip": "dev_0013.wav",
+   "clip_index": 12,
+   "clip_duration_s": 1.289,
+   "t_media_start": 45.408,
+   "segment_s": 1.28,
+   "bucket": "le5s",
+   "service_total_ms": 148.09,
+   "client_ms": 148.82,
+   "response_ms": 148.3,
+   "reply_after_final_ms": 0.217,
+   "stages_ms": {
+    "frontend": 2.83,
+    "sensevoice": 84.58,
+    "prosody": 4.49,
+    "text_encoder": 54.51,
+    "heads": 0.62
+   },
+   "vad_tail_ms": 416.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 1,
+   "n_full": 1,
+   "n_tail": 0,
+   "prov_media_ends": [
+    46.432
+   ],
+   "prov_windows": [
+    "full"
+   ],
+   "prov_sensevoice_ms": [
+    55.99
+   ],
+   "asr_text": "no no thank you",
+   "asr_conf": 0.9937,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 14,
+   "clip": "dev_0014.wav",
+   "clip_index": 13,
+   "clip_duration_s": 1.335,
+   "t_media_start": 47.776,
+   "segment_s": 1.376,
+   "bucket": "le5s",
+   "service_total_ms": 127.54,
+   "client_ms": 128.75,
+   "response_ms": 128.47,
+   "reply_after_final_ms": 0.93,
+   "stages_ms": {
+    "frontend": 4.19,
+    "sensevoice": 76.57,
+    "prosody": 8.7,
+    "text_encoder": 36.12,
+    "heads": 0.69
+   },
+   "vad_tail_ms": 416.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 1,
+   "n_full": 1,
+   "n_tail": 0,
+   "prov_media_ends": [
+    48.8
+   ],
+   "prov_windows": [
+    "full"
+   ],
+   "prov_sensevoice_ms": [
+    62.22
+   ],
+   "asr_text": "heyestelle listen",
+   "asr_conf": 0.9306,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 15,
+   "clip": "dev_0015.wav",
+   "clip_index": 14,
+   "clip_duration_s": 4.502,
+   "t_media_start": 50.112,
+   "segment_s": 4.64,
+   "bucket": "le5s",
+   "service_total_ms": 245.17,
+   "client_ms": 245.91,
+   "response_ms": 245.35,
+   "reply_after_final_ms": 0.183,
+   "stages_ms": {
+    "frontend": 7.59,
+    "sensevoice": 187.39,
+    "prosody": 12.71,
+    "text_encoder": 35.75,
+    "heads": 0.58
+   },
+   "vad_tail_ms": 416.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 4,
+   "n_full": 3,
+   "n_tail": 1,
+   "prov_media_ends": [
+    51.136,
+    52.16,
+    53.184,
+    54.208
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full",
+    "tail"
+   ],
+   "prov_sensevoice_ms": [
+    53.58,
+    77.98,
+    151.43,
+    162.06
+   ],
+   "asr_text": "well well well joey tribuni so you came back huh they",
+   "asr_conf": 0.8765,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 16,
+   "clip": "dev_0016.wav",
+   "clip_index": 15,
+   "clip_duration_s": 3.761,
+   "t_media_start": 55.648,
+   "segment_s": 3.904,
+   "bucket": "le5s",
+   "service_total_ms": 204.51,
+   "client_ms": 205.18,
+   "response_ms": 204.71,
+   "reply_after_final_ms": 0.196,
+   "stages_ms": {
+    "frontend": 7.69,
+    "sensevoice": 145.31,
+    "prosody": 8.91,
+    "text_encoder": 39.31,
+    "heads": 2.02
+   },
+   "vad_tail_ms": 416.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 4,
+   "n_full": 3,
+   "n_tail": 1,
+   "prov_media_ends": [
+    56.672,
+    57.696,
+    58.72,
+    59.744
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full",
+    "tail"
+   ],
+   "prov_sensevoice_ms": [
+    71.23,
+    85.89,
+    118.54,
+    130.91
+   ],
+   "asr_text": "what are you talking about i never left you you've always been my agent",
+   "asr_conf": 0.9932,
+   "degraded": [],
+   "fused_label": "anger",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 17,
+   "clip": "dev_0017.wav",
+   "clip_index": 16,
+   "clip_duration_s": 1.727,
+   "t_media_start": 60.448,
+   "segment_s": 1.888,
+   "bucket": "le5s",
+   "service_total_ms": 150.44,
+   "client_ms": 151.01,
+   "response_ms": 150.77,
+   "reply_after_final_ms": 0.335,
+   "stages_ms": {
+    "frontend": 5.05,
+    "sensevoice": 96.94,
+    "prosody": 3.79,
+    "text_encoder": 42.92,
+    "heads": 0.62
+   },
+   "vad_tail_ms": 416.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 2,
+   "n_full": 2,
+   "n_tail": 0,
+   "prov_media_ends": [
+    61.472,
+    62.496
+   ],
+   "prov_windows": [
+    "full",
+    "full"
+   ],
+   "prov_sensevoice_ms": [
+    57.36,
+    71.77
+   ],
+   "asr_text": "oh well no harm no foul",
+   "asr_conf": 0.9518,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 18,
+   "clip": "dev_0018.wav",
+   "clip_index": 17,
+   "clip_duration_s": 1.699,
+   "t_media_start": 63.168,
+   "segment_s": 1.76,
+   "bucket": "le5s",
+   "service_total_ms": 130.11,
+   "client_ms": 130.85,
+   "response_ms": 130.38,
+   "reply_after_final_ms": 0.266,
+   "stages_ms": {
+    "frontend": 3.49,
+    "sensevoice": 78.15,
+    "prosody": 7.16,
+    "text_encoder": 39.6,
+    "heads": 0.6
+   },
+   "vad_tail_ms": 416.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 2,
+   "n_full": 2,
+   "n_tail": 0,
+   "prov_media_ends": [
+    64.192,
+    65.216
+   ],
+   "prov_windows": [
+    "full",
+    "full"
+   ],
+   "prov_sensevoice_ms": [
+    67.04,
+    87.82
+   ],
+   "asr_text": "okay you guys free tonight",
+   "asr_conf": 0.9838,
+   "degraded": [],
+   "fused_label": "joy",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 19,
+   "clip": "dev_0019.wav",
+   "clip_index": 18,
+   "clip_duration_s": 2.922,
+   "t_media_start": 65.952,
+   "segment_s": 2.976,
+   "bucket": "le5s",
+   "service_total_ms": 249.91,
+   "client_ms": 250.9,
+   "response_ms": 250.11,
+   "reply_after_final_ms": 0.192,
+   "stages_ms": {
+    "frontend": 10.56,
+    "sensevoice": 168.22,
+    "prosody": 8.91,
+    "text_encoder": 59.79,
+    "heads": 0.83
+   },
+   "vad_tail_ms": 416.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 3,
+   "n_full": 3,
+   "n_tail": 0,
+   "prov_media_ends": [
+    66.976,
+    68.0,
+    69.024
+   ],
+   "prov_windows": [
+    "full",
+    "full",
+    "full"
+   ],
+   "prov_sensevoice_ms": [
+    67.56,
+    93.78,
+    110.83
+   ],
+   "asr_text": "tonight you didn't say it was going to be at night on",
+   "asr_conf": 0.9536,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  },
+  {
+   "utt_id": 20,
+   "clip": "dev_0020.wav",
+   "clip_index": 19,
+   "clip_duration_s": 2.368,
+   "t_media_start": 69.92,
+   "segment_s": 2.432,
+   "bucket": "le5s",
+   "service_total_ms": 230.12,
+   "client_ms": 230.93,
+   "response_ms": 230.39,
+   "reply_after_final_ms": 0.274,
+   "stages_ms": {
+    "frontend": 10.37,
+    "sensevoice": 162.56,
+    "prosody": 11.49,
+    "text_encoder": 43.46,
+    "heads": 0.79
+   },
+   "vad_tail_ms": 416.0,
+   "provisional_in_flight_ms": 0.0,
+   "n_provisionals": 2,
+   "n_full": 2,
+   "n_tail": 0,
+   "prov_media_ends": [
+    70.944,
+    71.968
+   ],
+   "prov_windows": [
+    "full",
+    "full"
+   ],
+   "prov_sensevoice_ms": [
+    86.59,
+    112.85
+   ],
+   "asr_text": "yes yes how can i help you",
+   "asr_conf": 0.9983,
+   "degraded": [],
+   "fused_label": "neutral",
+   "fused_mode": "poe_uncalibrated",
+   "continued_from": null
+  }
+ ]
+}

@@ -1,0 +1,128 @@
+{
+ "rows": [
+  {
+   "component": "Silero VAD v4",
+   "role": "end-pointing",
+   "file": "silero_vad.onnx",
+   "trained": "frozen",
+   "params": 155908,
+   "bytes": 643854,
+   "by_dtype": {
+    "FLOAT": 155908
+   },
+   "constant_node_elements": 51,
+   "note": "40 initializers"
+  },
+  {
+   "component": "SenseVoice-small int8",
+   "role": "ASR + emotion + event posterior",
+   "file": "sensevoice/model.int8.onnx",
+   "trained": "frozen",
+   "params": 233999729,
+   "bytes": 239233841,
+   "by_dtype": {
+    "FLOAT": 896600,
+    "UINT8": 233103129
+   },
+   "constant_node_elements": 3193,
+   "note": "1479 initializers, 233.103 M int8 elements counted dequantized"
+  },
+  {
+   "component": "RoBERTa-base encoder",
+   "role": "text embedding",
+   "file": "roberta-base-11.onnx",
+   "trained": "frozen",
+   "params": 124645716,
+   "bytes": 498649858,
+   "by_dtype": {
+    "FLOAT": 124645632,
+    "INT64": 84
+   },
+   "constant_node_elements": 202,
+   "note": "283 initializers"
+  },
+  {
+   "component": "TextContextHead",
+   "role": "text posterior with context",
+   "file": "heads/text_ctx.npz",
+   "trained": "trained",
+   "params": 199687,
+   "bytes": 808726,
+   "weights": {
+    "W1": 197632,
+    "b1": 256,
+    "W2": 1792,
+    "b2": 7
+   },
+   "note": "mlp 772-256-7, k=0, variant full_dialogue; standardizer 1544 elements not counted"
+  },
+  {
+   "component": "AudioCalibrator",
+   "role": "audio posterior",
+   "file": "heads/audio_cal.npz",
+   "trained": "trained",
+   "params": null,
+   "note": "pending (needs MELD audio)"
+  },
+  {
+   "component": "Fusion",
+   "role": "fused posterior",
+   "file": "heads/fusion.npz",
+   "trained": "trained",
+   "params": null,
+   "note": "pending (needs MELD audio)"
+  },
+  {
+   "component": "SentimentHead",
+   "role": "sentiment",
+   "file": "heads/sentiment.npz",
+   "trained": "trained",
+   "params": 2319,
+   "bytes": 18328,
+   "weights": {
+    "W": 2316,
+    "b": 3
+   },
+   "note": "lr 772-3, k=0, variant text_only; standardizer 1544 elements not counted"
+  },
+  {
+   "component": "Prosody, discrepancy, selector",
+   "role": "rules",
+   "file": "-",
+   "trained": "none",
+   "params": 0,
+   "note": "no learned parameters"
+  }
+ ],
+ "total_inference_path": 359003359,
+ "piper": {
+  "component": "Piper en_US-lessac-medium",
+  "role": "TTS (optional spoken reply)",
+  "file": "piper/en_US-lessac-medium/en_US-lessac-medium.onnx",
+  "trained": "frozen",
+  "params": 15650546,
+  "bytes": 63149198,
+  "by_dtype": {
+   "INT64": 73,
+   "FLOAT": 15650472,
+   "INT32": 1
+  },
+  "note": "396 initializers; optional, not on the measured path"
+ },
+ "total_with_piper": 374653905,
+ "heads_pending": [
+  "AudioCalibrator",
+  "Fusion"
+ ],
+ "other_head_files": [
+  {
+   "file": "heads/text_ctx_k0.npz",
+   "params": 199687,
+   "note": "not on the inference path"
+  }
+ ],
+ "cap": 6000000000,
+ "generated_at": "2026-10-12T04:58:09Z",
+ "wall_s": 1.09,
+ "command": "python tools/count_params.py --models models --heads heads --out results/params.md"
+}
