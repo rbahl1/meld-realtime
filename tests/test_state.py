@@ -192,3 +192,62 @@ def test_keyphrase_rules():
     # a stopword inside a run splits it; punctuation splits it too
     assert keyphrase("red car and blue truck") in ("red car", "blue truck")
     assert keyphrase("red car, blue truck") == "blue truck" or keyphrase("red car, blue truck") == "red car"
+
+
+# -- vision mode (spec 3.2, 3.4) --------------------------------------------
+
+def _vision_final():
+    from meld_rt.state import Commit, Vision
+
+    st = State.from_json(DESIGN_18)
+    st.vision_mode = True
+    st.vision = Vision(emotion={e: (0.4 if e == "anger" else 0.1) for e in reversed(EMOTIONS)},
+                       raw={e: 1 / 7 for e in EMOTIONS}, present=True, track=2, rule="asd", n_frames=21,
+                       presence=0.875, n_tracks=2, asd_corr=0.41)
+    st.commit = Commit(label="anger", confidence=0.62, t_commit_s=2.048, matches_final=True, source="policy")
+    st.discrepancy.face_jsd, st.discrepancy.face_flag, st.discrepancy.face_direction = 0.37, True, "face_more_negative"
+    st.timing_ms.update({"vision_aggregate": 1.2, "vision_wait": 0.4})
+    return st
+
+
+def test_core_state_has_no_vision_keys():
+    from meld_rt.state import FACE_DISCREPANCY_KEYS, VISION_TIMING_KEYS
+
+    for kind in ("final", "provisional"):
+        d = json.loads(State.empty("s1", 1, kind).to_json())
+        assert "vision" not in d and "commit" not in d and "vision_mode" not in d
+        assert not set(FACE_DISCREPANCY_KEYS) & set(d["discrepancy"]) and not set(VISION_TIMING_KEYS) & set(d["timing_ms"])
+        assert State.from_dict(d).vision_mode is False
+
+
+def test_vision_final_round_trip_and_key_order():
+    st = _vision_final()
+    d = json.loads(st.to_json())
+    assert list(d) == TOP_KEYS + ["vision", "commit"]
+    assert list(d["vision"]["emotion"]) == EMOTIONS and list(d["vision"]["raw"]) == EMOTIONS
+    assert set(d["vision"]) == {"emotion", "raw", "present", "track", "rule", "n_frames", "presence", "n_tracks", "asd_corr"}
+    assert d["commit"] == {"label": "anger", "confidence": 0.62, "t_commit_s": 2.048, "matches_final": True, "source": "policy"}
+    assert d["discrepancy"] == {"jsd": 0.41, "flag": True, "direction": "tone_more_negative", "face_jsd": 0.37,
+                                "face_flag": True, "face_direction": "face_more_negative"}
+    assert list(d["timing_ms"])[-2:] == ["vision_wait", "vision_aggregate"]
+    back = State.from_json(st.to_json())
+    assert back == st and back.vision_mode is True and back.vision.track == 2 and back.commit.source == "policy"
+
+
+def test_vision_mode_nulls_and_provisionals():
+    from meld_rt.state import FUSION_MODES
+
+    assert "stacked_tav" in FUSION_MODES
+    # a vision-mode final without vision evidence (typed text) or commit policy keeps both keys as null
+    st = State.empty("s1", 3, "final", vision_mode=True)
+    d = json.loads(st.to_json())
+    assert d["vision"] is None and d["commit"] is None and d["discrepancy"]["face_jsd"] is None
+    assert d["discrepancy"]["face_flag"] is False and d["discrepancy"]["face_direction"] == "none"
+    assert d["timing_ms"]["vision_wait"] == 0 and d["timing_ms"]["vision_aggregate"] == 0
+    assert State.from_json(st.to_json()) == st
+    # provisionals carry vision and stability, never a commit block
+    p = State.empty("s1", 3, "provisional", vision_mode=True)
+    p.stability = 0.9
+    dp = json.loads(p.to_json())
+    assert "commit" not in dp and dp["vision"] is None and list(dp)[-2:] == ["stability", "vision"]
+    assert State.from_json(p.to_json()) == p

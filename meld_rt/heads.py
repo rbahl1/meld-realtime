@@ -10,6 +10,11 @@ feature layouts, all float32:
   AudioCalibrator   24 or 1048   [log emo_probs(9), event_probs(11), prosody(4) [, enc_pooled(1024)]]
   Fusion            19           [log p_text(7), log p_audio(7), H_text, H_audio, asr_conf, p_laughter, p_unknown]
   SentimentHead     19 (fused) or the TextContextHead layout (variant "text_only")
+  VisionCalibrator  16 or 528    [log p_face(7), max p, entropy, presence, log_area, n_tracks/4, asd_corr, score,
+                                  mouth*10, present [, mean fer embedding(512)]] (meld_rt.vision_features)
+  Fusion3           29           [log p_text(7), log p_audio(7), log p_face(7), H_text, H_audio, H_face, asr_conf,
+                                  p_laughter, p_unknown, face_present, presence]
+  Sentiment3        29           the Fusion3 layout, 3 classes
 """
 
 from __future__ import annotations
@@ -27,6 +32,9 @@ TURN_SCALE = 20.0
 AUDIO_SLOT_DIM = len(SV_EMO_TOKENS) + len(SV_EVENT_TOKENS) + 4  # 24
 ENC_POOLED_DIM = 1024
 FUSION_DIM = 2 * len(EMOTIONS) + 5  # 19
+VISION_A_DIM = 16
+VISION_EMBED_DIM = 512
+FUSION3_DIM = 3 * len(EMOTIONS) + 8  # 29
 EPS = 1e-8
 LAUGHTER_IDX = SV_EVENT_TOKENS.index("Laughter")
 UNKNOWN_IDX = SV_EMO_TOKENS.index("EMO_UNKNOWN")
@@ -223,6 +231,50 @@ class SentimentHead(NpzHead):
                 raise ValueError("text_only sentiment head must take the text context layout")
         elif self.input_dim != FUSION_DIM:
             raise ValueError(f"sentiment head takes {FUSION_DIM} inputs, has {self.input_dim}")
+
+
+class VisionCalibrator(NpzHead):
+    """INPUT 16 (face evidence, features A) or 528 (plus the mean fer embedding, features B).
+    the file carries the speaker rule and the variant ("A" or "B") as metadata."""
+
+    INPUT = (VISION_A_DIM, VISION_A_DIM + VISION_EMBED_DIM)
+    CLASSES = EMOTIONS
+
+    def check(self) -> None:
+        if self.input_dim not in self.INPUT:
+            raise ValueError(f"vision calibrator takes {self.INPUT} inputs, has {self.input_dim}")
+        if self.n_classes != len(EMOTIONS):
+            raise ValueError("vision calibrator must have 7 outputs")
+
+    @property
+    def uses_embedding(self) -> bool:
+        return self.input_dim == VISION_A_DIM + VISION_EMBED_DIM
+
+    @property
+    def rule(self) -> str | None:
+        return str(_s(self.params, "rule", "")) or None
+
+
+class Fusion3(NpzHead):
+    """text, audio and face posteriors, 29 inputs, 7 classes."""
+
+    INPUT = FUSION3_DIM
+    CLASSES = EMOTIONS
+
+    def check(self) -> None:
+        if self.input_dim != FUSION3_DIM or self.n_classes != len(EMOTIONS):
+            raise ValueError(f"fusion3 takes {FUSION3_DIM} inputs and gives 7 outputs, has {self.input_dim} and {self.n_classes}")
+
+
+class Sentiment3(NpzHead):
+    """sentiment over the fusion3 layout, 29 inputs, 3 classes."""
+
+    INPUT = FUSION3_DIM
+    CLASSES = SENTIMENTS
+
+    def check(self) -> None:
+        if self.input_dim != FUSION3_DIM or self.n_classes != len(SENTIMENTS):
+            raise ValueError(f"sentiment3 takes {FUSION3_DIM} inputs and gives 3 outputs, has {self.input_dim} and {self.n_classes}")
 
 
 def build_fusion_features(logp_text: np.ndarray, logp_audio: np.ndarray, asr_conf: float,

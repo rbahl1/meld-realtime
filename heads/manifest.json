@@ -5596,5 +5596,868 @@
   "status": "trained",
   "wall_time_s": 34.0,
   "command": "python tools/train_heads.py --cache cache/ --out heads/ --config configs/heads.yaml --ablation"
+ },
+ "vision": {
+  "status": "trained",
+  "rules_tried": [
+   "largest",
+   "present",
+   "asd",
+   "mouth"
+  ],
+  "selection": "dev weighted f1, all dev rows (no face: uniform, label neutral)",
+  "video_cache": {
+   "train": {
+    "clips": 9989,
+    "csv_rows": 9989,
+    "csv_rows_without_clip": 0,
+    "errors": 1,
+    "fps": 10.0
+   },
+   "dev": {
+    "clips": 1112,
+    "csv_rows": 1109,
+    "csv_rows_without_clip": 1,
+    "errors": 0,
+    "fps": 10.0
+   }
+  },
+  "face_coverage": {
+   "train": 0.9958,
+   "dev": 0.9946
+  },
+  "rule_disagreement": {
+   "train": {
+    "n_face_clips": 9947,
+    "multi_track_share": 0.8361,
+    "any_rule_differs": 0.6965,
+    "largest|present": 0.3551,
+    "largest|asd": 0.5573,
+    "largest|mouth": 0.5612,
+    "present|asd": 0.4819,
+    "present|mouth": 0.4859,
+    "asd|mouth": 0.4844
+   },
+   "dev": {
+    "n_face_clips": 1103,
+    "multi_track_share": 0.815,
+    "any_rule_differs": 0.6709,
+    "largest|present": 0.3518,
+    "largest|asd": 0.5222,
+    "largest|mouth": 0.5467,
+    "present|asd": 0.4633,
+    "present|mouth": 0.4705,
+    "asd|mouth": 0.4488
+   }
+  },
+  "rules": {
+   "largest": {
+    "C": 0.1,
+    "class_weight_scheme": "none",
+    "input_dim": 16,
+    "dev": {
+     "weighted_f1": 0.2519,
+     "macro_f1": 0.0849,
+     "accuracy": 0.4229
+    },
+    "dev_face_rows": {
+     "weighted_f1": 0.2524,
+     "macro_f1": 0.085,
+     "accuracy": 0.4234
+    },
+    "dev_scores_face_rows": {
+     "C=0.1,cw=none": {
+      "weighted_f1": 0.2524,
+      "macro_f1": 0.085,
+      "accuracy": 0.4234,
+      "wall_s": 1.1
+     },
+     "C=1,cw=none": {
+      "weighted_f1": 0.2524,
+      "macro_f1": 0.085,
+      "accuracy": 0.4234,
+      "wall_s": 0.1
+     },
+     "C=10,cw=none": {
+      "weighted_f1": 0.2524,
+      "macro_f1": 0.085,
+      "accuracy": 0.4234,
+      "wall_s": 0.1
+     },
+     "C=0.1,cw=balanced": {
+      "weighted_f1": 0.1676,
+      "macro_f1": 0.1415,
+      "accuracy": 0.1659,
+      "wall_s": 0.1
+     },
+     "C=1,cw=balanced": {
+      "weighted_f1": 0.168,
+      "macro_f1": 0.1444,
+      "accuracy": 0.1677,
+      "wall_s": 0.1
+     },
+     "C=10,cw=balanced": {
+      "weighted_f1": 0.1688,
+      "macro_f1": 0.1454,
+      "accuracy": 0.1677,
+      "wall_s": 0.1
+     }
+    },
+    "calibration_dev": {
+     "temperature": 1.1321,
+     "nll_before": 1.6029,
+     "nll_after": 1.5977,
+     "ece_before": 0.0484,
+     "ece_after": 0.0123
+    },
+    "fallback_rate": {
+     "train": 0.0,
+     "dev": 0.0
+    }
+   },
+   "present": {
+    "C": 0.1,
+    "class_weight_scheme": "none",
+    "input_dim": 16,
+    "dev": {
+     "weighted_f1": 0.2557,
+     "macro_f1": 0.0884,
+     "accuracy": 0.4238
+    },
+    "dev_face_rows": {
+     "weighted_f1": 0.2562,
+     "macro_f1": 0.0885,
+     "accuracy": 0.4243
+    },
+    "dev_scores_face_rows": {
+     "C=0.1,cw=none": {
+      "weighted_f1": 0.2562,
+      "macro_f1": 0.0885,
+      "accuracy": 0.4243,
+      "wall_s": 0.2
+     },
+     "C=1,cw=none": {
+      "weighted_f1": 0.2562,
+      "macro_f1": 0.0885,
+      "accuracy": 0.4243,
+      "wall_s": 0.1
+     },
+     "C=10,cw=none": {
+      "weighted_f1": 0.2562,
+      "macro_f1": 0.0885,
+      "accuracy": 0.4243,
+      "wall_s": 0.2
+     },
+     "C=0.1,cw=balanced": {
+      "weighted_f1": 0.1854,
+      "macro_f1": 0.1647,
+      "accuracy": 0.204,
+      "wall_s": 0.1
+     },
+     "C=1,cw=balanced": {
+      "weighted_f1": 0.1826,
+      "macro_f1": 0.1644,
+      "accuracy": 0.2022,
+      "wall_s": 0.1
+     },
+     "C=10,cw=balanced": {
+      "weighted_f1": 0.1825,
+      "macro_f1": 0.1643,
+      "accuracy": 0.2022,
+      "wall_s": 0.1
+     }
+    },
+    "calibration_dev": {
+     "temperature": 1.0999,
+     "nll_before": 1.5769,
+     "nll_after": 1.5739,
+     "ece_before": 0.0477,
+     "ece_after": 0.0208
+    },
+    "fallback_rate": {
+     "train": 0.0,
+     "dev": 0.0
+    }
+   },
+   "asd": {
+    "C": 1.0,
+    "class_weight_scheme": "none",
+    "input_dim": 16,
+    "dev": {
+     "weighted_f1": 0.2582,
+     "macro_f1": 0.0904,
+     "accuracy": 0.4265
+    },
+    "dev_face_rows": {
+     "weighted_f1": 0.2587,
+     "macro_f1": 0.0905,
+     "accuracy": 0.427
+    },
+    "dev_scores_face_rows": {
+     "C=0.1,cw=none": {
+      "weighted_f1": 0.2568,
+      "macro_f1": 0.0888,
+      "accuracy": 0.4261,
+      "wall_s": 0.1
+     },
+     "C=1,cw=none": {
+      "weighted_f1": 0.2587,
+      "macro_f1": 0.0905,
+      "accuracy": 0.427,
+      "wall_s": 0.1
+     },
+     "C=10,cw=none": {
+      "weighted_f1": 0.2587,
+      "macro_f1": 0.0905,
+      "accuracy": 0.427,
+      "wall_s": 0.1
+     },
+     "C=0.1,cw=balanced": {
+      "weighted_f1": 0.1931,
+      "macro_f1": 0.1653,
+      "accuracy": 0.1859,
+      "wall_s": 0.1
+     },
+     "C=1,cw=balanced": {
+      "weighted_f1": 0.1923,
+      "macro_f1": 0.1643,
+      "accuracy": 0.185,
+      "wall_s": 0.1
+     },
+     "C=10,cw=balanced": {
+      "weighted_f1": 0.1918,
+      "macro_f1": 0.1636,
+      "accuracy": 0.184,
+      "wall_s": 0.1
+     }
+    },
+    "calibration_dev": {
+     "temperature": 1.1244,
+     "nll_before": 1.5965,
+     "nll_after": 1.5919,
+     "ece_before": 0.0445,
+     "ece_after": 0.0196
+    },
+    "fallback_rate": {
+     "train": 0.0333,
+     "dev": 0.0408
+    }
+   },
+   "mouth": {
+    "C": 0.1,
+    "class_weight_scheme": "none",
+    "input_dim": 16,
+    "dev": {
+     "weighted_f1": 0.2553,
+     "macro_f1": 0.0883,
+     "accuracy": 0.4229
+    },
+    "dev_face_rows": {
+     "weighted_f1": 0.2558,
+     "macro_f1": 0.0884,
+     "accuracy": 0.4234
+    },
+    "dev_scores_face_rows": {
+     "C=0.1,cw=none": {
+      "weighted_f1": 0.2558,
+      "macro_f1": 0.0884,
+      "accuracy": 0.4234,
+      "wall_s": 0.1
+     },
+     "C=1,cw=none": {
+      "weighted_f1": 0.2558,
+      "macro_f1": 0.0884,
+      "accuracy": 0.4234,
+      "wall_s": 0.4
+     },
+     "C=10,cw=none": {
+      "weighted_f1": 0.2558,
+      "macro_f1": 0.0884,
+      "accuracy": 0.4234,
+      "wall_s": 0.2
+     },
+     "C=0.1,cw=balanced": {
+      "weighted_f1": 0.1967,
+      "macro_f1": 0.1702,
+      "accuracy": 0.2013,
+      "wall_s": 0.1
+     },
+     "C=1,cw=balanced": {
+      "weighted_f1": 0.1961,
+      "macro_f1": 0.1689,
+      "accuracy": 0.1995,
+      "wall_s": 0.2
+     },
+     "C=10,cw=balanced": {
+      "weighted_f1": 0.1961,
+      "macro_f1": 0.1689,
+      "accuracy": 0.1995,
+      "wall_s": 0.2
+     }
+    },
+    "calibration_dev": {
+     "temperature": 1.1126,
+     "nll_before": 1.5883,
+     "nll_after": 1.5844,
+     "ece_before": 0.0469,
+     "ece_after": 0.0213
+    },
+    "fallback_rate": {
+     "train": 0.0252,
+     "dev": 0.0326
+    }
+   }
+  },
+  "rule": "asd",
+  "calibrator": {
+   "A": {
+    "C": 1.0,
+    "class_weight_scheme": "none",
+    "input_dim": 16,
+    "dev": {
+     "weighted_f1": 0.2582,
+     "macro_f1": 0.0904,
+     "accuracy": 0.4265
+    },
+    "dev_face_rows": {
+     "weighted_f1": 0.2587,
+     "macro_f1": 0.0905,
+     "accuracy": 0.427
+    },
+    "dev_scores_face_rows": {
+     "C=0.1,cw=none": {
+      "weighted_f1": 0.2568,
+      "macro_f1": 0.0888,
+      "accuracy": 0.4261,
+      "wall_s": 0.1
+     },
+     "C=1,cw=none": {
+      "weighted_f1": 0.2587,
+      "macro_f1": 0.0905,
+      "accuracy": 0.427,
+      "wall_s": 0.1
+     },
+     "C=10,cw=none": {
+      "weighted_f1": 0.2587,
+      "macro_f1": 0.0905,
+      "accuracy": 0.427,
+      "wall_s": 0.1
+     },
+     "C=0.1,cw=balanced": {
+      "weighted_f1": 0.1931,
+      "macro_f1": 0.1653,
+      "accuracy": 0.1859,
+      "wall_s": 0.1
+     },
+     "C=1,cw=balanced": {
+      "weighted_f1": 0.1923,
+      "macro_f1": 0.1643,
+      "accuracy": 0.185,
+      "wall_s": 0.1
+     },
+     "C=10,cw=balanced": {
+      "weighted_f1": 0.1918,
+      "macro_f1": 0.1636,
+      "accuracy": 0.184,
+      "wall_s": 0.1
+     }
+    },
+    "calibration_dev": {
+     "temperature": 1.1244,
+     "nll_before": 1.5965,
+     "nll_after": 1.5919,
+     "ece_before": 0.0445,
+     "ece_after": 0.0196
+    },
+    "fallback_rate": {
+     "train": 0.0333,
+     "dev": 0.0408
+    }
+   },
+   "B": {
+    "C": 10.0,
+    "class_weight_scheme": "none",
+    "input_dim": 528,
+    "dev": {
+     "weighted_f1": 0.302,
+     "macro_f1": 0.1402,
+     "accuracy": 0.422
+    },
+    "dev_face_rows": {
+     "weighted_f1": 0.3027,
+     "macro_f1": 0.1406,
+     "accuracy": 0.4225
+    },
+    "dev_scores_face_rows": {
+     "C=0.1,cw=none": {
+      "weighted_f1": 0.2817,
+      "macro_f1": 0.1135,
+      "accuracy": 0.4216,
+      "wall_s": 4.2
+     },
+     "C=1,cw=none": {
+      "weighted_f1": 0.2828,
+      "macro_f1": 0.1209,
+      "accuracy": 0.417,
+      "wall_s": 15.9
+     },
+     "C=10,cw=none": {
+      "weighted_f1": 0.3027,
+      "macro_f1": 0.1406,
+      "accuracy": 0.4225,
+      "wall_s": 18.6
+     },
+     "C=0.1,cw=balanced": {
+      "weighted_f1": 0.2181,
+      "macro_f1": 0.1717,
+      "accuracy": 0.1958,
+      "wall_s": 2.8
+     },
+     "C=1,cw=balanced": {
+      "weighted_f1": 0.215,
+      "macro_f1": 0.1648,
+      "accuracy": 0.1904,
+      "wall_s": 8.3
+     },
+     "C=10,cw=balanced": {
+      "weighted_f1": 0.2072,
+      "macro_f1": 0.1646,
+      "accuracy": 0.184,
+      "wall_s": 16.9
+     }
+    },
+    "calibration_dev": {
+     "temperature": 1.3566,
+     "nll_before": 1.6483,
+     "nll_after": 1.6178,
+     "ece_before": 0.0614,
+     "ece_after": 0.0474
+    },
+    "wall_s": 67.0
+   },
+   "variant": "B",
+   "file": "vision_cal.npz"
+  },
+  "variant": "B",
+  "file": "vision_cal.npz",
+  "cross_fit": {
+   "folds": 5,
+   "seed": 0,
+   "fold_sizes": [
+    1948,
+    2001,
+    2092,
+    1921,
+    2026
+   ],
+   "train_heads_fold_sizes": [
+    1948,
+    2001,
+    2092,
+    1921,
+    2026
+   ],
+   "same_fold_sizes_as_train_heads": true,
+   "reproduces_deployed_fusion": true,
+   "rows": {
+    "train": 9988,
+    "dev": 1108
+   },
+   "oof_train_scores": {
+    "text": {
+     "weighted_f1": 0.5863,
+     "macro_f1": 0.3811,
+     "accuracy": 0.6158
+    },
+    "audio": {
+     "weighted_f1": 0.4663,
+     "macro_f1": 0.2645,
+     "accuracy": 0.5283
+    },
+    "vision": {
+     "weighted_f1": 0.3314,
+     "macro_f1": 0.1277,
+     "accuracy": 0.4514
+    },
+    "vision_face_rows": {
+     "weighted_f1": 0.3312,
+     "macro_f1": 0.1278,
+     "accuracy": 0.4511
+    }
+   },
+   "vision_choice": {
+    "C": 10.0,
+    "class_weight_scheme": "none"
+   }
+  },
+  "fusion3": {
+   "C": 10.0,
+   "class_weight_scheme": "none",
+   "file": "fusion3.npz",
+   "dev": {
+    "weighted_f1": 0.5953,
+    "macro_f1": 0.4053,
+    "accuracy": 0.6264
+   },
+   "dev_scores": {
+    "C=0.1,cw=none": {
+     "weighted_f1": 0.5933,
+     "macro_f1": 0.4032,
+     "accuracy": 0.6255,
+     "wall_s": 0.1
+    },
+    "C=1,cw=none": {
+     "weighted_f1": 0.594,
+     "macro_f1": 0.4038,
+     "accuracy": 0.6255,
+     "wall_s": 0.1
+    },
+    "C=10,cw=none": {
+     "weighted_f1": 0.5953,
+     "macro_f1": 0.4053,
+     "accuracy": 0.6264,
+     "wall_s": 0.1
+    },
+    "C=0.1,cw=balanced": {
+     "weighted_f1": 0.5299,
+     "macro_f1": 0.4155,
+     "accuracy": 0.4874,
+     "wall_s": 0.1
+    },
+    "C=1,cw=balanced": {
+     "weighted_f1": 0.5323,
+     "macro_f1": 0.4191,
+     "accuracy": 0.491,
+     "wall_s": 0.1
+    },
+    "C=10,cw=balanced": {
+     "weighted_f1": 0.5325,
+     "macro_f1": 0.4191,
+     "accuracy": 0.491,
+     "wall_s": 0.1
+    }
+   },
+   "calibration_dev": {
+    "temperature": 0.8428,
+    "nll_before": 1.0929,
+    "nll_after": 1.08,
+    "ece_before": 0.0616,
+    "ece_after": 0.0311
+   },
+   "two_way_dev_manifest": 0.5795,
+   "two_way_dev_recomputed": {
+    "weighted_f1": 0.5795,
+    "macro_f1": 0.3886,
+    "accuracy": 0.6137
+   },
+   "dev_face_rows": {
+    "n": 1103,
+    "fusion3": {
+     "weighted_f1": 0.5962,
+     "macro_f1": 0.4062,
+     "accuracy": 0.6274
+    },
+    "two_way": {
+     "weighted_f1": 0.5795,
+     "macro_f1": 0.3885,
+     "accuracy": 0.6138
+    }
+   }
+  },
+  "sentiment3": {
+   "C": 10.0,
+   "class_weight_scheme": "none",
+   "file": "sentiment3.npz",
+   "dev": {
+    "weighted_f1": 0.6777,
+    "macro_f1": 0.6583,
+    "accuracy": 0.6823
+   },
+   "dev_scores": {
+    "C=0.1,cw=none": {
+     "weighted_f1": 0.6777,
+     "macro_f1": 0.6585,
+     "accuracy": 0.6823,
+     "wall_s": 0.0
+    },
+    "C=1,cw=none": {
+     "weighted_f1": 0.6777,
+     "macro_f1": 0.6585,
+     "accuracy": 0.6823,
+     "wall_s": 0.0
+    },
+    "C=10,cw=none": {
+     "weighted_f1": 0.6777,
+     "macro_f1": 0.6583,
+     "accuracy": 0.6823,
+     "wall_s": 0.0
+    },
+    "C=0.1,cw=balanced": {
+     "weighted_f1": 0.6591,
+     "macro_f1": 0.6478,
+     "accuracy": 0.6579,
+     "wall_s": 0.0
+    },
+    "C=1,cw=balanced": {
+     "weighted_f1": 0.6582,
+     "macro_f1": 0.6468,
+     "accuracy": 0.657,
+     "wall_s": 0.0
+    },
+    "C=10,cw=balanced": {
+     "weighted_f1": 0.6582,
+     "macro_f1": 0.6468,
+     "accuracy": 0.657,
+     "wall_s": 0.0
+    }
+   },
+   "calibration_dev": {
+    "temperature": 0.8224,
+    "nll_before": 0.7337,
+    "nll_after": 0.7261,
+    "ece_before": 0.0456,
+    "ece_after": 0.0275
+   },
+   "two_way_dev_manifest": 0.6779
+  },
+  "thresholds": {
+   "low_conf": 0.56,
+   "high_conf": 0.73,
+   "source": "dev",
+   "dev_accuracy_at": {
+    "0.1": 0.0,
+    "0.2": 0.0,
+    "0.3": 0.25,
+    "0.4": 0.4409,
+    "0.5": 0.4772,
+    "0.6": 0.6214,
+    "0.7": 0.6214,
+    "0.8": 0.7884,
+    "0.9": 0.9298
+   }
+  },
+  "jsd_face_flag": 0.5729,
+  "jsd_face": {
+   "rule": "dev quantile 0.8 of jsd(text posterior on gold text, raw face posterior of the chosen track)",
+   "n_dev_face_rows": 1103,
+   "quantile": 0.8,
+   "dev_jsd_percentiles": {
+    "0.1": 0.0977,
+    "0.5": 0.3255,
+    "0.9": 0.7027
+   }
+  },
+  "folds": {
+   "dir": "cache/folds",
+   "files": {
+    "fold0_text_ctx.npz": {
+     "bytes": 808376,
+     "sha256": "5e3627322184dee170638bdaeedbd27deae36033a5a419cec26727721fef7d31"
+    },
+    "fold0_audio_cal.npz": {
+     "bytes": 3342,
+     "sha256": "f1cf57a35712409ccb635963e64d16796eb09ea6252d8b58876bb53daba059e1"
+    },
+    "fold0_vision_cal.npz": {
+     "bytes": 21738,
+     "sha256": "9ed182f5707379c7033a8de2eef03988dffee29bff49ccef0e260aa79b342652"
+    },
+    "fold0_fusion3.npz": {
+     "bytes": 3530,
+     "sha256": "ea4b2adc4a7e4d335ffe7b6202b06affdba07815510596ed40a6010644d09ae7"
+    },
+    "fold1_text_ctx.npz": {
+     "bytes": 808376,
+     "sha256": "d6cac018fa2df6f19fcccab6d8897925616e0760b51cf70d103843758d24ec66"
+    },
+    "fold1_audio_cal.npz": {
+     "bytes": 3342,
+     "sha256": "8939a6a9f0ae67c4ab125968b41a673c58f646a5c365ffbbc3287a649b5191d9"
+    },
+    "fold1_vision_cal.npz": {
+     "bytes": 21738,
+     "sha256": "35bb0e97b3e8b7ea49e4e02f9add23544f75c82f2ae2d6eae8d7255844ddddf0"
+    },
+    "fold1_fusion3.npz": {
+     "bytes": 3530,
+     "sha256": "5669d3c30adb78518e046262a89f5223cb0a74db06dfa8e0a451f03a429d5db5"
+    },
+    "fold2_text_ctx.npz": {
+     "bytes": 808376,
+     "sha256": "12b1e61d79aab9a9023059a669b363b526bdc09ad3a38e63eb42cdf7b92b7d86"
+    },
+    "fold2_audio_cal.npz": {
+     "bytes": 3342,
+     "sha256": "f913fa5b2e921cd925c04b5b6f7aaeed7d2cbd0ad1ae5e9149229756948be5d4"
+    },
+    "fold2_vision_cal.npz": {
+     "bytes": 21738,
+     "sha256": "07e4106e38964e91a201152095d0068c869cef9a0ed800b5a842ce4d6fce30b8"
+    },
+    "fold2_fusion3.npz": {
+     "bytes": 3530,
+     "sha256": "3dd72d9950d9ad57e6ce002a699cdb7f6eddae79a4916c2fec1d05fde49a946d"
+    },
+    "fold3_text_ctx.npz": {
+     "bytes": 808376,
+     "sha256": "f1604fd5ce2eb2881f7f33bb2420aa3569494aa764cc8e8026caa2524c9e1062"
+    },
+    "fold3_audio_cal.npz": {
+     "bytes": 3342,
+     "sha256": "000bb6779adfb21d638a5a12736a2e769a34048e9a7f8c62dc57928cfb899b19"
+    },
+    "fold3_vision_cal.npz": {
+     "bytes": 21738,
+     "sha256": "742682c6cd762a549c0c69a7be89e984900128c18c2fcb1f5752f11ed7d36ab1"
+    },
+    "fold3_fusion3.npz": {
+     "bytes": 3530,
+     "sha256": "7db165aaa2d6211795edf9fe7cf25b9b4ed6ec6ff432e3ceb0b037841efc30a3"
+    },
+    "fold4_text_ctx.npz": {
+     "bytes": 808376,
+     "sha256": "b4e5c613a5e231400691bc075c6200c20a5e5336f607cffe78a7def574842ad6"
+    },
+    "fold4_audio_cal.npz": {
+     "bytes": 3342,
+     "sha256": "075c5c3e2bd6e1c0afcf239217c9459681b2f9ced44ee1fbfdcb426a4ae7c873"
+    },
+    "fold4_vision_cal.npz": {
+     "bytes": 21738,
+     "sha256": "c9e7cde320e860b8bb32d759d17e58664aa3aae485fcf1c4ae9d4f7205825a7c"
+    },
+    "fold4_fusion3.npz": {
+     "bytes": 3530,
+     "sha256": "7b13039be812d48527e59052d57299f4859b51b20b4b6c07e2bc47797b795c50"
+    }
+   },
+   "fold_of_train": "fold_of_train.json",
+   "n_keys": 9989,
+   "fusion3_oof_train": {
+    "weighted_f1": 0.5951,
+    "macro_f1": 0.3793,
+    "accuracy": 0.6294
+   },
+   "note": "expert heads as fitted in the cross-fit (temperature 1, as the out-of-fold rows were made); fusion3 per fold refit with the deployed choice on the other folds' out-of-fold rows, temperature on dev with the deployed experts' dev rows"
+  },
+  "files": {
+   "vision_cal.npz": {
+    "bytes": 22018,
+    "sha256": "c06849f97c476bbb94eb7b10825ef874227591ef52e0febfd887f3916f022d7a"
+   },
+   "fusion3.npz": {
+    "bytes": 3810,
+    "sha256": "abd9babc406418a87c6a3d57432d313656756a2d95992059cea362e83537d15f"
+   },
+   "sentiment3.npz": {
+    "bytes": 3202,
+    "sha256": "62e099844deb6a13620058d8a21876b49b142671010b6980312efe8268d432a0"
+   }
+  },
+  "inputs": {
+   "video_train.npz": {
+    "bytes": 397221003,
+    "sha256": "ae942f8dcd872a9913d669e3df7e8ff93685486e1ff6bb5e5bd2fe48202ca523"
+   },
+   "video_dev.npz": {
+    "bytes": 41111383,
+    "sha256": "d3468b0f3efeb4f99a68f2b30d0eb3a7df6158462fbb5a78f268b4ef151635d7"
+   }
+  },
+  "envelope": {
+   "hop_s": 0.032,
+   "floor": 1e-05,
+   "files": [
+    "envelope_train.npz",
+    "envelope_dev.npz"
+   ]
+  },
+  "features": {
+   "A": [
+    "log_p_face_neutral",
+    "log_p_face_surprise",
+    "log_p_face_fear",
+    "log_p_face_sadness",
+    "log_p_face_joy",
+    "log_p_face_disgust",
+    "log_p_face_anger",
+    "max_p",
+    "entropy_bits",
+    "presence",
+    "log_area",
+    "n_tracks_div4",
+    "asd_corr",
+    "score",
+    "mouth_x10",
+    "present"
+   ],
+   "B": "A plus the chosen track's mean fer embedding (512)",
+   "fusion3": [
+    "log_p_text_neutral",
+    "log_p_text_surprise",
+    "log_p_text_fear",
+    "log_p_text_sadness",
+    "log_p_text_joy",
+    "log_p_text_disgust",
+    "log_p_text_anger",
+    "log_p_audio_neutral",
+    "log_p_audio_surprise",
+    "log_p_audio_fear",
+    "log_p_audio_sadness",
+    "log_p_audio_joy",
+    "log_p_audio_disgust",
+    "log_p_audio_anger",
+    "log_p_face_neutral",
+    "log_p_face_surprise",
+    "log_p_face_fear",
+    "log_p_face_sadness",
+    "log_p_face_joy",
+    "log_p_face_disgust",
+    "log_p_face_anger",
+    "H_text",
+    "H_audio",
+    "H_face",
+    "asr_conf",
+    "p_laughter",
+    "p_unknown",
+    "face_present",
+    "presence"
+   ]
+  },
+  "config": {
+   "class_weight": [
+    "none",
+    "balanced"
+   ],
+   "C": [
+    0.1,
+    1,
+    10
+   ],
+   "jsd_face_quantile": 0.8,
+   "seed": 0
+  },
+  "posteriors": {
+   "train": {
+    "file": "vision_post_train.npz",
+    "rows": 9989,
+    "bytes": 2764500,
+    "sha256": "a3a67c8c2ad4ab942319301370cfd86edefbd461068d12794ad2b5806540ba8c"
+   },
+   "dev": {
+    "file": "vision_post_dev.npz",
+    "rows": 1109,
+    "bytes": 358694,
+    "sha256": "db133ffa5b3483c3b67c745675cd9f8a720705dc366f607d8f182151d58b6717"
+   },
+   "test": {
+    "file": "vision_post_test.npz",
+    "rows": 2610,
+    "bytes": 1056218,
+    "sha256": "c49c80dbef0950bf79ef06cfc6cbc253b1c381e3b50228a9ab37aedbb19b457c"
+   }
+  },
+  "wall_time_s": 336.1,
+  "command": "python tools/train_vision.py --cache cache/ --heads heads/ --config configs/heads.yaml --audio audio/ --meld meld/"
  }
 }

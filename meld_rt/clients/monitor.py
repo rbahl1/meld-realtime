@@ -4,6 +4,11 @@ t_speech_end_capture_ns, which is valid when the client ran on this host; the
 service-side number is timing_ms.service_total. a robot body would subscribe
 the same way.
 
+vision mode adds the face label and presence to the state lines, the commit
+(state.commit, and the commit block of a final), and the streamed reply: the
+response.delta words of one utterance are appended to one line as they arrive,
+and the response line follows with its source, fallback and first-delta time.
+
 usage: python -m meld_rt.clients.monitor [--jsonl results/demo_log.jsonl] [--quiet]
 """
 
@@ -28,6 +33,22 @@ def _top(d: dict) -> str:
     return f"{k}@{d[k]:.2f}"
 
 
+def vision_part(m: dict) -> str:
+    """face label, presence, words-against-face and the commit of a vision-mode state."""
+    v, d, tm, c = m.get("vision"), m.get("discrepancy", {}), m.get("timing_ms", {}), m.get("commit")
+    if not v:
+        out = "vision=null"
+    else:
+        out = (f"face={_top(v.get('emotion', {}))} raw={_top(v.get('raw', {}))} present={v.get('present')} "
+               f"presence={v.get('presence')} track={v.get('track')} tracks={v.get('n_tracks')}")
+    if d.get("face_jsd") is not None:
+        out += f" face_jsd={d.get('face_jsd')} {d.get('face_direction')}"
+    out += f" vis_wait={tm.get('vision_wait')}ms vis_agg={tm.get('vision_aggregate')}ms"
+    if c:
+        out += f" commit={c.get('label')}@{c.get('confidence')} t={c.get('t_commit_s')}s {c.get('source')} matches_final={c.get('matches_final')}"
+    return out
+
+
 def fmt_line(topic: str, m: dict, latency_ms: float | None) -> str:
     sid = m.get("stream_id", "")
     if topic in ("state.final", "state.provisional"):
@@ -46,15 +67,30 @@ def fmt_line(topic: str, m: dict, latency_ms: float | None) -> str:
         parts.append(f"service_total={tm.get('service_total')}ms" + (f" client={latency_ms:.1f}ms" if latency_ms is not None else ""))
         parts.append(f"[sv={tm.get('sensevoice')} fe={tm.get('frontend')} pros={tm.get('prosody')} txt={tm.get('text_encoder')} "
                      f"heads={tm.get('heads')} vad_tail={tm.get('vad_tail')} prov_in_flight={tm.get('provisional_in_flight')}]")
+        if "vision" in m:
+            parts.append(vision_part(m))
         if m.get("degraded"):
             parts.append(f"degraded={m['degraded']}")
         return " ".join(parts)
+    if topic == "state.commit":
+        return (f"commit {sid} utt={m.get('utt_id')} {m.get('label')}@{m.get('confidence')} t={m.get('t_commit_s')}s "
+                f"q_emit={m.get('q_emit')} q_wait={m.get('q_wait')} [{m.get('policy')}]")
+    if topic == "response.delta":
+        return f"delta  {sid} utt={m.get('utt_id')} seq={m.get('seq')} {m.get('text')!r}"
     if topic == "response":
-        return (f"reply  {sid} utt={m.get('utt_id')} {m.get('text')!r} [{m.get('template_id')} {m.get('style')}] "
+        line = (f"reply  {sid} utt={m.get('utt_id')} {m.get('text')!r} [{m.get('template_id')} {m.get('style')}] "
                 f"grounding={m.get('grounding')}")
+        if "source" in m:
+            line += (f" source={m.get('source')} fallback={m.get('fallback')} first_delta={m.get('first_delta_ms')}ms "
+                     f"gen={m.get('gen_ms')}ms tokens={m.get('n_tokens')} checks={m.get('checks')}")
+        return line
     if topic == "health":
-        return (f"health {sid or '-'} queue={m.get('queue_s')}s dropped={m.get('dropped_provisionals')} mode={m.get('fusion_mode')} "
+        line = (f"health {sid or '-'} queue={m.get('queue_s')}s dropped={m.get('dropped_provisionals')} mode={m.get('fusion_mode')} "
                 f"rss={m.get('rss_mb')}MB loaded={m.get('models_loaded')}")
+        if "video_frames" in m:
+            line += (f" video={m.get('video_frames')} dropped_video={m.get('dropped_video_frames')} "
+                     f"skipped_video={m.get('skipped_video_frames')} vision_lag={m.get('vision_lag_finals')}")
+        return line
     if topic == "error":
         return f"error  {sid or '-'} {m.get('code')}: {m.get('msg')}"
     return f"{topic} {json.dumps(m)[:200]}"
@@ -71,11 +107,26 @@ class Monitor:
         self.out = out or sys.stdout
         self.counts: dict[str, int] = {}
         self.last_final_emit_ns: dict[tuple[str, int], int] = {}
+        self._open_reply: tuple[str, int] | None = None   # the reply line the deltas are appended to
 
     def close(self) -> None:
+        self._close_reply()
         self.sub.close()
         if self.jsonl:
             self.jsonl.close()
+
+    def _close_reply(self) -> None:
+        if self._open_reply is not None:
+            print(file=self.out, flush=True)
+            self._open_reply = None
+
+    def _print_delta(self, m: dict) -> None:
+        key = (m.get("stream_id"), m.get("utt_id"))
+        if self._open_reply != key:
+            self._close_reply()
+            print(f"reply~ {key[0]} utt={key[1]}:", end="", file=self.out, flush=True)
+            self._open_reply = key
+        print(m.get("text", ""), end="", file=self.out, flush=True)
 
     def handle(self, topic: str, m: dict) -> None:
         t_recv = P.now_ns()
@@ -85,7 +136,7 @@ class Monitor:
             latency = (t_recv - int(m["t_speech_end_capture_ns"])) / 1e6
             self.last_final_emit_ns[(m.get("stream_id"), m.get("utt_id"))] = int(m.get("t_emitted_ns", 0))
         extra = {}
-        if topic == "response":
+        if topic in ("response", "response.delta"):
             t_final = self.last_final_emit_ns.get((m.get("stream_id"), m.get("utt_id")))
             if t_final:
                 extra["after_final_ms"] = round((int(m.get("t_emitted_ns", 0)) - t_final) / 1e6, 3)
@@ -94,7 +145,11 @@ class Monitor:
                    **extra, **m}
             self.jsonl.write(json.dumps(row, ensure_ascii=False) + "\n")
             self.jsonl.flush()
-        if not self.quiet or topic == "error":
+        if topic == "response.delta" and not self.quiet:
+            self._print_delta(m)
+            return
+        if (not self.quiet or topic == "error") and not (topic == "health" and self._open_reply is not None):
+            self._close_reply()
             line = fmt_line(topic, m, latency)
             if extra:
                 line += f" after_final={extra['after_final_ms']}ms"

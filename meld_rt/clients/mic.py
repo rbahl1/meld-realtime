@@ -3,7 +3,22 @@ exactly like the replay client. the device is opened at 16 khz mono when it
 allows it; otherwise at --samplerate and resampled. needs the `mic` extra
 (sounddevice) and libportaudio2 on linux.
 
-usage: python -m meld_rt.clients.mic [--list-devices] [--device N]
+--camera N (spec 3.3) adds a capture thread on cv2.VideoCapture(N) at 640x480
+that sends at most --fps jpeg frames per second on its own push socket. a frame
+is stamped t_media = (t_capture_ns - t_audio0_ns) / 1e9, where t_audio0_ns is
+the capture time of the first audio sample sent after `start` (the first
+block's callback time minus the block length) and t_capture_ns the time read()
+returned, both on this host's monotonic clock. audio and video then share the
+media clock up to the difference of their capture latencies: read() returns
+after the camera's exposure and transfer, so a frame's t_media is late by that
+latency minus the audio callback's. frames captured before t_audio0 are not sent.
+the camera's media time is wall time, so with --camera an input overflow (audio
+the device dropped) skips sequence numbers for the frames lost, measured on the
+same clock (frames_lost); the service in vision mode advances the audio media
+clock over a sequence gap, and both streams stay on one clock. without --camera
+the audio is sent as before. needs the `vision` extra (opencv).
+
+usage: python -m meld_rt.clients.mic [--list-devices] [--device N] [--camera 0 [--fps 10]]
 """
 
 from __future__ import annotations
@@ -11,7 +26,9 @@ from __future__ import annotations
 import argparse
 import queue
 import sys
+import threading
 import time
+from collections.abc import Callable
 
 import numpy as np
 
@@ -44,21 +61,106 @@ class Resampler:
         return resample_poly(x, self.up, self.down).astype(np.float32)
 
 
+class CameraSender(threading.Thread):
+    """camera frames as video messages on the audio media clock (see the module docstring).
+    `capture` replaces cv2.VideoCapture (an object with read() and release())."""
+
+    def __init__(self, addr: str, stream_id: str, index: int = 0, fps: float = 10.0, width: int = 640,
+                 height: int = 480, quality: int = P.JPEG_QUALITY, capture=None, max_failures: int = 50):
+        super().__init__(name="camera", daemon=True)
+        self.addr, self.stream_id, self.index = addr, stream_id, int(index)
+        self.period = 1.0 / float(fps)
+        self.width, self.height, self.quality = int(width), int(height), int(quality)
+        self.capture = capture
+        self.max_failures = int(max_failures)
+        self.t_audio0_ns: int | None = None
+        self.sent = self.before_audio = self.failures = 0
+        self.error: str | None = None
+        self._halt = threading.Event()
+
+    def set_audio0(self, t_audio0_ns: int) -> None:
+        """the capture time of the first audio sample sent after start; frames are sent from then on."""
+        self.t_audio0_ns = int(t_audio0_ns)
+
+    def stop(self) -> None:
+        self._halt.set()
+        self.join(timeout=5)
+
+    def _open(self):
+        if self.capture is not None:
+            return self.capture
+        import cv2
+
+        cap = cv2.VideoCapture(self.index)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+        if not cap.isOpened():
+            raise RuntimeError(f"camera {self.index} did not open")
+        return cap
+
+    def run(self) -> None:
+        from meld_rt.clients import connect_push
+
+        try:
+            cap = self._open()
+        except Exception as e:  # noqa: BLE001 - audio keeps going without the camera
+            self.error = f"{type(e).__name__}: {e}"
+            print(f"camera unavailable: {self.error}", file=sys.stderr, flush=True)
+            return
+        push = connect_push(self.addr)
+        last, seq = None, 0
+        try:
+            while not self._halt.is_set():
+                ok, frame = cap.read()
+                t_cap = P.now_ns()
+                if not ok or frame is None:
+                    self.failures += 1
+                    if self.failures >= self.max_failures:
+                        self.error = f"{self.failures} failed reads"
+                        break
+                    time.sleep(0.01)
+                    continue
+                a0 = self.t_audio0_ns
+                t_media = (t_cap - a0) / 1e9 if a0 is not None else -1.0
+                if t_media < 0:
+                    self.before_audio += 1
+                    continue
+                if last is not None and t_media - last < 0.9 * self.period:
+                    continue
+                push.send_multipart(P.frame_msg(self.stream_id, seq, t_cap, t_media, frame, self.quality))
+                last, seq = t_media, seq + 1
+                self.sent = seq
+        finally:
+            cap.release()
+            push.close()
+
+
+def frames_lost(t_block_ns: int, t_audio0_ns: int, samples_in: int, samplerate: int) -> int:
+    """whole 16 khz frames the device dropped so far: the time from the first sample to the
+    callback of the block just received, minus the samples received (that block included)."""
+    lost_s = (int(t_block_ns) - int(t_audio0_ns)) / 1e9 - samples_in / samplerate
+    return max(0, int(lost_s * P.SR) // P.FRAME_SAMPLES)
+
+
 def capture(push, stream_id: str, device: int | None, samplerate: int, seconds: float, block_ms: float = 32.0,
-            out=sys.stderr) -> int:
-    """stream from the device until ctrl-c or `seconds`; returns frames sent."""
+            out=sys.stderr, on_audio0: Callable[[int], None] | None = None, skip_lost: bool = False) -> int:
+    """stream from the device until ctrl-c or `seconds`; returns frames sent. on_audio0 gets
+    the capture time (ns, monotonic) of the first audio sample sent after start. skip_lost
+    (with --camera): after an input overflow, skip the sequence numbers of the frames lost."""
     q: queue.Queue = queue.Queue()
     overflows = 0
 
     def cb(indata, frames, t, status):
         nonlocal overflows
-        if status and status.input_overflow:
+        over = bool(status and status.input_overflow)
+        if over:
             overflows += 1
-        q.put((P.now_ns(), indata[:, 0].copy()))
+        q.put((P.now_ns(), indata[:, 0].copy(), over))
 
     rs = Resampler(samplerate)
     buf = np.zeros(0, np.float32)
-    seq, sent = 0, 0
+    seq, sent, samples_in, skipped = 0, 0, 0, 0
+    t_audio0 = None
     push.send_multipart(P.ctl_msg(stream_id, "start"))
     t_end = time.monotonic() + seconds if seconds > 0 else None
     with sd.InputStream(device=device, channels=1, samplerate=samplerate, dtype="float32",
@@ -67,20 +169,35 @@ def capture(push, stream_id: str, device: int | None, samplerate: int, seconds: 
         try:
             while t_end is None or time.monotonic() < t_end:
                 try:
-                    _, block = q.get(timeout=0.2)
+                    t_cb, block, over = q.get(timeout=0.2)
                 except queue.Empty:
                     continue
+                if t_audio0 is None:
+                    # the callback runs once the block is full: its first sample is a block earlier
+                    t_audio0 = t_cb - int(len(block) / samplerate * 1e9)
+                samples_in += len(block)
+                if over and skip_lost:
+                    # the device dropped audio before this block: its frames' sequence numbers go
+                    # unused, so the service sees the gap and audio media time keeps up with the camera's
+                    lost = frames_lost(t_cb, t_audio0, samples_in, samplerate)
+                    if lost:
+                        seq += lost
+                        skipped += lost
+                        samples_in += round(lost * P.FRAME_SAMPLES * samplerate / P.SR)
                 buf = np.concatenate([buf, rs(block)])
                 n = len(buf) // P.FRAME_SAMPLES * P.FRAME_SAMPLES
                 if n:
                     frames = P.pcm16_frames(buf[:n])
                     buf = buf[n:]
                     seq = send_frames(push, frames, stream_id, seq0=seq)
+                    if sent == 0 and on_audio0 is not None:
+                        on_audio0(t_audio0)
                     sent += len(frames)
         except KeyboardInterrupt:
             pass
     push.send_multipart(P.ctl_msg(stream_id, "stop"))
-    print(f"sent {sent} frames ({sent * P.FRAME_S:.1f} s), {overflows} input overflows", file=out, flush=True)
+    print(f"sent {sent} frames ({sent * P.FRAME_S:.1f} s), {overflows} input overflows"
+          + (f", {skipped} lost frames skipped in seq" if skip_lost else ""), file=out, flush=True)
     return sent
 
 
@@ -92,6 +209,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--seconds", type=float, default=0.0, help="stop after this long (0: until ctrl-c)")
     ap.add_argument("--stream-id", default="mic")
     ap.add_argument("--addr", default=P.IN_ADDR)
+    ap.add_argument("--camera", type=int, default=None, metavar="N", help="also send frames of cv2.VideoCapture(N)")
+    ap.add_argument("--fps", type=float, default=10.0, help="video frames per second with --camera")
     a = ap.parse_args(argv)
     if sd is None:
         print(f"sounddevice is not available ({_SD_ERROR}); install the `mic` extra and libportaudio2", file=sys.stderr)
@@ -100,9 +219,18 @@ def main(argv: list[str] | None = None) -> int:
         print(sd.query_devices())
         return 0
     push = connect_push(a.addr)
+    cam = None
+    if a.camera is not None:
+        cam = CameraSender(a.addr, a.stream_id, a.camera, fps=a.fps)
+        cam.start()
     try:
-        capture(push, a.stream_id, a.device, a.samplerate, a.seconds)
+        capture(push, a.stream_id, a.device, a.samplerate, a.seconds, on_audio0=cam.set_audio0 if cam else None,
+                skip_lost=cam is not None)
     finally:
+        if cam is not None:
+            cam.stop()
+            print(f"camera: sent {cam.sent} frames, {cam.before_audio} before the audio started"
+                  + (f", error {cam.error}" if cam.error else ""), file=sys.stderr, flush=True)
         push.close()
     return 0
 
