@@ -14,19 +14,29 @@ text and audio caches with the deployed two-way heads and no face (uniform
 face, vision.present false, fused mode stacked).
 
 for each model file and thread count: first-token and full-reply ms p50 / p95,
-the first word's ms, decode tokens per second, words per reply, the check
-pass rate (check_reply ok), the masked-step rate, word-guard rollbacks, the
-share of replies that name the fused label's class, and 12 examples with their
+the first word's ms, the decode rate, words per reply, the check pass rate
+(check_reply ok), the masked-step rate, rollbacks and their rework, the share
+of replies that name the fused label's class, and 12 examples with their
 evidence. writes results/generator_bench_<host>.json and prints the model the
 choice rule of spec 4 picks.
 
-choice rule (spec 4, fixed before the measurement): the deployed model is the
-largest candidate whose first-token p95 is at most 350 ms and whose decode rate
-is at least 15 tokens per second at 4 threads on the idle container; among
-same-size files the int8 one unless q4 is faster by more than 20 % with a check
-pass rate no lower. "faster" is the full-reply p50 at 4 threads: q4 wins when
-int8_p50 / q4_p50 > 1.2. when no file meets both targets, the smallest model's
-file with the lower first-token p95 is named and meets_targets is false.
+choice rule (spec 4): the deployed model is the largest candidate whose
+first-token p95 is at most 350 ms and whose decode rate is at least 15 tokens
+per second at 4 threads on the idle container; among same-size files the int8
+one unless q4 is faster by more than 20 % with a check pass rate no lower.
+- the decode rate is decode_passes_per_s: forward passes after the first token
+  (one per token, the pass that yields the end token and the passes of tokens a
+  rollback undid included) over the time after the first token, so it measures
+  the model and the loop, not how often the guards roll back. the rework is
+  reported apart (rework_passes), and decode_tokens_per_s keeps the final-reply
+  rate ((tokens - 1) over the same time) for comparison with earlier runs.
+- "faster" is the cost of a reply of the same length at 4 threads: first-token
+  p50 + n_ref passes at 1000 / decode_passes_per_s ms each, n_ref the mean
+  tokens per reply of the two files pooled. q4 wins when cost(int8) / cost(q4)
+  > 1.2, so a file that writes longer replies is not counted as slower.
+- when no file meets both targets, the smallest model's file with the lower
+  first-token p95 is named and meets_targets is false.
+both definitions were set before the phase 2 bench (notes_C section 8).
 
 usage:
   python tools/bench_generator.py                      # 200 states from cache/vision_post_test.npz
@@ -258,10 +268,12 @@ def parrot(reply: str, said: str) -> dict:
     return {"transcript_run": tr, "example_run": ex, "transcript": tr >= PARROT_RUN, "example": ex >= PARROT_RUN}
 
 
-def run_one(gen, rows: list[dict], low_conf: float, high_conf: float, examples_in: str) -> list[dict]:
+def run_one(gen, rows: list[dict], low_conf: float, high_conf: float, examples_in: str,
+            gap_style: str = G.GAP_STYLE) -> list[dict]:
     out = []
     for r in rows:
-        msgs, grounding, allowed = G.build_messages(r["state"], low_conf, high_conf, examples_in=examples_in)
+        msgs, grounding, allowed = G.build_messages(r["state"], low_conf, high_conf, examples_in=examples_in,
+                                                    gap_style=gap_style)
         t0 = time.perf_counter()
         first_word = []
 
@@ -274,7 +286,9 @@ def run_one(gen, rows: list[dict], low_conf: float, high_conf: float, examples_i
         out.append({"key": r["key"], "variant": r["variant"], "text": res.text, "n_tokens": res.n_tokens,
                     "first_token_ms": round(res.first_token_ms, 2), "first_word_ms": round(first_word[0], 2) if first_word else None,
                     "total_ms": round(res.total_ms, 2), "stop_reason": res.stop_reason, "masked_steps": res.masked_steps,
-                    "steps": res.steps, "backtracks": res.backtracks, "register_masked_steps": res.register_masked_steps,
+                    "steps": res.steps, "backtracks": res.backtracks, "word_backtracks": res.word_backtracks,
+                    "decode_passes": res.decode_passes, "rework_passes": res.rework_passes,
+                    "register_masked_steps": res.register_masked_steps,
                     "prompt_tokens": res.prompt_tokens, "checks": G.check_reply(res.text, allowed), "allowed": allowed,
                     "grounding": grounding, "fused_label": label,
                     "names_fused": names_class(res.text, label) if LEXICON[label] else None,
@@ -283,22 +297,35 @@ def run_one(gen, rows: list[dict], low_conf: float, high_conf: float, examples_i
     return out
 
 
+def passes_of(r: dict) -> int:
+    """forward passes after the first token of one reply row. rows of earlier runs have no
+    decode_passes: every step but a rolled-back one and the step that chose the end token
+    ran one pass then, so it is derived from steps, backtracks and the stop reason."""
+    if r.get("decode_passes") is not None:
+        return int(r["decode_passes"])
+    return max(int(r["steps"]) - int(r["backtracks"]) - int(r["stop_reason"] == "eos"), 0)
+
+
 def summarize(rs: list[dict]) -> dict:
     ft = [r["first_token_ms"] for r in rs]
     tot = [r["total_ms"] for r in rs]
     fw = [r["first_word_ms"] for r in rs if r["first_word_ms"] is not None]
     dec_tok = sum(max(r["n_tokens"] - 1, 0) for r in rs)
     dec_steps = sum(max(r["steps"] - 1, 0) for r in rs)
+    passes = sum(passes_of(r) for r in rs)
+    rework = [r.get("rework_passes") for r in rs]
     dec_s = sum(max(r["total_ms"] - r["first_token_ms"], 0.0) for r in rs) / 1000
     per = [(r["n_tokens"] - 1) / ((r["total_ms"] - r["first_token_ms"]) / 1000) for r in rs
            if r["n_tokens"] > 1 and r["total_ms"] > r["first_token_ms"]]
+    per_pass = [passes_of(r) / ((r["total_ms"] - r["first_token_ms"]) / 1000) for r in rs
+                if passes_of(r) > 0 and r["total_ms"] > r["first_token_ms"]]
     words = [r["checks"]["n_words"] for r in rs]
     named = [r["names_fused"] for r in rs if r["names_fused"] is not None and r["allowed"]]
     fails: dict[str, int] = {}
     for r in rs:
         c = r["checks"]
-        for k in ("over_length", "exclamation", "empty", "non_ascii"):
-            fails[k] = fails.get(k, 0) + int(bool(c[k]))
+        for k in ("over_length", "exclamation", "empty", "non_ascii", "non_printable"):
+            fails[k] = fails.get(k, 0) + int(bool(c.get(k)))
         for k in ("forbidden_words", "meta_words", "prompt_echo"):
             fails[k] = fails.get(k, 0) + int(bool(c[k]))
     stops: dict[str, int] = {}
@@ -309,9 +336,13 @@ def summarize(rs: list[dict]) -> dict:
             "first_token_ms": {"p50": pct(ft, 50), "p95": pct(ft, 95)},
             "first_word_ms": {"p50": pct(fw, 50), "p95": pct(fw, 95), "n": len(fw)},
             "full_reply_ms": {"p50": pct(tot, 50), "p95": pct(tot, 95)},
+            "decode_passes_per_s": round(passes / dec_s, 2) if dec_s > 0 else None,
+            "decode_passes_per_s_p50": pct(per_pass, 50),
             "decode_tokens_per_s": round(dec_tok / dec_s, 2) if dec_s > 0 else None,
             "decode_tokens_per_s_p50": pct(per, 50),
             "decode_steps_per_s": round(dec_steps / dec_s, 2) if dec_s > 0 else None,
+            "rework_passes": ({"n": int(sum(rework)), "share": round(sum(rework) / passes, 4) if passes else None}
+                              if all(x is not None for x in rework) else None),
             "tokens_per_reply": {"mean": round(float(np.mean([r["n_tokens"] for r in rs])), 2), "max": max(r["n_tokens"] for r in rs)},
             "prompt_tokens": {"p50": pct([r["prompt_tokens"] for r in rs], 50), "max": max(r["prompt_tokens"] for r in rs)},
             "words_per_reply": {"mean": round(float(np.mean(words)), 2), "p50": pct(words, 50), "max": int(max(words))},
@@ -325,6 +356,7 @@ def summarize(rs: list[dict]) -> dict:
             "masked_step_rate": round(sum(r["masked_steps"] for r in rs) / steps, 4) if steps else None,
             "replies_with_masked_step": round(float(np.mean([r["masked_steps"] > 0 for r in rs])), 4),
             "backtracks": int(sum(r["backtracks"] for r in rs)),
+            "word_backtracks": int(sum(r.get("word_backtracks") or 0 for r in rs)),
             "replies_with_backtrack": round(float(np.mean([r["backtracks"] > 0 for r in rs])), 4),
             "register_masked_step_rate": round(sum(r["register_masked_steps"] for r in rs) / steps, 4) if steps else None,
             "names_fused_class": {"share": round(float(np.mean(named)), 4) if named else None, "n": len(named),
@@ -344,11 +376,11 @@ def choose(results: dict) -> dict:
         model, onnx = name.split("/")
         size = os.path.getsize(G.LLM_ROOT / model / "onnx" / onnx) if (G.LLM_ROOT / model / "onnx" / onnx).exists() else 0
         ok = (s["first_token_ms"]["p95"] is not None and s["first_token_ms"]["p95"] <= FIRST_TOKEN_P95_MAX_MS
-              and (s["decode_tokens_per_s"] or 0) >= DECODE_MIN_TPS)
+              and (s["decode_passes_per_s"] or 0) >= DECODE_MIN_TPS)
         rows.append({"file": name, "model": model, "onnx": onnx, "params_order": _model_rank(model), "bytes": size,
-                     "meets_targets": ok, "first_token_p95": s["first_token_ms"]["p95"],
-                     "decode_tokens_per_s": s["decode_tokens_per_s"], "full_reply_p50": s["full_reply_ms"]["p50"],
-                     "check_pass_rate": s["check_pass_rate"]})
+                     "meets_targets": ok, "first_token_p95": s["first_token_ms"]["p95"], "first_token_p50": s["first_token_ms"]["p50"],
+                     "decode_passes_per_s": s["decode_passes_per_s"], "tokens_per_reply": s["tokens_per_reply"]["mean"],
+                     "full_reply_p50": s["full_reply_ms"]["p50"], "check_pass_rate": s["check_pass_rate"]})
     if not rows:
         return {"deployed": None, "reason": "no 4-thread results"}
     ok = [r for r in rows if r["meets_targets"]]
@@ -364,21 +396,30 @@ def choose(results: dict) -> dict:
         why, meets = "no file meets both targets: the smallest model's file with the lower first-token p95", False
     return {"deployed": pick["file"], "meets_targets": meets, "reason": why, "candidates": rows,
             "edit": f'DEFAULT_MODEL = "{pick["model"]}", DEFAULT_ONNX = "{pick["onnx"]}" in meld_rt/response/generator.py',
-            "rule": {"first_token_p95_max_ms": FIRST_TOKEN_P95_MAX_MS, "decode_min_tokens_per_s": DECODE_MIN_TPS,
-                     "q4_full_reply_p50_speedup_over_int8": Q4_SPEEDUP, "threads": 4}}
+            "rule": {"first_token_p95_max_ms": FIRST_TOKEN_P95_MAX_MS, "decode_min_passes_per_s": DECODE_MIN_TPS,
+                     "q4_same_length_speedup_over_int8": Q4_SPEEDUP, "threads": 4}}
 
 
 def _model_rank(model: str) -> int:
     return list(G.CANDIDATES).index(model) if model in G.CANDIDATES else -1
 
 
+def reply_cost_ms(row: dict, n_ref: float) -> float:
+    """ms of a reply of n_ref tokens: the first token at its p50, then n_ref forward passes
+    at the file's decode rate (the last one yields the end token)."""
+    return float(row["first_token_p50"] or 0.0) + n_ref * 1000.0 / max(float(row["decode_passes_per_s"] or 0.0), 1e-9)
+
+
 def _pick_file(same: dict) -> tuple[dict, str]:
     i8, q4 = same.get("model_int8.onnx"), same.get("model_q4.onnx")
     if i8 and q4:
-        faster = (i8["full_reply_p50"] or 0) / max(q4["full_reply_p50"] or 1e-9, 1e-9)
+        n_ref = (float(i8["tokens_per_reply"]) + float(q4["tokens_per_reply"])) / 2
+        faster = reply_cost_ms(i8, n_ref) / max(reply_cost_ms(q4, n_ref), 1e-9)
         if faster > Q4_SPEEDUP and q4["check_pass_rate"] >= i8["check_pass_rate"]:
-            return q4, f"q4 full-reply p50 is {faster:.2f}x faster than int8 with a check pass rate no lower"
-        return i8, f"int8 (q4 speedup {faster:.2f}x, q4 pass rate {q4['check_pass_rate']} vs {i8['check_pass_rate']})"
+            return q4, (f"q4 is {faster:.2f}x faster than int8 on a reply of {n_ref:.2f} tokens with a check pass rate"
+                        " no lower")
+        return i8, (f"int8 (q4 speedup {faster:.2f}x on a reply of {n_ref:.2f} tokens, q4 pass rate {q4['check_pass_rate']}"
+                    f" vs {i8['check_pass_rate']})")
     only = i8 or q4
     return only, "the only file of the largest model that meets both targets"
 
@@ -398,6 +439,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--models", nargs="*", help="<model>/<onnx file> under models/llm/ (default: every candidate on disk)")
     ap.add_argument("--threads", nargs="*", type=int, default=[2, 4])
     ap.add_argument("--examples-in", default=G.EXAMPLES_IN, choices=G.EXAMPLE_PLACES)
+    ap.add_argument("--gap-style", default=G.GAP_STYLE, choices=G.GAP_STYLES,
+                    help="voice and face lines when a direction against the words is flagged (notes_C section 8)")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--cache", type=Path, default=ROOT / "cache")
     ap.add_argument("--heads", type=Path, default=ROOT / "heads")
@@ -414,7 +457,7 @@ def main(argv: list[str] | None = None) -> int:
     out = {"host": socket.gethostname(), "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
            "command": "python tools/bench_generator.py " + " ".join(argv if argv is not None else sys.argv[1:]),
            "machine": machine(), "loadavg_start": loadavg(), "states": info, "low_conf": low_conf, "high_conf": high_conf,
-           "examples_in": a.examples_in, "max_new_tokens": G.MAX_NEW_TOKENS, "results": {}}
+           "examples_in": a.examples_in, "gap_style": a.gap_style, "max_new_tokens": G.MAX_NEW_TOKENS, "results": {}}
     texts: dict[str, dict[str, list[str]]] = {}
     for name in candidate_files(a.models):
         model, onnx = name.split("/")
@@ -422,18 +465,20 @@ def main(argv: list[str] | None = None) -> int:
         for t in a.threads:
             gen = G.ReplyGenerator(G.LLM_ROOT / model, threads=t, onnx_file=onnx)
             t0 = time.perf_counter()
-            msgs, _, allowed = G.build_messages(rows[0]["state"], low_conf, high_conf, examples_in=a.examples_in)
+            msgs, _, allowed = G.build_messages(rows[0]["state"], low_conf, high_conf, examples_in=a.examples_in,
+                                                gap_style=a.gap_style)
             gen.generate(msgs, allowed)   # warm-up: the first onnxruntime calls and the prefix cache
             warm_ms = (time.perf_counter() - t0) * 1000
             la0 = loadavg()
-            rs = run_one(gen, rows, low_conf, high_conf, a.examples_in)
+            rs = run_one(gen, rows, low_conf, high_conf, a.examples_in, a.gap_style)
             s = summarize(rs)
             texts.setdefault(name, {})[str(t)] = [r["text"] for r in rs]
             out["results"][name][str(t)] = {"summary": s, "load_ms": round(gen.load_ms, 1), "warmup_ms": round(warm_ms, 1),
                                             "loadavg_start": la0, "loadavg_end": loadavg(), "replies": rs}
             print(f"{name} t{t}: first token p50/p95 {s['first_token_ms']['p50']}/{s['first_token_ms']['p95']} ms, "
                   f"reply p50/p95 {s['full_reply_ms']['p50']}/{s['full_reply_ms']['p95']} ms, "
-                  f"{s['decode_tokens_per_s']} tok/s, pass {s['check_pass_rate']}, masked {s['masked_step_rate']}, "
+                  f"{s['decode_passes_per_s']} passes/s ({s['decode_tokens_per_s']} reply tok/s), pass {s['check_pass_rate']}, "
+                  f"masked {s['masked_step_rate']}, "
                   f"names fused {s['names_fused_class']['share']}, load {la0}", flush=True)
             del gen
         by_t = texts.get(name, {})

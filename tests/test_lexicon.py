@@ -35,6 +35,24 @@ def test_spec_examples_and_inflections():
     assert words_of(["joy", "neutral"]) == set(LEXICON["joy"])
 
 
+def test_review_inflections_and_common_words():
+    # inflections of words already in the lexicon, and common words for a feeling (package C review)
+    expect = {"anger": ["annoy", "annoys", "frustrate", "frustrates", "irritate", "irritates", "angers", "pissed", "hate",
+                        "hated", "infuriated"],
+              "sadness": ["sadden", "saddened", "crying", "cried", "bummed", "upsetting"],
+              "joy": ["exciting", "thrilling"], "fear": ["horrified", "horror", "scaring", "terrify", "terrifies", "freaked",
+                                                         "panicking"],
+              "disgust": ["disgusts"]}
+    for c, ws in expect.items():
+        for w in ws:
+            assert CLASS_OF.get(w) == c, (w, CLASS_OF.get(w))
+    for t, c in [("You sound pissed off.", "anger"), ("You must hate that.", "anger"), ("Why are you crying?", "sadness"),
+                 ("That sounds exciting.", "joy"), ("You seem saddened.", "sadness"), ("Did that annoy you?", "anger"),
+                 ("You look horrified.", "fear"), ("You seem freaked out.", "fear"), ("You look bummed.", "sadness")]:
+        assert [cls for _, cls in emotion_words_in(t)] == [c], t
+    assert "madness" not in CLASS_OF          # names insanity or chaos, not anger
+
+
 def test_forbidden_classes():
     assert forbidden_classes([]) == [c for c in EMOTIONS if c != "neutral"]
     assert forbidden_classes(["neutral"]) == forbidden_classes([])

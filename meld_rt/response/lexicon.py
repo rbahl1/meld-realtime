@@ -1,8 +1,11 @@
 """emotion words per MELD class, for the generator's logit mask and for
 check_reply (spec 4). a word names a feeling: adjectives, nouns, verbs and
-adverbs with their inflections. neutral has none, so it can never be masked.
-a word sits in one class only; the few that could go in two (upset, tense) are
-put where the reply bank uses them. words are lowercase ascii letters only."""
+adverbs with their inflections, and the common words for showing one (crying,
+pissed, freaked). neutral has none, so it can never be masked. a word sits in
+one class only; the few that could go in two (upset, tense, hate, horror) are
+put where the reply bank uses them or where the word is most often used.
+"madness" is left out on purpose: it names insanity or chaos, not anger. words
+are lowercase ascii letters only."""
 
 from __future__ import annotations
 
@@ -23,26 +26,31 @@ LEXICON: dict[str, tuple[str, ...]] = {
         "scared", "scary", "scare", "scares", "frightened", "frightening", "fright",
         "terrified", "terrifying", "terror", "anxious", "anxiously", "anxiety",
         "nervous", "nervously", "nervousness", "worried", "worry", "worries", "worrying",
-        "panic", "panicked", "panicky", "alarmed", "uneasy", "dread", "dreading",
-        "tense", "apprehensive",
+        "panic", "panicked", "panicky", "panicking", "alarmed", "uneasy", "dread", "dreading",
+        "tense", "apprehensive", "scaring", "terrify", "terrifies", "horror", "horrified",
+        "horrify", "horrifying", "freaked",
     ),
     "sadness": (
         "sad", "sadder", "saddest", "sadly", "sadness", "unhappy", "unhappiness",
         "upset", "depressed", "depressing", "depression", "miserable", "misery",
         "heartbroken", "gloomy", "gloom", "sorrow", "sorrowful", "grief", "grieving",
         "disappointed", "disappointing", "disappointment", "lonely", "loneliness",
-        "glum", "melancholy", "dejected", "tearful", "hurt", "hurting",
+        "glum", "melancholy", "dejected", "tearful", "hurt", "hurting", "upsetting",
+        "sadden", "saddened", "saddens", "saddening", "heartbreaking", "bummed",
+        "cry", "cries", "cried", "crying",
     ),
     "joy": (
         "happy", "happier", "happiest", "happily", "happiness", "joy", "joyful",
         "joyous", "joyfully", "glad", "gladly", "pleased", "delighted", "delight",
         "delightful", "excited", "excitement", "thrilled", "cheerful", "cheery",
         "elated", "ecstatic", "overjoyed", "amused", "upbeat", "giddy", "proud",
+        "exciting", "thrilling",
     ),
     "disgust": (
         "disgust", "disgusted", "disgusting", "disgustingly", "gross", "grossed",
         "revolted", "revolting", "revulsion", "repulsed", "repulsive", "repelled",
         "sickened", "nauseated", "appalled", "appalling", "distaste", "yuck", "eww",
+        "disgusts",
     ),
     "anger": (
         "angry", "angrier", "angriest", "angrily", "anger", "angered", "annoyed",
@@ -50,6 +58,8 @@ LEXICON: dict[str, tuple[str, ...]] = {
         "irritated", "irritating", "irritation", "frustrated", "frustrating",
         "frustration", "rage", "raging", "enraged", "outraged", "outrage", "livid",
         "irate", "resentful", "resentment", "hostile", "hostility", "fuming",
+        "angers", "annoy", "annoys", "frustrate", "frustrates", "irritate", "irritates",
+        "infuriated", "infuriating", "pissed", "hate", "hates", "hated", "hating",
     ),
 }
 

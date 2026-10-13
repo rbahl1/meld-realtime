@@ -13,8 +13,15 @@ sha256 the hub lists for that revision.
 groups: core (the text and audio path), vision (YuNet, FER), llm (the deployed
 reply generator: meld_rt.response.generator DEFAULT_MODEL / DEFAULT_ONNX and the
 tokenizer and config files) and llm_candidates (the other candidate files of
-spec 4, about 3 GB more, for tools/bench_generator.py). the default is
-core,vision,llm."""
+spec 4, about 3 GB more, for tools/bench_generator.py). the default is core, as
+before the extension; --groups core,vision,llm adds what --vision --reply llm
+needs, --groups all every candidate.
+
+the provenance file keeps one row per file of every group: rows of assets this
+run did not check (other groups, or assets outside --only) are carried over
+from the existing file unchanged, so a core run rewrites the core rows and
+keeps the vision and llm rows. all_ok in the file is over every row in it; the
+exit status is over the rows checked in this run."""
 from __future__ import annotations
 
 import argparse
@@ -38,7 +45,7 @@ HF = "https://huggingface.co"
 YUNET_REV = "3cc26e7f1014a5ee5d74a42acee58bafc9d0a310"
 FER_REV = "b473270576eabddaacffd08adb4bed27b3fc54e6"
 GROUPS = ("core", "vision", "llm", "llm_candidates")
-DEFAULT_GROUPS = "core,vision,llm"
+DEFAULT_GROUPS = "core"
 SV_DIR = "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17"
 PIPER_DIR = "vits-piper-en_US-lessac-medium"
 
@@ -222,7 +229,22 @@ def fetch(asset: Asset, dest: Path, dl_dir: Path) -> None:
         download(asset.url, base / asset.dest)
 
 
-def main() -> int:
+def merged_rows(checked: dict[str, list[dict]], old_path: Path) -> list[dict]:
+    """rows in TABLE order: this run's rows for the assets it checked, the existing file's
+    rows for the others (none when the file is missing or unreadable)."""
+    old: dict[str, list[dict]] = {}
+    try:
+        for r in json.loads(old_path.read_text()).get("files", []):
+            old.setdefault(r["asset"], []).append(r)
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        old = {}
+    out = []
+    for asset in TABLE:
+        out.extend(checked[asset.name] if asset.name in checked else old.get(asset.name, []))
+    return out
+
+
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dest", type=Path, default=ROOT / "models")
     ap.add_argument("--dl-dir", type=Path, default=ROOT / "verify_dl", help="where the spacy wheel goes")
@@ -230,14 +252,14 @@ def main() -> int:
     ap.add_argument("--provenance", type=Path, default=ROOT / "results/provenance_hashes.json")
     ap.add_argument("--only", nargs="*", help="asset names to restrict to")
     ap.add_argument("--groups", default=DEFAULT_GROUPS, help=f"comma list of {', '.join(GROUPS)}, or all")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
     groups = set(GROUPS) if args.groups == "all" else set(args.groups.split(","))
     if groups - set(GROUPS):
         ap.error(f"unknown groups {sorted(groups - set(GROUPS))}")
     dest, dl_dir = args.dest.resolve(), args.dl_dir.resolve()
 
     all_ok = True
-    report = []
+    checked: dict[str, list[dict]] = {}
     for asset in TABLE:
         if args.only and asset.name not in args.only:
             continue
@@ -256,12 +278,13 @@ def main() -> int:
             extra = f"{r.get('n_files')} files" if "n_files" in r else (r.get("sha256") or "missing")
             print(f"{mark} {r['path']}  {extra}")
         all_ok = all_ok and ok
-        report.extend(rows)
+        checked[asset.name] = rows
 
+    report = merged_rows(checked, args.provenance)
     args.provenance.parent.mkdir(parents=True, exist_ok=True)
     with open(args.provenance, "w") as f:
         json.dump({"generated_by": "tools/fetch_models.py", "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                   "all_ok": all_ok, "files": report}, f, indent=1)
+                   "all_ok": all(r.get("ok") for r in report), "files": report}, f, indent=1)
     print(f"{'all verified' if all_ok else 'some files missing or mismatched'}; wrote {args.provenance}")
     return 0 if all_ok else 1
 

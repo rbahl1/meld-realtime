@@ -8,12 +8,16 @@ one final state.
 - ReplyGenerator.generate streams whole words through on_delta. two masks act
   on the logits: the lexicon mask (whole-word tokens of every class not in
   `allowed`, with and without a leading space, lower, capitalized and upper case)
-  and the register mask (tokens with "!", a newline, a tab or a non-ascii byte,
-  and every special token but the two stops). a word guard covers the emotion
-  words the tokenizer splits into pieces: when a finished word is a lexicon word
-  of a class not in `allowed`, the loop rolls the kv cache back to the word's
-  first token, bans that token at that position and decodes again. a word is
-  sent to on_delta only after it passed the guard, so nothing sent is taken back.
+  and the register mask (tokens with "!", an ascii control byte such as a
+  newline or a tab, or a non-ascii byte, and every special token but the two
+  stops). a word guard covers the emotion words the tokenizer splits into
+  pieces: when a finished word is a lexicon word of a class not in `allowed`,
+  the loop rolls the kv cache back to the word's first token, bans that token at
+  that position and decodes again. guard phrases (the notes copied into the
+  reply) and runs of transcript words are rolled back the same way, on a budget
+  of their own. a word is sent to on_delta only after it passed, so nothing sent
+  is taken back; when a budget is spent, the reply ends at the last word that
+  passed (stop_reason guard).
 - the system prompt is the same for every reply, so its kv cache is computed
   once and reused; only the user turn is prefilled per reply.
 - check_reply(text, allowed) checks the final text (spec 4, response.checks).
@@ -55,17 +59,18 @@ MAX_NEW_TOKENS = 40
 MAX_REPLY_WORDS = 20            # the prompt's limit, checked by check_reply
 MODALITY_MIN_P = 0.4            # a modality's top class enters `allowed` at this probability
 MAX_TRANSCRIPT_WORDS = 60       # longer transcripts are cut in the prompt
-MAX_BACKTRACKS = 6              # word-guard rollbacks per reply
+MAX_BACKTRACKS = 6              # rollbacks per reply in each budget: lexicon words; guard phrases and transcript echoes
 STOP_TOKENS = ("<|im_end|>", "<|endoftext|>")
 META_WORDS = frozenset({"text", "audio", "posterior", "posteriors", "model", "models", "probability", "probabilities"})
-# prompt phrases that a reply should never repeat
+# prompt phrases that a reply should never repeat (the last two: the system prompt copied)
 ECHO_PHRASES = ("overall reading", "you may name", "any feeling", "example reply", "example notes", "the notes", "the person",
-                "low confidence", "medium confidence", "high confidence")
+                "low confidence", "medium confidence", "high confidence", "desk robot", "each message gives")
 # word runs the decoder rolls back like a forbidden emotion word: the start of the
-# notes copied into the reply
 # notes copied into the reply. a run that could still grow into one is held back from
 # on_delta, so phrases that start with a common first word ("you may name") are left
-# to check_reply
+# to check_reply. a copy of the system prompt ("desk robot") is left to check_reply too:
+# rolled back, the 0.5B model rewords the copy ("You are a small robot. A person just
+# spoke to you ...") instead of answering (notes_C section 8)
 GUARD_PHRASES = tuple(tuple(p.split()) for p in (
     "overall reading", "example reply", "example notes", "the notes", "the person", "low confidence", "medium confidence",
     "high confidence", "they said", "the words sound", "the words suggest", "the words give", "the words were",
@@ -88,6 +93,26 @@ DIRECTION_FACE = {
     "face_surprised": "The face looks more surprised than the words.",
     "mixed": "The face and the words do not match.",
 }
+# a modality line and its direction sentence read different posteriors: the voice line the raw
+# sensevoice mass, the words-voice direction the posterior renormalized over the seven classes; the
+# face line the calibrated face posterior, the words-face direction the raw fer posterior. when the
+# line says no clear emotion and a direction is flagged, the two would contradict each other.
+# GAP_STYLE "lean" makes them one sentence; "direction_posterior" reads the line from the posterior
+# the direction comes from (the lean sentence when that is still unclear)
+VOICE_LEAN = {
+    "tone_more_negative": "The voice gives no clear emotion, but it leans more negative than the words.",
+    "tone_more_positive": "The voice gives no clear emotion, but it leans more positive than the words.",
+    "tone_surprised": "The voice gives no clear emotion, but it leans toward surprise more than the words do.",
+    "mixed": "The voice gives no clear emotion, and it does not quite match the words.",
+}
+FACE_LEAN = {
+    "face_more_negative": "The face gives no clear emotion, but it looks more negative than the words.",
+    "face_more_positive": "The face gives no clear emotion, but it looks more positive than the words.",
+    "face_surprised": "The face gives no clear emotion, but it looks more surprised than the words.",
+    "mixed": "The face gives no clear emotion, and it does not quite match the words.",
+}
+GAP_STYLES = ("lean", "direction_posterior")
+GAP_STYLE = "lean"              # chosen on dev (notes_C section 8)
 
 
 # ---------------------------------------------------------------- prompt
@@ -160,8 +185,20 @@ def default_high_conf(vision_mode: bool, manifest: Path | None = None) -> float:
     return 0.70
 
 
-def evidence(state: dict, low_conf: float, high_conf: float) -> tuple[list[str], list[str], list[str], bool]:
+def _renormalized(p: dict | None) -> dict | None:
+    """an emotion dict renormalized over the seven MELD classes (the voice's other and
+    unknown dropped), as discrepancy.audio7 does for the words-voice direction."""
+    if not p:
+        return None
+    tot = sum(float(p.get(e, 0.0)) for e in EMOTIONS)
+    return {e: float(p.get(e, 0.0)) / tot for e in EMOTIONS} if tot > 0 else None
+
+
+def evidence(state: dict, low_conf: float, high_conf: float,
+             gap_style: str = GAP_STYLE) -> tuple[list[str], list[str], list[str], bool]:
     """(prompt lines, grounding, allowed classes, ask) for one state dict."""
+    if gap_style not in GAP_STYLES:
+        raise ValueError(f"gap_style must be one of {GAP_STYLES}")
     lines: list[str] = []
     grounding: list[str] = []
     degraded = [d for d in (state.get("degraded") or []) if d in ASR_DEGRADED]
@@ -185,31 +222,45 @@ def evidence(state: dict, low_conf: float, high_conf: float) -> tuple[list[str],
         lines.append(_modality_line("words", tops["text"]))
         if tops["text"]:
             grounding.append(f"text.emotion={tops['text'][0]}@{tops['text'][1]:.2f}")
-    tops["audio"] = _top(_get(state, "audio.emotion"))
-    lines.append(_modality_line("voice", tops["audio"]))
-    if tops["audio"]:
-        grounding.append(f"audio.emotion={tops['audio'][0]}@{tops['audio'][1]:.2f}")
+    def flagged(flag: str, path: str, sentences: dict) -> str | None:
+        d = str(_get(state, path, "none"))
+        return d if caught and _get(state, flag, False) and d in sentences else None
+
+    def modality(subject: str, key: str, p: dict | None, direction: str | None, path: str, p_direction: dict | None,
+                 path_direction: str, lean: dict) -> bool:
+        """the modality's line and grounding; True when the direction went into the line (lean)."""
+        tops[key] = _top(p)
+        if direction and gap_style == "direction_posterior":
+            top_d = _top(p_direction)
+            if top_d is not None and top_d[1] >= MODALITY_MIN_P:
+                tops[key], path = top_d, path_direction
+        line = _modality_line(subject, tops[key])
+        merged = direction is not None and line == PHRASES[subject][0]
+        lines.append(lean[direction] if merged else line)
+        if tops[key]:
+            grounding.append(f"{path}={tops[key][0]}@{tops[key][1]:.2f}")
+        return merged
+
+    voice_d = flagged("discrepancy.flag", "discrepancy.direction", DIRECTION_VOICE)
+    audio = _get(state, "audio.emotion")
+    voice_in_line = modality("voice", "audio", audio, voice_d, "audio.emotion", _renormalized(audio), "audio.emotion7", VOICE_LEAN)
     vision = state.get("vision")
+    face_d = face_in_line = None
     if isinstance(vision, dict) and vision.get("present"):
-        tops["vision"] = _top(vision.get("emotion"))
-        lines.append(_modality_line("face", tops["vision"]))
-        if tops["vision"]:
-            grounding.append(f"vision.emotion={tops['vision'][0]}@{tops['vision'][1]:.2f}")
+        face_d = flagged("discrepancy.face_flag", "discrepancy.face_direction", DIRECTION_FACE)
+        face_in_line = modality("face", "vision", vision.get("emotion"), face_d, "vision.emotion", vision.get("raw"), "vision.raw",
+                                FACE_LEAN)
     else:
         lines.append("No face was seen.")
         if isinstance(vision, dict):
             grounding.append("vision.present=false")
 
-    if caught and _get(state, "discrepancy.flag", False):
-        d = str(_get(state, "discrepancy.direction", "none"))
-        if d in DIRECTION_VOICE:
-            lines.append(DIRECTION_VOICE[d])
-            grounding.append(f"discrepancy.direction={d}")
-    if caught and _get(state, "discrepancy.face_flag", False):
-        d = str(_get(state, "discrepancy.face_direction", "none"))
-        if d in DIRECTION_FACE:
-            lines.append(DIRECTION_FACE[d])
-            grounding.append(f"discrepancy.face_direction={d}")
+    for d, in_line, sentences, path in ((voice_d, voice_in_line, DIRECTION_VOICE, "discrepancy.direction"),
+                                        (face_d, face_in_line, DIRECTION_FACE, "discrepancy.face_direction")):
+        if d:
+            if not in_line:
+                lines.append(sentences[d])
+            grounding.append(f"{path}={d}")
 
     if low:
         lines.append("Overall reading: unclear, low confidence.")
@@ -244,10 +295,12 @@ def _example(transcript: str, words: dict | None, voice: dict, face: dict | None
     return "\n".join(lines), reply, allowed
 
 
-# the few-shot examples, rendered by the same function as a live state
+# the few-shot examples, rendered by the same function as a live state. a reply shares no run of
+# ECHO_NGRAM words with its transcript (the prompt says not to repeat their words; tested). example
+# 1's reply was chosen on dev among two that follow that rule (notes_C section 8)
 EXAMPLES = [
     _example("I got the job at the bakery.", {"joy": 0.81}, {"joy": 0.52, "unknown": 0.4}, {"joy": 0.77}, "joy", 0.86,
-             "You got the job at the bakery. You sound happy, and you look it too."),
+             "You sound happy about the new job, and you look it too."),
     _example("It went fine, I guess.", {"neutral": 0.62}, {"neutral": 0.1, "unknown": 0.85}, {"sadness": 0.58}, "sadness", 0.55,
              "You say it went fine, but you look a little sad. What happened?",
              face_flag=True, face_direction="face_more_negative"),
@@ -279,8 +332,8 @@ def system_prompt(examples_in: str = EXAMPLES_IN) -> str:
 SYSTEM_PROMPT = system_prompt()
 
 
-def build_messages(state: dict, low_conf: float, high_conf: float | None = None,
-                   examples_in: str = EXAMPLES_IN) -> tuple[list[dict], list[str], list[str]]:
+def build_messages(state: dict, low_conf: float, high_conf: float | None = None, examples_in: str = EXAMPLES_IN,
+                   gap_style: str = GAP_STYLE) -> tuple[list[dict], list[str], list[str]]:
     """(chat messages, grounding, allowed) for one state dict (spec 4). allowed is
     empty when the fused confidence is below low_conf or the words were not
     caught; the prompt then asks a question and names no feeling. high_conf
@@ -289,7 +342,7 @@ def build_messages(state: dict, low_conf: float, high_conf: float | None = None,
         raise ValueError(f"examples_in must be one of {EXAMPLE_PLACES}")
     if high_conf is None:
         high_conf = default_high_conf("vision" in state)
-    lines, grounding, allowed, _ = evidence(state, float(low_conf), float(high_conf))
+    lines, grounding, allowed, _ = evidence(state, float(low_conf), float(high_conf), gap_style)
     messages = [{"role": "system", "content": system_prompt(examples_in)}]
     if examples_in == "turns":
         for ev, rep, _ in EXAMPLES:
@@ -329,8 +382,9 @@ _WORDS = re.compile(r"[A-Za-z]+")
 def check_reply(text: str, allowed) -> dict:
     """checks of a final reply (spec 4): word count against the prompt's limit,
     exclamation mark, emotion words of classes not in allowed, empty. also the
-    meta words the prompt forbids, phrases copied from the prompt and
-    non-ascii characters. ok is all of them."""
+    meta words the prompt forbids, phrases copied from the prompt, non-ascii
+    characters and non-printable ones (control bytes, line breaks, tabs). ok is
+    all of them."""
     t = str(text or "").strip()
     bad = set(forbidden_classes(allowed))
     forbidden = [w for w, c in emotion_words_in(t) if c in bad]
@@ -339,8 +393,10 @@ def check_reply(text: str, allowed) -> dict:
     echo = [p for p in ECHO_PHRASES if f" {p} " in f" {low} "]
     n = len(t.split())
     out = {"n_words": n, "over_length": n > MAX_REPLY_WORDS, "exclamation": "!" in t, "forbidden_words": forbidden,
-           "empty": not t, "meta_words": meta, "prompt_echo": echo, "non_ascii": not t.isascii()}
-    out["ok"] = not (out["over_length"] or out["exclamation"] or forbidden or out["empty"] or meta or echo or out["non_ascii"])
+           "empty": not t, "meta_words": meta, "prompt_echo": echo, "non_ascii": not t.isascii(),
+           "non_printable": not t.isprintable()}
+    out["ok"] = not (out["over_length"] or out["exclamation"] or forbidden or out["empty"] or meta or echo or out["non_ascii"]
+                     or out["non_printable"])
     return out
 
 
@@ -400,7 +456,8 @@ def token_masks(tok, n_logits: int) -> TokenMasks:
             reg[i] = i not in stop
             continue
         b = bytes(dec[ch] for ch in s)
-        if b"!" in b or b"\n" in b or b"\r" in b or b"\t" in b or any(x >= 128 for x in b):
+        # "!", every ascii control byte (newline, carriage return and tab among them, 0x7f too) and non-ascii bytes
+        if b"!" in b or any(x < 0x20 or x >= 0x7f for x in b):
             reg[i] = True
     return TokenMasks(by_class, np.flatnonzero(reg).astype(np.int64), np.array(stop, dtype=np.int64), n_split)
 
@@ -413,13 +470,16 @@ class GenResult:
     n_tokens: int
     first_token_ms: float
     total_ms: float
-    stop_reason: str                      # eos | max_tokens | deadline
+    stop_reason: str                      # eos | max_tokens | deadline | guard (a violation with no rollback left)
     masked_steps: int                     # steps where the lexicon mask changed the greedy token
     prompt_tokens: int = 0                # tokens prefilled for this reply (the cached system prompt not counted)
     steps: int = 0                        # tokens chosen, including those a rollback undid
-    backtracks: int = 0                   # word-guard rollbacks
+    backtracks: int = 0                   # rollbacks, both budgets
     register_masked_steps: int = 0        # steps where the register mask changed the greedy token
     deltas: list[str] = field(default_factory=list)
+    word_backtracks: int = 0              # rollbacks of a lexicon word (the rest: guard phrases and transcript echoes)
+    decode_passes: int = 0                # forward passes after the first token (rolled-back tokens and the end token's included)
+    rework_passes: int = 0                # of those, the passes of tokens a rollback undid
 
 
 def resolve_model(model_dir: str | Path | None = None, onnx_file: str | None = None) -> tuple[Path, Path]:
@@ -491,7 +551,10 @@ class ReplyGenerator:
         so.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
         # the int8 exports dequantize the uint8 embedding for the lm head on every call (Transpose then
         # DequantizeLinear of a constant); with the qdq transformers off, constant folding does it once
-        # at load. the logits are the same; the session holds the float lm head
+        # at load, about twice as fast per step. the session then holds the float lm head. on the int8
+        # files this changes which graph rewrites run, so the logits are not the same: they move by up
+        # to about 2.5 (the default rewrites themselves move them by about 6 against the unoptimized
+        # graph), and a greedy reply can change (notes decision 13). the q4 files are unaffected
         so.add_session_config_entry("session.disable_quant_qdq", "1")
         t0 = time.perf_counter()
         src = last_position_model(self.onnx_path) if last_logits else None
@@ -578,29 +641,30 @@ class ReplyGenerator:
         hist: list[np.ndarray] = []          # hist[k]: the logits that chose ids[k]
         bans: dict[int, set[int]] = {}
         ends: list[int] = []                 # ends[k]: len of the decoded text after ids[:k+1]
-        sent = 0                             # chars of the text already sent
+        sent = 0                             # chars of the text already sent; 0 until the first word goes out
         deltas: list[str] = []
         first_ms = None
-        masked = reg_masked = steps = backtracks = 0
+        masked = reg_masked = steps = passes = rework = 0
+        used = {"word": 0, "phrase": 0}      # rollbacks per budget: lexicon words; guard phrases and echoes
         stop_reason = "max_tokens"
         text = ""
 
         def tok_at(char: int) -> int:
             return next(k for k, e in enumerate(ends) if e > char)
 
-        def violation(final: bool) -> int | None:
-            """token index to roll back to for the first unsent finished word that is a
-            lexicon word of a class not allowed, or the first word of a finished guard
-            phrase; None when there is none."""
+        def violation(final: bool) -> tuple[int, str] | None:
+            """(token index to roll back to, budget) for the first unsent finished word that
+            is a lexicon word of a class not allowed ("word"), or the first word of a
+            finished guard phrase or transcript echo ("phrase"); None when there is none."""
             ms = list(_WORDS.finditer(text, sent))
             done = len(ms) if final or not ms or ms[-1].end() < len(text) else len(ms) - 1
             low = [m.group(0).lower() for m in ms]
             for i in range(done):
                 if low[i] in bad_words:
-                    return tok_at(ms[i].start())
+                    return tok_at(ms[i].start()), "word"
                 for ph in guard:
                     if i + len(ph) <= done and tuple(low[i:i + len(ph)]) == ph:
-                        return tok_at(ms[i].start())
+                        return tok_at(ms[i].start()), "phrase"
             return None
 
         def hold_from() -> int:
@@ -619,12 +683,15 @@ class ReplyGenerator:
                         return ms[i].start()
             return len(text)
 
-        def rollback(a: int) -> bool:
-            nonlocal ids, hist, ends, logits, past, text, backtracks
+        def rollback(a: int, budget: str, pending: int = 0) -> bool:
+            """undo ids[a:] and ban ids[a] at position a. pending: undone tokens whose forward
+            pass has not run yet (the token just appended), not counted as rework."""
+            nonlocal ids, hist, ends, logits, past, text, rework
             start = ends[a - 1] if a else 0
-            if backtracks >= self.max_backtracks or start < sent:
+            if used[budget] >= self.max_backtracks or start < sent:
                 return False
-            backtracks += 1
+            used[budget] += 1
+            rework += len(ids) - a - pending
             bans.setdefault(a, set()).add(ids[a])
             for k in [k for k in bans if k > a]:
                 del bans[k]
@@ -633,6 +700,11 @@ class ReplyGenerator:
             past = [np.ascontiguousarray(p[:, :, : n_prompt + a]) for p in past]
             text = self._decode(ids)
             return True
+
+        def cut(a: int) -> None:
+            """no rollback left: drop the word at token a and what follows, keep what was sent."""
+            nonlocal text
+            text = text[: max(sent, ends[a - 1] if a else 0)]
 
         while True:
             k = len(ids)
@@ -657,41 +729,50 @@ class ReplyGenerator:
                 first_ms = (time.perf_counter() - t0) * 1000
             hist.append(logits)
             if tok in stop:
-                a = violation(final=True)
-                if a is not None and rollback(a):
+                v = violation(final=True)
+                if v is not None and rollback(*v):
                     continue
                 hist.pop()
                 stop_reason = "eos"
+                if v is not None:
+                    cut(v[0])
+                    stop_reason = "guard"
                 break
             ids.append(tok)
             text = self._decode(ids)
             ends.append(len(text))
-            a = violation(final=False)
-            if a is not None and rollback(a):
-                continue
-            # send every finished word: a word ends at a whitespace that follows a non-space
-            if sent == 0:
-                sent = len(text) - len(text.lstrip())
+            v = violation(final=False)
+            if v is not None:
+                if rollback(v[0], v[1], pending=1):
+                    continue
+                # no rollback left: end the reply at the last word that passed, as at the token budget
+                cut(v[0])
+                stop_reason = "guard"
+                break
+            # send every finished word: a word ends at a whitespace that follows a non-space. leading
+            # whitespace is skipped for the first word, and sent stays 0 until that word goes out, so
+            # the first word can still be rolled back
+            start = sent if deltas else len(text) - len(text.lstrip())
             hold = hold_from()
-            for i in range(sent + 1, hold):
+            for i in range(start + 1, hold):
                 if text[i].isspace() and not text[i - 1].isspace():
-                    deltas.append(text[sent:i])
-                    sent = i
+                    deltas.append(text[start:i])
+                    start = sent = i
                     emit(deltas[-1])
             logits, past = self._run([tok], past, n_prompt + k)
+            passes += 1
 
-        if stop_reason != "eos":
-            a = violation(final=True)
-            if a is not None:
-                # no budget left to decode again: drop the word and what follows
-                text = text[: max(sent, ends[a - 1] if a else 0)]
-        if sent == 0:
-            sent = len(text) - len(text.lstrip())
-        tail = text[sent:].rstrip()
+        if stop_reason in ("max_tokens", "deadline"):
+            v = violation(final=True)
+            if v is not None:
+                cut(v[0])                    # no token budget left to decode again
+        start = sent if deltas else len(text) - len(text.lstrip())
+        tail = text[start:].rstrip()
         if tail:
             deltas.append(tail)
             emit(tail)
         reply = "".join(deltas).strip()
         return GenResult(reply, len(ids), first_ms if first_ms is not None else 0.0, (time.perf_counter() - t0) * 1000,
-                         stop_reason, masked, prompt_tokens=len(rest_ids), steps=steps, backtracks=backtracks,
-                         register_masked_steps=reg_masked, deltas=deltas)
+                         stop_reason, masked, prompt_tokens=len(rest_ids), steps=steps, backtracks=sum(used.values()),
+                         register_masked_steps=reg_masked, deltas=deltas, word_backtracks=used["word"], decode_passes=passes,
+                         rework_passes=rework)

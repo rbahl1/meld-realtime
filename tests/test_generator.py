@@ -7,6 +7,7 @@ skip when it is absent."""
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -125,19 +126,69 @@ def test_no_face_and_core_state():
     assert "No face was seen." in user(msgs) and not any(g.startswith("vision") for g in grounding)
 
 
+CLEAR_VOICE = sv9(unknown=0.3, sadness=0.6, anger=0.1)        # raw sadness mass 0.6: "The voice suggests sadness."
+UNCLEAR_VOICE = sv9(unknown=0.8, anger=0.15, neutral=0.05)     # raw mass below 0.4; renormalized anger 0.75
+
+
 def test_disagreement_sentences_only_when_flagged():
-    st = vstate(face=p7(sadness=0.6), flag=True, direction="tone_more_negative", face_flag=True, face_direction="face_more_negative")
+    st = vstate(audio=CLEAR_VOICE, face=p7(sadness=0.6), flag=True, direction="tone_more_negative", face_flag=True,
+                face_direction="face_more_negative")
     msgs, grounding, _ = G.build_messages(st, LOW, HIGH)
     u = user(msgs)
+    assert "The voice suggests sadness." in u
     assert "The voice sounds more negative than the words." in u and "The face looks more negative than the words." in u
     assert "discrepancy.direction=tone_more_negative" in grounding and "discrepancy.face_direction=face_more_negative" in grounding
     st = vstate(face=p7(sadness=0.6), direction="tone_more_negative", face_direction="face_more_negative")
     u = user(G.build_messages(st, LOW, HIGH)[0])
     assert "more negative" not in u
     for d, line in [*G.DIRECTION_VOICE.items()]:
-        assert line in user(G.build_messages(vstate(flag=True, direction=d), LOW, HIGH)[0])
+        assert line in user(G.build_messages(vstate(audio=CLEAR_VOICE, flag=True, direction=d), LOW, HIGH)[0])
     for d, line in [*G.DIRECTION_FACE.items()]:
         assert line in user(G.build_messages(vstate(face=p7(joy=0.5), face_flag=True, face_direction=d), LOW, HIGH)[0])
+
+
+def test_unclear_voice_and_a_words_voice_direction_do_not_contradict():
+    # the voice line reads the raw mass (no clear emotion here), the direction the renormalized posterior
+    for d in G.DIRECTION_VOICE:
+        st = vstate(text=p7(joy=0.7), audio=UNCLEAR_VOICE, label="joy", flag=True, direction=d)
+        msgs, grounding, allowed = G.build_messages(st, LOW, HIGH)            # GAP_STYLE lean
+        u = user(msgs).split("\n")
+        assert G.VOICE_LEAN[d] in u and "The voice gives no clear emotion." not in u
+        assert not any(line in u for line in G.DIRECTION_VOICE.values())
+        assert f"discrepancy.direction={d}" in grounding and "audio.emotion=anger@0.15" in grounding
+        assert allowed == ["joy"]
+        msgs, grounding, allowed = G.build_messages(st, LOW, HIGH, gap_style="direction_posterior")
+        u = user(msgs).split("\n")
+        assert u[2] == "The voice suggests anger." and G.DIRECTION_VOICE[d] in u
+        assert "audio.emotion7=anger@0.75" in grounding and allowed == ["joy", "anger"]
+    # unflagged: both styles read the raw mass
+    st = vstate(text=p7(joy=0.7), audio=UNCLEAR_VOICE, label="joy")
+    for gap in G.GAP_STYLES:
+        assert "The voice gives no clear emotion." in user(G.build_messages(st, LOW, HIGH, gap_style=gap)[0])
+    with pytest.raises(ValueError):
+        G.build_messages(st, LOW, HIGH, gap_style="loud")
+
+
+def test_unclear_face_and_a_words_face_direction_do_not_contradict():
+    # the face line reads the calibrated face posterior, the direction the raw fer posterior (vision.raw)
+    raw = p7(sadness=0.6)
+    for d in G.DIRECTION_FACE:
+        st = vstate(text=p7(joy=0.7), audio=CLEAR_VOICE, face=p7(sadness=0.3), label="joy", face_flag=True, face_direction=d)
+        st["vision"]["raw"] = dict(zip(EMOTIONS, raw))
+        msgs, grounding, allowed = G.build_messages(st, LOW, HIGH)
+        u = user(msgs).split("\n")
+        assert u[3] == G.FACE_LEAN[d] and "The face gives no clear emotion." not in u
+        assert not any(line in u for line in G.DIRECTION_FACE.values())
+        assert f"discrepancy.face_direction={d}" in grounding and "vision.emotion=sadness@0.30" in grounding
+        assert allowed == ["sadness", "joy"]                                   # sadness from the voice
+        msgs, grounding, allowed = G.build_messages(st, LOW, HIGH, gap_style="direction_posterior")
+        u = user(msgs).split("\n")
+        assert u[3] == "The face suggests sadness." and G.DIRECTION_FACE[d] in u and "vision.raw=sadness@0.60" in grounding
+    # a clear face keeps the two sentences in both styles
+    st = vstate(face=p7(sadness=0.6), face_flag=True, face_direction="face_more_negative")
+    for gap in G.GAP_STYLES:
+        u = user(G.build_messages(st, LOW, HIGH, gap_style=gap)[0]).split("\n")
+        assert "The face suggests sadness." in u and "The face looks more negative than the words." in u
 
 
 def test_neutral_only_names_no_feeling():
@@ -168,11 +219,17 @@ def test_warmup_state_and_default_high_conf(tmp_path):
     assert G.default_high_conf(True, tmp_path / "missing.json") == 0.70
 
 
-def test_examples_follow_their_own_rules():
+def test_examples_follow_their_own_rules(bench):
     assert 2 <= len(G.EXAMPLES) <= 3
     for ev, rep, allowed in G.EXAMPLES:
         assert ev.startswith("They said:") and "Overall reading:" in ev
         assert G.check_reply(rep, allowed)["ok"], rep
+        # "do not repeat their words back to them": no run the echo guard rolls back, and no parrot
+        grams = set(G.transcript_ngrams([{"role": "user", "content": ev}], G.ECHO_NGRAM))
+        w = [x.lower() for x in G._WORDS.findall(rep)]
+        assert grams and not grams & {tuple(w[i:i + G.ECHO_NGRAM]) for i in range(len(w) - G.ECHO_NGRAM + 1)}, rep
+        said = re.match(r'They said: "(.*)"', ev).group(1)
+        assert bench.longest_shared_run(rep, said) < G.ECHO_NGRAM and bench.parrot(rep, said)["transcript"] is False, rep
     assert G.EXAMPLES[-1][2] == []          # one low-confidence example that asks
     for ev, rep, _ in G.EXAMPLES:
         assert ev in G.SYSTEM_PROMPT and rep in G.SYSTEM_PROMPT
@@ -200,7 +257,7 @@ def test_example_turns_and_chatml_split():
 def test_check_reply():
     c = G.check_reply("You sound angry about the car. What happened?", ["anger"])
     assert c == {"n_words": 8, "over_length": False, "exclamation": False, "forbidden_words": [], "empty": False,
-                 "meta_words": [], "prompt_echo": [], "non_ascii": False, "ok": True}
+                 "meta_words": [], "prompt_echo": [], "non_ascii": False, "non_printable": False, "ok": True}
     c = G.check_reply("You sound Angry and sad!", ["sadness"])
     assert c["forbidden_words"] == ["Angry"] and c["exclamation"] and not c["ok"]
     assert G.check_reply("", [])["empty"] and not G.check_reply("  ", [])["ok"]
@@ -208,8 +265,13 @@ def test_check_reply():
     assert not G.check_reply(" ".join(["word"] * 20), [])["over_length"]
     assert G.check_reply("The model says the audio is calm.", [])["meta_words"] == ["model", "audio"]
     assert G.check_reply("Overall reading: joy, high confidence.", ["joy"])["prompt_echo"] == ["overall reading", "high confidence"]
+    assert G.check_reply("You are a small desk robot.", [])["prompt_echo"] == ["desk robot"]      # the system prompt copied
     assert G.check_reply("You sound tired — rest.", [])["non_ascii"]
     assert G.check_reply("You sound happy.", [])["forbidden_words"] == ["happy"]
+    for t in ("You sound\x0btired.", "Okay\x00", "One\x0cTwo", "A\x7f"):
+        c = G.check_reply(t, [])
+        assert c["non_printable"] and not c["non_ascii"] and not c["ok"], repr(t)
+    assert not G.check_reply("You sound tired. Rest, then talk.", [])["non_printable"]
 
 
 # ---------------------------------------------------------------- decode loop on a tiny model
@@ -335,6 +397,9 @@ def test_masks_of_the_small_tokenizer(gen):
     assert v["<|im_end|>"] not in reg and v["<|endoftext|>"] not in reg and v["Ġsound"] not in reg
     assert set(range(len(v), gen.n_logits)) <= reg                      # padding rows
     assert set(gen.masks.stop.tolist()) == {v["<|im_end|>"], v["<|endoftext|>"]}
+    ch = {b: c for c, b in G._byte_decoder().items()}                   # byte -> byte-level token
+    assert all(v[ch[b]] in reg for b in [*range(0x20), 0x7f, 0x80, 0xff])  # ascii control bytes, del, non-ascii
+    assert not any(v[ch[b]] in reg for b in (0x20, ord("a"), ord("."), ord("?"), ord("~")))
 
 
 def test_allowed_class_streams_words(gen):
@@ -342,6 +407,8 @@ def test_allowed_class_streams_words(gen):
     r = gen.generate(MSGS, ["anger"], words.append)
     assert r.text == "You sound angry." and words == ["You", " sound", " angry."] == r.deltas
     assert r.stop_reason == "eos" and r.masked_steps == 0 and r.backtracks == 0 and r.n_tokens == 4 and r.steps == 5
+    # one forward pass per token after the first token, the pass that yields the end token included
+    assert r.decode_passes == 4 and r.rework_passes == 0
     assert r.first_token_ms > 0 and r.total_ms >= r.first_token_ms and r.prompt_tokens > 0
 
 
@@ -352,6 +419,8 @@ def test_mask_then_word_guard_then_register_mask(gen):
     assert r.text == "You sound tired." and words == ["You", " sound", " tired."]
     # the step after " sound" is decided twice (before and after the rollback), and both times the mask acts
     assert r.masked_steps == 2 and r.backtracks == 1 and r.register_masked_steps == 1 and r.steps == 9
+    # passes after You, sound, fr, ustr, ated (the last three undone) and after tired and the final "."
+    assert r.word_backtracks == 1 and r.decode_passes == 7 and r.rework_passes == 3
     assert G.check_reply(r.text, [])["ok"]
     assert gen.generate(MSGS, [], None).text == r.text                  # deterministic, prefix cache reused
     assert len(gen._prefix) == 1
@@ -371,9 +440,12 @@ def test_guard_phrase_is_rolled_back_and_held_back(tmp_path):
 
     r = g.generate(MSGS, ["anger"], on_delta)
     assert r.text == "The voice is ok." and r.backtracks == 1 and words == ["The", " voice", " is", " ok."]
+    # no rollback left: the reply ends at the last word that passed. "They" was held back, so nothing
+    # was sent, the reply is empty and the service answers with the bank line (fallback empty_reply)
     g0 = G.ReplyGenerator(g.onnx_path, threads=1, max_backtracks=0)
-    r0 = g0.generate(MSGS, ["anger"], None)
-    assert r0.text == "They said." and G.check_reply(r0.text, ["anger"])["ok"] is True   # not a check, only guarded
+    words0 = []
+    r0 = g0.generate(MSGS, ["anger"], words0.append)
+    assert r0.text == "" and words0 == [] and r0.stop_reason == "guard" and r0.backtracks == 0
 
 
 def test_transcript_ngrams():
@@ -422,11 +494,39 @@ def test_hold_back_waits_only_inside_a_phrase(tmp_path):
     assert got[0] == ("The", 4)
 
 
-def test_no_rollback_budget_lets_the_check_catch_it(tmp_path):
-    g = G.ReplyGenerator(_fake_lm(tmp_path, ROWS), threads=1, max_backtracks=0)
+def test_no_rollback_budget_ends_the_reply_at_the_last_sent_word(tmp_path):
+    # as at the token budget: the forbidden word is dropped, never streamed, whether the reply
+    # would have gone on or ended right after it
+    for rows in (ROWS, {**ROWS, "ated": ["<|im_end|>"]}):
+        d = tmp_path / str(len(rows["ated"][0]))
+        g = G.ReplyGenerator(_fake_lm(d, rows), threads=1, max_backtracks=0)
+        words = []
+        r = g.generate(MSGS, [], words.append)
+        assert r.text == "You sound" and words == ["You", " sound"] and r.stop_reason == "guard" and r.backtracks == 0
+        assert G.check_reply(r.text, [])["ok"]
+
+
+def test_lexicon_words_and_phrases_have_separate_budgets(tmp_path):
+    # "They said." spends the phrase budget; "frustrated" still gets a rollback from the word budget
+    rows = {"Ċ": ["They", "You"], "They": ["Ġsaid"], "Ġsaid": ["."], "You": ["Ġsound"], "Ġsound": ["Ġfr", "Ġtired"],
+            "Ġfr": ["ustr"], "ustr": ["ated"], "ated": ["."], "Ġtired": ["."], ".": ["<|im_end|>"]}
+    g = G.ReplyGenerator(_fake_lm(tmp_path, rows), threads=1, max_backtracks=1)
     r = g.generate(MSGS, [], None)
-    assert r.text == "You sound frustrated." and r.backtracks == 0
-    assert G.check_reply(r.text, [])["forbidden_words"] == ["frustrated"]
+    assert r.text == "You sound tired." and r.backtracks == 2 and r.word_backtracks == 1 and r.stop_reason == "eos"
+
+
+def test_first_word_with_a_leading_space_can_be_rolled_back(tmp_path):
+    # the first token is " fr" (leading space): " frustrated" is still unsent, so it is rolled back
+    rows = {"Ċ": ["Ġfr", "You"], "Ġfr": ["ustr"], "ustr": ["ated"], "ated": ["."], "You": ["Ġsound"], "Ġsound": ["Ġtired"],
+            "Ġtired": ["."], ".": ["<|im_end|>"]}
+    words = []
+    r = G.ReplyGenerator(_fake_lm(tmp_path / "a", rows), threads=1).generate(MSGS, [], words.append)
+    assert r.text == "You sound tired." and r.backtracks == 1 and words == ["You", " sound", " tired."]
+    # the leading space is not sent: the first delta starts at the word
+    rows = {"Ċ": ["Ġsound"], "Ġsound": ["Ġtired"], "Ġtired": ["."], ".": ["<|im_end|>"]}
+    words = []
+    r = G.ReplyGenerator(_fake_lm(tmp_path / "b", rows), threads=1).generate(MSGS, [], words.append)
+    assert r.text == "sound tired." and words == ["sound", " tired."]
 
 
 def test_budget_deadline_and_exceptions(gen):
@@ -500,6 +600,10 @@ def test_qwen_register_mask(qwen):
     for s in ("!", " !", "\n", " ’"):
         for i in tok.encode(s, add_special_tokens=False).ids[:1]:
             assert i in reg, s
+    # ascii control bytes other than newline and tab, and del: one token each, all masked
+    for b in [*range(0x20), 0x7f]:
+        ids = tok.encode(chr(b), add_special_tokens=False).ids
+        assert len(ids) == 1 and ids[0] in reg, hex(b)
     for s in (" the", " you", ".", ",", "?", " sound", "'s"):
         ids = tok.encode(s, add_special_tokens=False).ids
         assert len(ids) == 1 and ids[0] not in reg, s
@@ -541,9 +645,10 @@ def test_parrot_and_shared_run(bench):
     assert p["example"] and not p["transcript"] and p["example_run"] >= bench.PARROT_RUN
 
 
-def _reply(ok=True, n_tokens=10, first=100.0, total=600.0, masked=0, steps=10, allowed=("joy",), names=True):
+def _reply(ok=True, n_tokens=10, first=100.0, total=600.0, masked=0, steps=11, allowed=("joy",), names=True, passes=10, rework=0):
     return {"key": "1_1", "variant": "gold", "text": "x", "n_tokens": n_tokens, "first_token_ms": first, "first_word_ms": first + 20,
-            "total_ms": total, "stop_reason": "eos", "masked_steps": masked, "steps": steps, "backtracks": 0,
+            "total_ms": total, "stop_reason": "eos", "masked_steps": masked, "steps": steps, "backtracks": 0, "word_backtracks": 0,
+            "decode_passes": passes, "rework_passes": rework,
             "register_masked_steps": 0, "prompt_tokens": 50, "allowed": list(allowed), "names_fused": names,
             "parrot": {"transcript": False, "example": False},
             "checks": {"ok": ok, "n_words": 6, "over_length": False, "exclamation": not ok, "empty": False, "non_ascii": False,
@@ -554,34 +659,52 @@ def test_summarize(bench):
     rs = [_reply(), _reply(ok=False, masked=2, names=False), _reply(allowed=(), names=None)]
     s = bench.summarize(rs)
     assert s["n"] == 3 and s["check_pass_rate"] == pytest.approx(2 / 3, abs=1e-4)
-    assert s["decode_tokens_per_s"] == pytest.approx(27 / 1.5)          # 9 tokens per 0.5 s
-    assert s["masked_step_rate"] == pytest.approx(2 / 30, abs=1e-4) and s["replies_with_masked_step"] == pytest.approx(1 / 3, abs=1e-4)
+    assert s["decode_passes_per_s"] == pytest.approx(30 / 1.5)          # 10 passes per 0.5 s: the end token's counts
+    assert s["decode_tokens_per_s"] == pytest.approx(27 / 1.5)          # the final-reply rate: 9 tokens per 0.5 s
+    assert s["rework_passes"] == {"n": 0, "share": 0.0}
+    assert s["masked_step_rate"] == pytest.approx(2 / 33, abs=1e-4) and s["replies_with_masked_step"] == pytest.approx(1 / 3, abs=1e-4)
+    # rollback rework does not lower the decode rate: 6 more passes in 0.3 s more, at the same speed
+    s2 = bench.summarize([_reply(), _reply(total=900.0, passes=16, rework=6)])
+    assert s2["decode_passes_per_s"] == pytest.approx(20.0) and s2["rework_passes"] == {"n": 6, "share": 0.2308}
+    assert s2["decode_tokens_per_s"] == pytest.approx(18 / 1.3, abs=1e-2)
+    # rows of earlier runs have no pass count: derived from steps, rollbacks and the stop reason
+    old = {"steps": 12, "backtracks": 2, "stop_reason": "eos"}
+    assert bench.passes_of(old) == 9 and bench.passes_of({**old, "stop_reason": "max_tokens"}) == 10
+    assert bench.summarize([{k: v for k, v in _reply().items() if k not in ("decode_passes", "rework_passes")}])["rework_passes"] is None
     assert s["names_fused_class"]["share"] == 0.5 and s["names_fused_class"]["n"] == 2
     assert s["check_failures"]["exclamation"] == 1 and s["low_confidence_replies"] == 1
 
 
-def _res(ft95, tps, p50, ok=1.0):
-    return {"4": {"summary": {"first_token_ms": {"p95": ft95}, "decode_tokens_per_s": tps, "full_reply_ms": {"p50": p50},
-                              "check_pass_rate": ok}}}
+def _res(ft95, pps, ft50, n_tok=10.0, ok=1.0, p50=None):
+    """a 4-thread summary: first-token p95 and p50, decode passes per second, mean tokens per reply."""
+    return {"4": {"summary": {"first_token_ms": {"p95": ft95, "p50": ft50}, "decode_passes_per_s": pps,
+                              "tokens_per_reply": {"mean": n_tok}, "full_reply_ms": {"p50": p50}, "check_pass_rate": ok}}}
 
 
 def test_choice_rule(bench):
     small, big = "Qwen2.5-0.5B-Instruct", "Qwen2.5-1.5B-Instruct"
-    # the largest model that meets both targets; int8 unless q4 is more than 20 % faster with no lower pass rate
-    r = {f"{small}/model_int8.onnx": _res(200, 30, 900), f"{small}/model_q4.onnx": _res(150, 40, 700),
-         f"{big}/model_int8.onnx": _res(340, 16, 1500), f"{big}/model_q4.onnx": _res(300, 20, 1200)}
+    # the largest model that meets both targets; int8 unless q4 is more than 20 % faster on a reply of the same
+    # length (first-token p50 + n_ref passes, n_ref the pooled mean length) with no lower pass rate
+    r = {f"{small}/model_int8.onnx": _res(200, 30, 80), f"{small}/model_q4.onnx": _res(150, 40, 60),
+         f"{big}/model_int8.onnx": _res(340, 16, 150), f"{big}/model_q4.onnx": _res(300, 20, 100)}
     c = bench.choose(r)
-    assert c["deployed"] == f"{big}/model_q4.onnx" and c["meets_targets"]           # 1500 / 1200 = 1.25x faster
-    r[f"{big}/model_q4.onnx"] = _res(300, 20, 1200, ok=0.9)                           # ... but a lower pass rate
+    assert c["deployed"] == f"{big}/model_q4.onnx" and c["meets_targets"]           # 775 / 600 ms = 1.29x faster
+    r[f"{big}/model_q4.onnx"] = _res(300, 20, 100, ok=0.9)                            # ... but a lower pass rate
     assert bench.choose(r)["deployed"] == f"{big}/model_int8.onnx"
-    r[f"{big}/model_q4.onnx"] = _res(300, 20, 1300)                                  # 1.15x: int8 stays
+    r[f"{big}/model_q4.onnx"] = _res(300, 18, 130)                                   # 775 / 686 ms = 1.13x: int8 stays
     assert bench.choose(r)["deployed"] == f"{big}/model_int8.onnx"
-    r[f"{big}/model_int8.onnx"] = _res(360, 16, 1500)                                # int8 misses the first-token target
+    r[f"{big}/model_int8.onnx"] = _res(360, 16, 150)                                 # int8 misses the first-token target
     assert bench.choose(r)["deployed"] == f"{big}/model_q4.onnx"
-    r[f"{big}/model_q4.onnx"] = _res(300, 14, 1300)                                  # and q4 the decode rate: the small model
-    assert bench.choose(r)["deployed"] == f"{small}/model_q4.onnx"                   # 900 / 700 = 1.29x
-    r = {f"{small}/model_int8.onnx": _res(400, 30, 900), f"{small}/model_q4.onnx": _res(380, 10, 700),
-         f"{big}/model_int8.onnx": _res(900, 5, 3000)}
+    r[f"{big}/model_q4.onnx"] = _res(300, 14, 130)                                   # and q4 the decode rate: the small model
+    assert bench.choose(r)["deployed"] == f"{small}/model_q4.onnx"                   # 413 / 310 ms = 1.33x
+    # a file that writes longer replies is not counted as slower: q4's full-reply p50 is the larger one,
+    # but per token it is twice as fast (n_ref 14: 800 vs 440 ms)
+    r = {f"{small}/model_int8.onnx": _res(200, 20, 100, n_tok=8, p50=500), f"{small}/model_q4.onnx": _res(200, 40, 90, n_tok=20, p50=590)}
+    c = bench.choose(r)
+    assert c["deployed"] == f"{small}/model_q4.onnx" and "14.00 tokens" in c["reason"]
+    assert bench.reply_cost_ms(c["candidates"][0], 14) == pytest.approx(800.0)
+    r = {f"{small}/model_int8.onnx": _res(400, 30, 80), f"{small}/model_q4.onnx": _res(380, 10, 60),
+         f"{big}/model_int8.onnx": _res(900, 5, 300)}
     c = bench.choose(r)
     assert c["deployed"] == f"{small}/model_q4.onnx" and c["meets_targets"] is False
     assert c["edit"] == 'DEFAULT_MODEL = "Qwen2.5-0.5B-Instruct", DEFAULT_ONNX = "model_q4.onnx" in meld_rt/response/generator.py'
@@ -657,6 +780,44 @@ def test_bench_main_with_a_tiny_model(bench, vision_ws, tmp_path, monkeypatch):
     assert s["n"] == 6 and s["first_token_ms"]["p50"] > 0 and 0 <= s["check_pass_rate"] <= 1
     assert len(r["examples"]) == 6 and {"key", "evidence", "grounding", "allowed", "text", "checks"} <= set(r["examples"][0])
     assert r["choice"]["reason"] == "no 4-thread results" and r["states"]["source"] == "synthetic"
+
+
+# ---------------------------------------------------------------- fetch_models groups and provenance rows
+
+def test_fetch_models_default_is_core_and_keeps_other_rows(tmp_path, monkeypatch):
+    import hashlib
+    import sys
+
+    sys.path.insert(0, sys_path_tools)
+    import fetch_models as fm
+
+    assert fm.DEFAULT_GROUPS == "core"
+    dest = tmp_path / "models"
+    dest.mkdir()
+    (dest / "a.bin").write_bytes(b"core file")
+    sha = hashlib.sha256(b"core file").hexdigest()
+    table = [fm.Asset("a", "http://127.0.0.1:9/a", "a.bin", sha256=sha),
+             fm.Asset("b", "http://127.0.0.1:9/b", "vision/b.onnx", sha256="0" * 64, group="vision"),
+             fm.Asset("c", "http://127.0.0.1:9/c", "llm/c.onnx", sha256="1" * 64, group="llm")]
+    monkeypatch.setattr(fm, "TABLE", table)
+    prov = tmp_path / "prov.json"
+    earlier = [{"asset": "a", "path": "old", "ok": False}, {"asset": "b", "path": "models/vision/b.onnx", "ok": True, "group": "vision"},
+               {"asset": "c", "path": "models/llm/c.onnx", "ok": True, "group": "llm"}, {"asset": "gone", "ok": True}]
+    prov.write_text(json.dumps({"files": earlier}))
+    args = ["--dest", str(dest), "--dl-dir", str(tmp_path / "dl"), "--provenance", str(prov), "--check"]
+    # the default checks the core group only: its row is rewritten, the vision and llm rows are kept as they were
+    assert fm.main(args) == 0
+    out = json.loads(prov.read_text())
+    assert [r["asset"] for r in out["files"]] == ["a", "b", "c"] and out["all_ok"] is True
+    assert out["files"][0]["sha256"] == sha and out["files"][1:] == earlier[1:3]
+    # a group that is checked and missing makes the exit status and all_ok false; the unchecked row stays
+    assert fm.main([*args, "--groups", "core,vision"]) == 1
+    out = json.loads(prov.read_text())
+    assert [r["asset"] for r in out["files"]] == ["a", "b", "c"] and out["all_ok"] is False
+    assert out["files"][1]["exists"] is False and out["files"][2] == earlier[2]
+    # no earlier file: only the checked rows
+    prov.unlink()
+    assert fm.main(args) == 0 and [r["asset"] for r in json.loads(prov.read_text())["files"]] == ["a"]
 
 
 # ---------------------------------------------------------------- parameter count of a quantized LLM
