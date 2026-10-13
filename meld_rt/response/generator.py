@@ -167,7 +167,7 @@ def _transcript(text: str) -> str:
 @functools.lru_cache(maxsize=4)
 def _manifest_thresholds(path: str) -> dict:
     try:
-        m = json.loads(Path(path).read_text())
+        m = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
     return {"core": m.get("thresholds") or {}, "vision": (m.get("vision") or {}).get("thresholds") or {}}

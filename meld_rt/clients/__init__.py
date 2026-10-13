@@ -3,6 +3,7 @@ monitor (subscriber that prints and logs). shared socket helpers live here."""
 
 from __future__ import annotations
 
+import sys
 import time
 
 import zmq
@@ -10,6 +11,16 @@ import zmq
 from meld_rt import protocol as P
 
 SEND_TIMEOUT_MS = 5000
+
+
+def utf8_stdio(platform: str | None = None) -> None:
+    """windows: print utf-8 to stdout and stderr. a pipe or a file there gets the ansi code page,
+    which cannot encode every transcript (ex. cjk from sensevoice). other platforms are left as they are."""
+    if (platform or sys.platform) != "win32":
+        return
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
 
 
 def connect_push(addr: str = P.IN_ADDR) -> zmq.Socket:

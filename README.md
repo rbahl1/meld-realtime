@@ -10,7 +10,7 @@ Everything runs locally on the CPU through onnxruntime: Silero VAD for end-point
 ./demo.sh
 ```
 
-The script starts the service, a monitor and the replay client, streams one clip at real-time pace, prints every provisional state, the final state and the reply, and writes every message to [results/demo_log.jsonl](results/demo_log.jsonl). The default clip is `proxy/dev_0001.wav` (made by `tools/make_proxy_clips.py`), else `en.wav` from the SenseVoice release. `THREADS` (4), `ENDPOINT_MS` (500) and `DEMO_LOG` change the settings.
+The script starts the service, a monitor and the replay client, streams one clip at real-time pace, prints every provisional state, the final state and the reply, and writes every message to [results/demo_log.jsonl](results/demo_log.jsonl). The default clip is `proxy/dev_0001.wav` (made by `tools/make_proxy_clips.py`), else `en.wav` from the SenseVoice release. `THREADS` (4), `ENDPOINT_MS` (500) and `DEMO_LOG` change the settings. `demo.py` runs the same steps without bash ("Windows" below).
 
 The committed log came from `./demo.sh models/sensevoice/test_wavs/en.wav` at the default endpoint silence of 500 ms, with the heads trained on MELD audio in `heads/`. `tools/render_demo_docs.py` writes the rest of this section from that log. `demo.sh` ends with this summary:
 
@@ -357,6 +357,7 @@ With `--vision --reply llm` the extension adds these:
 | fine-tuning SenseVoice, wav2vec2 or HuBERT | left out |
 | a spoken reply | left out: Piper only makes the proxy clips |
 | macOS | not measured |
+| Windows 11 | not run or measured as of yet ("Windows" below) |
 
 [docs/design.md](docs/design.md) (section 1.13) and [docs/decisions.md](docs/decisions.md) give the reasons.
 
@@ -397,9 +398,44 @@ The sha256 printed by the second command should be the LFS hash (`x-linked-etag`
 
 [docs/runbook_laptop.md](docs/runbook_laptop.md) lists the commands for the laptop in order: setup, the measurements, the live microphone session, the camera session and the benches with video, how to re-render [results/measurements.md](results/measurements.md), and the listening audit.
 
+## Windows
+
+The laptop runs Windows 11. The code has Windows branches where Windows differs, and the Python commands of this README work the same in PowerShell. Nothing in this repository was run or measured on Windows as of yet. Setup, in PowerShell, with a new window after the first three commands so that `uv` and `ffmpeg` are on the path:
+
+```
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+winget install --id Gyan.FFmpeg -e
+winget install --id Microsoft.VCRedist.2015+.x64 -e
+uv sync --extra mic
+uv run python tools/fetch_models.py --dest models/
+uv run python tools/fetch_meld_csv.py
+uv run python tools/make_proxy_clips.py
+uv run pytest -q
+```
+
+`uv sync` installs Python 3.12 (`.python-version`) and the locked packages. Every package of the default install and of the `mic`, `vision`, `prosody` and `tts` extras has a wheel for Windows on x86-64. The sounddevice wheel for Windows includes PortAudio, so the microphone client needs no other library. onnxruntime needs the Microsoft Visual C++ runtime, which the third line installs. ffmpeg is only needed for MELD audio and MP4 files, as on Ubuntu. `.gitattributes` sets LF line endings, so a clone made with Git for Windows keeps them.
+
+`demo.sh` and `demo_tav.sh` need bash. `demo.py` runs the same steps, reads the same environment variables and prints the same lines:
+
+```
+uv run python demo.py
+$env:DEMO_MP4 = "C:\path\to\dia4_utt7.mp4"; uv run python demo.py --tav
+```
+
+`$env:` sets a variable for the rest of the PowerShell session, unlike the `VAR=value` prefix of bash. The service, the monitor and the clients run with the commands of "Running the service and the clients". [docs/runbook_laptop.md](docs/runbook_laptop.md) gives the laptop steps in PowerShell, and `tools/render_measurements.py` renders the measurements file on Windows with the same command. These are the differences:
+
+- The monotonic clock of Python 3.12 on Windows is `GetTickCount64()` ([What's New In Python 3.13](https://docs.python.org/3.13/whatsnew/3.13.html)). That clock moves only in the steps of the system timer ([GetTickCount64](https://learn.microsoft.com/en-us/windows/win32/api/sysinfoapi/nf-sysinfoapi-gettickcount64)). On Windows the service and the clients take their time stamps from the performance counter instead (`meld_rt/protocol.py`), so the latency fields keep their resolution.
+- Windows has no load average. The bench files record an empty list, and [results/measurements.md](results/measurements.md) reads "not available on that OS".
+- Without `lscpu` and `/proc`, the host block and the bench records take the CPU name from `Win32_Processor`, the memory from psutil and the CPU flags from numpy's CPU detection. numpy does not report the AMX flags, so they read "unknown".
+- psutil reports the working set as the RSS of a process on Windows. The peak RSS rows of a Windows bench are the peak working set.
+- `mic --list-devices` lists each microphone once per Windows audio API (ex. MME, WASAPI) and then the default sample rate of each input. The client asks the device for 16 kHz. When a device refuses that rate, `--samplerate` set to its default rate opens it, and the client resamples to 16 kHz. A WASAPI device is opened with the sample rate conversion of WASAPI. The start line names the audio API and the input latency that PortAudio reports.
+- The camera opens through Media Foundation first, as OpenCV orders the backends, with the hardware transforms of Media Foundation off. `--camera-backend dshow` uses DirectShow instead. The camera summary names the backend.
+- Windows PowerShell passes `~` to Python as it is, so the paths in the runbook use `$HOME\`.
+- The training and feature extraction tools were not tried on Windows.
+
 ## macOS
 
-On macOS, Homebrew takes the place of apt: `brew install portaudio` for the microphone client and `brew install ffmpeg` for MELD audio and MP4 files. Nothing was run or measured on macOS. The host block of [results/measurements.md](results/measurements.md) reads `lscpu`, `free` and `/proc`, which macOS does not have, so there the CPU model and the memory would read "unknown" and every CPU flag "no".
+On macOS, Homebrew takes the place of apt: `brew install portaudio` for the microphone client and `brew install ffmpeg` for MELD audio and MP4 files. Nothing was run or measured on macOS. The host block of [results/measurements.md](results/measurements.md) reads `lscpu`, `free` and `/proc`, which macOS does not have. There the CPU name comes from `platform.processor()`, the memory from psutil and the CPU flags from numpy's CPU detection, as on Windows.
 
 ## Repository layout
 
@@ -415,6 +451,7 @@ tests/            pytest suite
 docs/             design.md, decisions.md, runbook_laptop.md
 demo.sh           one utterance through the system
 demo_tav.sh       one MELD clip with face, voice and words, and a streamed reply
+demo.py           both demos without bash (Windows)
 RESULTS.md        evaluation summary
 PROVENANCE.md     external files, hashes and licences
 AI_USE.md         how an AI coding agent was used

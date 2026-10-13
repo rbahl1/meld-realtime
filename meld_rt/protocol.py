@@ -8,6 +8,9 @@ clocks: the media clock (cumulative samples / 16000 since `start`) is the only
 clock inside state fields. t_capture_ns is the client's monotonic clock and
 t_service_recv_ns / t_emitted_ns the service's; they are never subtracted from
 each other unless client and service share a host (the monitor does that).
+the host clock is time.monotonic_ns, except on windows: there python 3.12's
+monotonic clock is GetTickCount64 (15.6 ms steps), so now_ns reads
+time.perf_counter_ns (QueryPerformanceCounter, the same clock in every process).
 
 extension (spec 3.1): a `video` input carries one jpeg frame stamped with its
 media time t_media. the replay client stamps a frame with its presentation time
@@ -24,6 +27,7 @@ from __future__ import annotations
 
 import json
 import math
+import sys
 import time
 
 import numpy as np
@@ -51,9 +55,25 @@ JPEG_QUALITY = 80
 JPEG_SOI = b"\xff\xd8"
 
 
+def host_clocks(platform: str = sys.platform):
+    """(ns clock, s clock) of now_ns and now_s on this platform. windows takes the
+    performance counter: python 3.12's monotonic clock there moves in 15.6 ms steps."""
+    if platform == "win32":
+        return time.perf_counter_ns, time.perf_counter
+    return time.monotonic_ns, time.monotonic
+
+
+_CLOCK_NS, _CLOCK_S = host_clocks()
+
+
 def now_ns() -> int:
-    """monotonic wall clock of this process, ns."""
-    return time.monotonic_ns()
+    """monotonic wall clock of this host, ns (shared by the processes on it)."""
+    return _CLOCK_NS()
+
+
+def now_s() -> float:
+    """now_ns in seconds, for pacing against it."""
+    return _CLOCK_S()
 
 
 def _json_default(o):

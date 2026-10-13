@@ -33,11 +33,22 @@ DIRECTION_WORDS = {"tone_more_negative": "the voice is less positive than the wo
                    "mixed": "the valences do not differ enough for a direction"}
 
 
+def summary_code(root: Path, script: str = "demo.sh") -> str:
+    """the python block of demo.sh (or demo_tav.sh) that prints the summary. demo.py runs the same block."""
+    demo = (root / script).read_text(encoding="utf-8")
+    return demo.split("<<'EOF'\n", 1)[1].split("\nEOF", 1)[0]
+
+
+def utf8_flags(platform: str | None = None) -> list[str]:
+    """windows: -X utf8 for a child python, whose stdout to a pipe would otherwise use the ansi code page."""
+    return ["-X", "utf8"] if (platform or sys.platform) == "win32" else []
+
+
 def demo_summary(root: Path, log: Path, script: str = "demo.sh") -> str:
     """the summary demo.sh (or demo_tav.sh) prints, from the python block of the script itself."""
-    demo = (root / script).read_text(encoding="utf-8")
-    code = demo.split("<<'EOF'\n", 1)[1].split("\nEOF", 1)[0]
-    return subprocess.run([sys.executable, "-I", "-c", code, str(log)], capture_output=True, text=True, check=True).stdout.rstrip("\n")
+    code = summary_code(root, script)
+    return subprocess.run([sys.executable, "-I", *utf8_flags(), "-c", code, str(log)], capture_output=True, text=True,
+                          encoding="utf-8", check=True).stdout.rstrip("\n")
 
 
 def blocks(root: Path) -> tuple[str, str, str]:
@@ -202,7 +213,7 @@ def main(argv: list[str] | None = None) -> int:
         print("up to date" if not stale else "out of date: " + ", ".join(str(p) for p in stale))
         return 1 if stale else 0
     for p in stale:
-        p.write_text(paths[p], encoding="utf-8")
+        p.write_text(paths[p], encoding="utf-8", newline="\n")
     print(f"rewrote {', '.join(str(p) for p in stale) or 'nothing, both files match the log'}")
     return 0
 

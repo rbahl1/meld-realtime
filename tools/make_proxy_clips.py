@@ -105,14 +105,14 @@ def main(argv: list[str] | None = None) -> int:
         if i % 20 == 0 or i == len(utts):
             print(f"{i}/{len(utts)} clips, {total_s:.1f} s of audio, {time.perf_counter() - t1:.1f} s wall", flush=True)
     t_synth = time.perf_counter() - t1
-    (a.out / "manifest.json").write_text(json.dumps(rows, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    (a.out / "manifest.json").write_text(json.dumps(rows, ensure_ascii=False, indent=1) + "\n", encoding="utf-8", newline="\n")
     meta = {"split": a.split, "n": len(rows), "voice": voice, "sr": SR, "tts": "piper via sherpa-onnx",
             "load_s": round(t_load, 2), "synth_wall_s": round(t_synth, 2), "audio_s": round(total_s, 2),
             "rtf": round(t_synth / total_s, 4) if total_s else None,
             "duration_mean_s": round(total_s / len(rows), 3) if rows else None,
             "duration_max_s": max((r["duration_s"] for r in rows), default=None),
             "labels": {lab: sum(1 for r in rows if r["label"] == lab) for lab in sorted({r["label"] for r in rows})}}
-    (a.out / "manifest_meta.json").write_text(json.dumps(meta, indent=1) + "\n", encoding="utf-8")
+    (a.out / "manifest_meta.json").write_text(json.dumps(meta, indent=1) + "\n", encoding="utf-8", newline="\n")
     print(json.dumps(meta))
     return 0
 

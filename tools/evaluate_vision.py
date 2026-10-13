@@ -121,7 +121,7 @@ def label_flips(y: np.ndarray, pred_a: np.ndarray, pred_b: np.ndarray) -> dict:
 
 
 def run(cache: Path, heads_dir: Path, meld: Path, audio_dir: Path) -> tuple[dict, dict, dict]:
-    manifest = json.loads((heads_dir / "manifest.json").read_text())
+    manifest = json.loads((heads_dir / "manifest.json").read_text(encoding="utf-8"))
     vis = manifest.get("vision")
     if not vis or vis.get("status") != "trained":
         raise SystemExit(f"{heads_dir / 'manifest.json'} has no trained vision section (run tools/train_vision.py)")
@@ -324,8 +324,8 @@ def main(argv: list[str] | None = None) -> int:
     js.parent.mkdir(parents=True, exist_ok=True)
     payload = {"command": cmd, "split": "test", "n_resamples": N_RESAMPLES, "seed": SEED, "wall_s": round(time.perf_counter() - t0, 1),
                **meta, "conditions": results}
-    js.write_text(json.dumps(payload, indent=1))
-    md.write_text(render(results, meta, cmd))
+    js.write_text(json.dumps(payload, indent=1), encoding="utf-8", newline="\n")
+    md.write_text(render(results, meta, cmd), encoding="utf-8", newline="\n")
     for name, r in results.items():
         status = f"wF1 {100 * r['weighted_f1']:.2f}  n {r['n']}" if r["status"] == "done" else r["status"]
         print(f"{name:28s} {status}")

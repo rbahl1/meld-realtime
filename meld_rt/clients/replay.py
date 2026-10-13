@@ -20,6 +20,7 @@ usage: python -m meld_rt.clients.replay --wav FILE [--realtime] [--stream-id s1]
 from __future__ import annotations
 
 import argparse
+import shutil
 import subprocess
 import sys
 import time
@@ -29,7 +30,7 @@ import numpy as np
 import soundfile as sf
 
 from meld_rt import protocol as P
-from meld_rt.clients import connect_push, wait_ready
+from meld_rt.clients import connect_push, utf8_stdio, wait_ready
 
 VIDEO_FPS = 10.0
 VIDEO_WIDTH = 640
@@ -56,11 +57,11 @@ def load_wav(path: Path) -> np.ndarray:
 def send_frames(push, frames: list[np.ndarray], stream_id: str, seq0: int = 0, realtime: bool = False,
                 t0: float | None = None) -> int:
     """push frames with increasing seq; realtime paces them at 32 ms on this
-    host's monotonic clock from t0. returns the next seq."""
-    t0 = time.monotonic() if t0 is None else t0
+    host's monotonic clock (P.now_s) from t0. returns the next seq."""
+    t0 = P.now_s() if t0 is None else t0
     for i, f in enumerate(frames):
         if realtime:
-            wait = t0 + i * P.FRAME_S - time.monotonic()
+            wait = t0 + i * P.FRAME_S - P.now_s()
             if wait > 0:
                 time.sleep(wait)
         push.send_multipart(P.audio_msg(stream_id, seq0 + i, P.now_ns(), f.tobytes()))
@@ -74,9 +75,9 @@ def replay(push, pcm16: np.ndarray, stream_id: str, realtime: bool, tail_s: floa
     tail = P.pcm16_frames(np.zeros(int(tail_s * P.SR), np.int16))
     if start:
         push.send_multipart(P.ctl_msg(stream_id, "start"))
-    t0 = time.monotonic()
+    t0 = P.now_s()
     seq = send_frames(push, frames + tail, stream_id, seq0=seq0, realtime=realtime, t0=t0)
-    wall = time.monotonic() - t0
+    wall = P.now_s() - t0
     if stop:
         push.send_multipart(P.ctl_msg(stream_id, "stop"))
     return {"frames": len(frames), "tail_frames": len(tail), "media_s": round(seq * P.FRAME_S, 3),
@@ -89,10 +90,20 @@ def send_text(push, stream_id: str, text: str, seq: int = 0) -> None:
 
 # -- video (spec 3.3) --------------------------------------------------------
 
+def ffmpeg_tool(name: str, platform: str | None = None) -> str:
+    """the ffmpeg or ffprobe command. on windows a missing one is a clear error instead of
+    FileNotFoundError [WinError 2]. elsewhere the name goes to subprocess as before."""
+    if (platform or sys.platform) == "win32" and shutil.which(name) is None:
+        raise RuntimeError(f"{name} is not on PATH: install ffmpeg (winget install --id Gyan.FFmpeg -e) "
+                           "and open a new terminal")
+    return name
+
+
 def probe_size(path: Path) -> tuple[int, int]:
     """(width, height) of the first video stream (ffprobe)."""
-    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
-                        "-of", "csv=p=0", str(path)], capture_output=True, text=True, timeout=60, check=False)
+    r = subprocess.run([ffmpeg_tool("ffprobe"), "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+                        "-of", "csv=p=0", str(path)], capture_output=True, text=True, encoding="utf-8", errors="replace",
+                       timeout=60, check=False)
     try:
         w, h = (int(v) for v in r.stdout.strip().split(",")[:2])
     except ValueError:
@@ -105,7 +116,7 @@ def decode_frames(path: Path, fps: float = VIDEO_FPS, width: int = VIDEO_WIDTH) 
     the aspect ratio, rounded to an even number (tools/extract_video_features.py)."""
     w, h = probe_size(path)
     hh = round(h * width / w / 2.0) * 2
-    r = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-threads", "1", "-i", str(path),
+    r = subprocess.run([ffmpeg_tool("ffmpeg"), "-nostdin", "-v", "error", "-threads", "1", "-i", str(path),
                         "-vf", f"fps={fps},scale={width}:{hh}", "-f", "rawvideo", "-pix_fmt", "bgr24", "-"],
                        capture_output=True, timeout=600, check=False)
     if r.returncode != 0:
@@ -117,7 +128,7 @@ def decode_frames(path: Path, fps: float = VIDEO_FPS, width: int = VIDEO_WIDTH) 
 
 def decode_audio(path: Path) -> np.ndarray:
     """int16 mono 16 khz of the first audio stream, with the options of tools/extract_audio.py."""
-    r = subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-i", str(path), "-map", "0:a:0", "-ac", "1",
+    r = subprocess.run([ffmpeg_tool("ffmpeg"), "-nostdin", "-v", "error", "-i", str(path), "-map", "0:a:0", "-ac", "1",
                         "-ar", str(P.SR), "-c:a", "pcm_s16le", "-f", "s16le", "-"],
                        capture_output=True, timeout=600, check=False)
     if r.returncode != 0:
@@ -148,11 +159,11 @@ def send_av(push, frames: list[np.ndarray], jpegs: list[bytes], w: int, h: int, 
             t0: float | None = None) -> tuple[int, int]:
     """push audio frames and jpeg video frames on one media-time schedule from t0_media;
     realtime paces each item at t0 + (its media time - t0_media) on this host's monotonic
-    clock. returns the next (audio seq, video seq)."""
-    t0 = time.monotonic() if t0 is None else t0
+    clock (P.now_s). returns the next (audio seq, video seq)."""
+    t0 = P.now_s() if t0 is None else t0
     for t, kind, i in media_schedule(len(frames), len(jpegs), fps, t0_media):
         if realtime:
-            wait = t0 + (t - t0_media) - time.monotonic()
+            wait = t0 + (t - t0_media) - P.now_s()
             if wait > 0:
                 time.sleep(wait)
         if kind == "audio":
@@ -169,9 +180,9 @@ def replay_video(push, clip: dict, stream_id: str, realtime: bool, tail_s: float
     tail = P.pcm16_frames(np.zeros(int(tail_s * P.SR), np.int16))
     if start:
         push.send_multipart(P.ctl_msg(stream_id, "start"))
-    t0 = time.monotonic()
+    t0 = P.now_s()
     seq, vseq = send_av(push, frames + tail, clip["jpegs"], clip["w"], clip["h"], clip["fps"], stream_id, realtime, t0=t0)
-    wall = time.monotonic() - t0
+    wall = P.now_s() - t0
     if stop:
         push.send_multipart(P.ctl_msg(stream_id, "stop"))
     return {"frames": len(frames), "tail_frames": len(tail), "video_frames": vseq, "media_s": round(seq * P.FRAME_S, 3),
@@ -194,6 +205,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="wait up to S seconds for a health message with models_loaded on --out-addr before sending")
     ap.add_argument("--out-addr", default=P.OUT_ADDR)
     a = ap.parse_args(argv)
+    utf8_stdio()
     if sum(x is not None for x in (a.wav, a.text, a.video)) != 1:
         ap.error("give exactly one of --wav, --video or --text")
     if a.wait_ready > 0 and wait_ready(a.out_addr, a.wait_ready) is None:

@@ -911,7 +911,7 @@ def main(argv: list[str] | None = None) -> int:
     gens = a.generator if a.generator is not None else sorted((ROOT / "results").glob("generator_bench_*.json"))
     ext = {"vision": load(a.vision_metrics), "commit": load(a.commit_policy), "generator": [x for x in map(load, gens) if x],
            "replay": load(a.replay_video)}
-    a.out.write_text(render(met, man, cmd, rel(a.metrics), rel(a.manifest), ext), encoding="utf-8")
+    a.out.write_text(render(met, man, cmd, rel(a.metrics), rel(a.manifest), ext), encoding="utf-8", newline="\n")
     print(f"wrote {a.out}")
     return 0
 

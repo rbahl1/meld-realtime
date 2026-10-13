@@ -70,7 +70,7 @@ class Pull:
         while time.monotonic() < deadline:
             if self.sock.poll(50):
                 topic, hdr, payload = P.parse_in(self.sock.recv_multipart())
-                self.msgs.append((time.monotonic(), topic, hdr, payload))
+                self.msgs.append((P.now_s(), topic, hdr, payload))
                 if until_stop and topic == "ctl" and hdr["cmd"] == "stop":
                     break
         return self.msgs
@@ -132,7 +132,7 @@ def test_replay_video_sends_both_streams_in_media_order(mp4s, pull):
 def test_replay_video_realtime_pacing(mp4s, pull):
     clip = load_video(mp4s["short"])
     push = connect_push(pull.addr)
-    t0 = time.monotonic()
+    t0 = P.now_s()
     try:
         r = replay_video(push, clip, "s1", realtime=True, tail_s=0.0)
     finally:
@@ -315,7 +315,7 @@ def test_monitor_lines_for_vision_commit_and_streamed_reply(tmp_path):
     assert lines[2] == "reply~ s1 utt=4:You sound happy."
     assert lines[3].startswith("reply  s1 utt=4 'You sound happy.'") and "source=llm" in lines[3] and "first_delta=210.0ms" in lines[3]
     assert not any(line.startswith("health") for line in lines)     # held back while the reply line was open
-    rows = [json.loads(x) for x in (tmp_path / "log.jsonl").read_text().splitlines()]
+    rows = [json.loads(x) for x in (tmp_path / "log.jsonl").read_text(encoding="utf-8").splitlines()]
     assert [r["topic"] for r in rows] == ["state.commit", "state.final"] + ["response.delta"] * 3 + ["health", "response"]
     assert rows[2]["after_final_ms"] == 2.0
 

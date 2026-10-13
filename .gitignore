@@ -12,3 +12,6 @@ verify_dl/
 .DS_Store
 papers/
 meld/
+MELD.Raw/
+MELD.Raw.tar.gz
+/*.jsonl

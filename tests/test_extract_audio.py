@@ -115,7 +115,7 @@ def check_outputs(out: Path, sources: dict) -> None:
 
 
 def check_missing(out: Path, layout: str) -> dict:
-    rep = json.loads((out / "missing.json").read_text())
+    rep = json.loads((out / "missing.json").read_text(encoding="utf-8"))
     no_clip, corrupt = "{}_{}".format(*DEV_NO_CLIP), "{}_{}".format(*DEV_CORRUPT)
     assert rep["count"] == 2
     assert rep["keys"] == {"train": [], "dev": [no_clip, corrupt]}
@@ -165,7 +165,7 @@ def test_mirror_layout(tmp_path, sources, meld):
 
     # a rerun for one split keeps the other split's entry
     assert extract_audio.main(["--raw", str(raw), "--out", str(out), "--meld", str(meld), "--split", "train"]) == 0
-    rep = json.loads((out / "missing.json").read_text())
+    rep = json.loads((out / "missing.json").read_text(encoding="utf-8"))
     assert set(rep["splits"]) == {"train", "dev"} and rep["count"] == 2
 
 
@@ -185,5 +185,5 @@ def test_nothing_found(tmp_path, meld):
     (tmp_path / "empty" / "dev.tar.gz").write_bytes(b"")
     out = tmp_path / "audio"
     assert extract_audio.main(["--raw", str(tmp_path / "empty"), "--out", str(out), "--meld", str(meld), "--split", "dev"]) == 1
-    rep = json.loads((out / "missing.json").read_text())
+    rep = json.loads((out / "missing.json").read_text(encoding="utf-8"))
     assert rep["count"] == 5 and "dev.tar.gz" in rep["splits"]["dev"]["hint"]

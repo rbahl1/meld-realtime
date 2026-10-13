@@ -35,7 +35,7 @@ def proxy_clip() -> Path | None:
     man = ROOT / "proxy/manifest.json"
     if not man.exists():
         return None
-    for row in json.loads(man.read_text()):
+    for row in json.loads(man.read_text(encoding="utf-8")):
         p = ROOT / "proxy" / row["file"]
         if row.get("duration_s", 0) >= 2.5 and p.exists():
             return p
@@ -186,9 +186,9 @@ def test_sequence_gap_marks_audio_gap(client):
 
     def send():
         client.push.send_multipart(P.ctl_msg(sid, "start"))
-        t0 = time.monotonic()
+        t0 = P.now_s()     # the pacing clock of send_frames
         seq = send_frames(client.push, frames[:cut], sid, seq0=0, realtime=True, t0=t0)
-        send_frames(client.push, frames[cut:] + tail, sid, seq0=seq + skip, realtime=True, t0=time.monotonic())
+        send_frames(client.push, frames[cut:] + tail, sid, seq0=seq + skip, realtime=True, t0=P.now_s())
         client.push.send_multipart(P.ctl_msg(sid, "stop"))
 
     sender = threading.Thread(target=send, daemon=True)

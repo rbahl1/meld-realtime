@@ -161,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
     cmd = "python tools/meld_stats.py " + " ".join(sys.argv[1:] if argv is None else argv)
     text = render(stats, inputs, cmd)
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(text, encoding="utf-8")
+    args.out.write_text(text, encoding="utf-8", newline="\n")
     print(text)
     return 0
 

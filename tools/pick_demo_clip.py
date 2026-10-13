@@ -65,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
         "command": "python tools/pick_demo_clip.py",
     }
     a.out.parent.mkdir(parents=True, exist_ok=True)
-    a.out.write_text(json.dumps(out, indent=1) + "\n", encoding="utf-8")
+    a.out.write_text(json.dumps(out, indent=1) + "\n", encoding="utf-8", newline="\n")
     print(f"{len(chosen)} clips meet the rule, chosen {out['chosen']['key'] if chosen else None} -> {a.out}")
     return 0
 

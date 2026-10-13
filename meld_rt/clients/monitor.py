@@ -23,7 +23,7 @@ from pathlib import Path
 import zmq
 
 from meld_rt import protocol as P
-from meld_rt.clients import connect_sub
+from meld_rt.clients import connect_sub, utf8_stdio
 
 
 def _top(d: dict) -> str:
@@ -102,7 +102,8 @@ class Monitor:
     def __init__(self, addr: str = P.OUT_ADDR, jsonl: Path | None = None, quiet: bool = False,
                  topics: tuple[str, ...] = (), out=None):
         self.sub = connect_sub(addr, topics)
-        self.jsonl = open(jsonl, "a", encoding="utf-8") if jsonl else None  # noqa: SIM115 - closed in close()
+        # newline="\n": one "\n" per row on windows too
+        self.jsonl = open(jsonl, "a", encoding="utf-8", newline="\n") if jsonl else None  # noqa: SIM115 - closed in close()
         self.quiet = quiet
         self.out = out or sys.stdout
         self.counts: dict[str, int] = {}
@@ -185,6 +186,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--idle-s", type=float, default=0.0, help="exit after this long without a non-health message")
     ap.add_argument("--max-s", type=float, default=0.0, help="exit after this many seconds")
     a = ap.parse_args(argv)
+    utf8_stdio()
+    if a.jsonl and sys.platform == "win32":
+        # windows powershell 5.1 and cmd pass ~ through, and the log would land in a folder named ~ here
+        a.jsonl = a.jsonl.expanduser()
     if a.jsonl:
         a.jsonl.parent.mkdir(parents=True, exist_ok=True)
     mon = Monitor(a.addr, a.jsonl, a.quiet, tuple(a.topics))

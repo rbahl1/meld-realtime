@@ -109,7 +109,7 @@ def test_main_writes_json_and_table(tmp_path, two_phrases, capsys):
     # the glob matches both files; the second pattern finds nothing new, so one group
     assert ps.main(["--wavs", str(tmp_path / "*.wav"), str(wav), "--label", "t", "--bench", str(bench),
                     "--out", str(out)]) == 0
-    d = json.loads(out.read_text())
+    d = json.loads(out.read_text(encoding="utf-8"))
     assert d["label"] == "t" and d["n_clips"] == 2 and d["n_with_speech"] == 1 and d["groups"] == {}
     assert d["pauses_ms"]["n"] == 1 and d["clip_max_pause_ms"]["n"] == 1
     rows = {r["endpoint_silence_ms"]: r for r in d["settings"]}

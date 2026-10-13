@@ -79,7 +79,7 @@ def write(vocab: dict[str, int], merges: list[list[str]], out: Path) -> tuple[Pa
     vocab_path = out / "vocab.json"
     merges_path = out / "merges.txt"
     ordered = dict(sorted(vocab.items(), key=lambda kv: kv[1]))
-    with vocab_path.open("w", encoding="utf-8") as f:
+    with vocab_path.open("w", encoding="utf-8", newline="\n") as f:
         json.dump(ordered, f, ensure_ascii=False)
         f.write("\n")
     with merges_path.open("w", encoding="utf-8", newline="\n") as f:

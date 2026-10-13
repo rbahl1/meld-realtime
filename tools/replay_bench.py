@@ -36,7 +36,6 @@ from __future__ import annotations
 import argparse
 import glob
 import json
-import os
 import queue
 import socket
 import sys
@@ -51,6 +50,8 @@ import zmq
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+
+from bench_components import loadavg  # noqa: E402  (tools/, next to this file)
 
 from meld_rt import protocol as P  # noqa: E402
 from meld_rt.clients import connect_push, connect_sub  # noqa: E402
@@ -200,9 +201,9 @@ def stream_clips(push, clips: list[dict], stream_id: str, realtime: bool, tail_s
         c["media_end"] = round((len(frames) + len(f)) * P.FRAME_S, 3)
         frames += f + tail
     push.send_multipart(P.ctl_msg(stream_id, "start"))
-    t0 = time.monotonic()
+    t0 = P.now_s()
     seq = send_frames(push, frames, stream_id, seq0=0, realtime=realtime, t0=t0)
-    wall = time.monotonic() - t0
+    wall = P.now_s() - t0
     push.send_multipart(P.ctl_msg(stream_id, "stop"))
     return {"frames": seq, "audio_s": round(seq * P.FRAME_S, 3), "wall_s": round(wall, 3)}
 
@@ -394,7 +395,7 @@ def stream_clips_av(push, clips: list[dict], stream_id: str, realtime: bool, tai
     pre.start()
     first = pre.get(0) if clips else None    # the clock starts once the first clip's frames are ready
     push.send_multipart(P.ctl_msg(stream_id, "start"))
-    t0 = time.monotonic()
+    t0 = P.now_s()
     seq = vseq = late = 0
     errors = {}
     try:
@@ -404,13 +405,13 @@ def stream_clips_av(push, clips: list[dict], stream_id: str, realtime: bool, tai
                 errors[c["name"]] = v["error"]
             c["n_video_frames"] = len(v["jpegs"])
             start = seq * P.FRAME_S
-            if realtime and time.monotonic() > t0 + start + 0.05:
+            if realtime and P.now_s() > t0 + start + 0.05:
                 late += 1
             seq, vseq = send_av(push, c.pop("_frames") + tail, v["jpegs"], v["w"], v["h"], fps, stream_id, realtime,
                                 seq0=seq, vseq0=vseq, t0_media=start, t0=t0 + start)
     finally:
         pre.stop()
-    wall = time.monotonic() - t0
+    wall = P.now_s() - t0
     push.send_multipart(P.ctl_msg(stream_id, "stop"))
     return {"frames": seq, "video_frames": vseq, "audio_s": round(seq * P.FRAME_S, 3), "wall_s": round(wall, 3),
             "clips_started_late": late, "video_decode_errors": errors,
@@ -490,7 +491,7 @@ def reattribute(path: Path, command: str) -> dict:
     d["notes"] = [ATTRIBUTION_NOTE if n.startswith("a final is attributed to the clip") else n for n in d.get("notes", [])]
     if previous != ATTRIBUTION_RULE:
         d["reattributed"] = {"command": command, "at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), "previous_rule": previous}
-    Path(path).write_text(json.dumps(d, indent=1), encoding="utf-8")
+    Path(path).write_text(json.dumps(d, indent=1), encoding="utf-8", newline="\n")
     return att
 
 
@@ -596,13 +597,13 @@ def main(argv: list[str] | None = None) -> int:
         sampler.start()
         proc = psutil.Process()
         cpu0 = proc.cpu_times()
-        load0 = [round(x, 2) for x in os.getloadavg()]
+        load0 = loadavg()
         t_stream0 = time.monotonic()
         sent = stream(clips, STREAM)
         finished = wait_idle(col, svc, 2.0, 120)
         wall_total = time.monotonic() - t_stream0
         cpu1 = proc.cpu_times()
-        load1 = [round(x, 2) for x in os.getloadavg()]
+        load1 = loadavg()
         sampler.stop()
     finally:
         push.close()
@@ -612,7 +613,7 @@ def main(argv: list[str] | None = None) -> int:
     msgs = col.msgs[n_before:]
     if a.jsonl:
         a.jsonl.parent.mkdir(parents=True, exist_ok=True)
-        with open(a.jsonl, "w", encoding="utf-8") as fh:
+        with open(a.jsonl, "w", encoding="utf-8", newline="\n") as fh:
             fh.writelines(json.dumps({"topic": topic, "t_recv_ns": t, **m}, ensure_ascii=False) + "\n" for t, topic, m in msgs)
     res = analyze(msgs, clips, STREAM)
     if a.video:
@@ -635,7 +636,7 @@ def main(argv: list[str] | None = None) -> int:
                       "provisional_budget_ms": a.provisional_budget_ms, "fusion_mode_requested": a.fusion_mode, "fusion_mode": svc.mode,
                       "heads": svc.model_versions.get("heads", []), "model_versions": svc.model_versions,
                       "realtime": a.realtime, "tail_s": a.tail_s, "warmup_clips": a.warmup, "n_clips": len(clips), "repeat": a.repeat,
-                      "clip_source": str(Path(files[0]).parent), "clips": [{"name": c["name"], "duration_s": c["duration_s"],
+                      "clip_source": Path(files[0]).parent.as_posix(), "clips": [{"name": c["name"], "duration_s": c["duration_s"],
                                                                             "media_start": c["media_start"], "media_end": c["media_end"],
                                                                             **({"n_video_frames": c.get("n_video_frames")} if a.video else {})}
                                                                            for c in clips],
@@ -660,7 +661,7 @@ def main(argv: list[str] | None = None) -> int:
                      ATTRIBUTION_NOTE],
            "results": {k: v for k, v in res.items() if k != "utterances"}, "utterances": res["utterances"]}
     a.out.parent.mkdir(parents=True, exist_ok=True)
-    a.out.write_text(json.dumps(out, indent=1), encoding="utf-8")
+    a.out.write_text(json.dumps(out, indent=1), encoding="utf-8", newline="\n")
     log(f"wrote {a.out}")
 
     r = res

@@ -325,7 +325,7 @@ def write_post(path: Path, P: dict, split: str, oof: bool, extra_meta: dict | No
 def train(args: argparse.Namespace, cfg: dict, seed: int) -> dict:
     t_all = time.perf_counter()
     heads_dir, out, cache = args.heads, args.out, args.cache
-    manifest = json.loads(need(heads_dir / "manifest.json", "run tools/train_heads.py first").read_text())
+    manifest = json.loads(need(heads_dir / "manifest.json", "run tools/train_heads.py first").read_text(encoding="utf-8"))
     af = manifest.get("audio_fusion") or {}
     if af.get("status") != "trained":
         raise SystemExit("heads/manifest.json has no trained audio stage (run tools/train_heads.py without --text-only)")
@@ -509,7 +509,7 @@ def train(args: argparse.Namespace, cfg: dict, seed: int) -> dict:
             fold_files[path.name] = file_record(path)
     fold_of_dia = {int(g): int(f) for g, f in zip(groups, fold_id)}
     fold_of_train = {key(u): fold_of_dia[u.dialogue_id] for u in utts["train"] if u.dialogue_id in fold_of_dia}
-    (folds_dir / "fold_of_train.json").write_text(json.dumps(fold_of_train))
+    (folds_dir / "fold_of_train.json").write_text(json.dumps(fold_of_train), encoding="utf-8", newline="\n")
     rep["folds"] = {"dir": str(folds_dir), "files": fold_files, "fold_of_train": "fold_of_train.json",
                     "n_keys": len(fold_of_train), "fusion3_oof_train": summary(y["train"], oof_f3),
                     "note": ("expert heads as fitted in the cross-fit (temperature 1, as the out-of-fold rows were made); "
@@ -524,7 +524,7 @@ def train(args: argparse.Namespace, cfg: dict, seed: int) -> dict:
 
     # manifest: the vision section, every other key as it was
     manifest["vision"] = rep
-    (out / "manifest.json").write_text(json.dumps(manifest, indent=1))
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=1), encoding="utf-8", newline="\n")
 
     # 7. per-clip posteriors
     posts = {}
@@ -551,7 +551,7 @@ def train(args: argparse.Namespace, cfg: dict, seed: int) -> dict:
         posts[s] = write_post(cache / f"vision_post_{s}.npz", Ps, s, False, {"gate": Ps.get("gate")})
     manifest["vision"]["posteriors"] = posts
     rep["wall_time_s"] = round(time.perf_counter() - t_all, 1)
-    (out / "manifest.json").write_text(json.dumps(manifest, indent=1))
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=1), encoding="utf-8", newline="\n")
     return rep
 
 
@@ -567,15 +567,15 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     args.out = args.out or args.heads
     args.post_splits = [s for s in args.post_splits.split(",") if s]
-    cfg = yaml.safe_load(args.config.read_text())
+    cfg = yaml.safe_load(args.config.read_text(encoding="utf-8"))
     seed = int(cfg.get("seed", 0))
     import threadpoolctl
 
     with threadpoolctl.threadpool_limits(int(cfg.get("threads", 2))):
         rep = train(args, cfg, seed)
-    m = json.loads((args.out / "manifest.json").read_text())
+    m = json.loads((args.out / "manifest.json").read_text(encoding="utf-8"))
     m["vision"]["command"] = "python tools/train_vision.py " + " ".join(sys.argv[1:] if argv is None else argv)
-    (args.out / "manifest.json").write_text(json.dumps(m, indent=1))
+    (args.out / "manifest.json").write_text(json.dumps(m, indent=1), encoding="utf-8", newline="\n")
     print(f"vision: rule {rep['rule']}, calibrator {rep['variant']}, fusion3 dev weighted f1 {rep['fusion3']['dev']['weighted_f1']:.4f}, "
           f"jsd_face_flag {rep['jsd_face_flag']}, {rep['wall_time_s']} s -> {args.out / 'manifest.json'}")
     return 0

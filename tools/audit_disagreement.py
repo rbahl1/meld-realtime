@@ -107,7 +107,7 @@ def sample(a: argparse.Namespace) -> int:
     else:
         p_audio = p_audio_flag
         audio_source = "sensevoice posterior over its seven named classes"
-    manifest = json.loads((a.heads / "manifest.json").read_text()) if (a.heads / "manifest.json").exists() else {}
+    manifest = json.loads((a.heads / "manifest.json").read_text(encoding="utf-8")) if (a.heads / "manifest.json").exists() else {}
     thr = (manifest.get("thresholds") or {}).get("jsd_flag")
     threshold = a.threshold if a.threshold is not None else (float(thr) if isinstance(thr, (int, float)) else ServiceConfig().jsd_flag)
     rows = draw(flagged(p_text, p_audio_flag, threshold), a.n, a.seed)
@@ -144,11 +144,11 @@ def main(argv: list[str] | None = None) -> int:
     a = ap.parse_args(argv)
     if a.cmd == "sample":
         return sample(a)
-    with a.csv.open(newline="", encoding="utf-8") as f:
+    with a.csv.open(newline="", encoding="utf-8-sig") as f:   # utf-8-sig: excel's "csv utf-8" adds a byte order mark
         rows = list(csv.DictReader(f))
     md = render_tally(tally(rows), a.csv.name)
     a.out.parent.mkdir(parents=True, exist_ok=True)
-    a.out.write_text(md, encoding="utf-8")
+    a.out.write_text(md, encoding="utf-8", newline="\n")
     print(md)
     return 0
 

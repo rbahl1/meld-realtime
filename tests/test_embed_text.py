@@ -46,7 +46,7 @@ def test_embed_resume_and_skip(tmp_path, monkeypatch):
     arr = np.load(out)
     assert arr.shape == (5, 768) and arr.dtype == np.float32 and np.isfinite(arr).all()
     assert (arr[:2] == 7.0).all() and (arr[2:] != 7.0).any(axis=1).all()
-    assert json.loads(embed_text.keys_path(out).read_text()) == [k for k, _ in ROWS]
+    assert json.loads(embed_text.keys_path(out).read_text(encoding="utf-8")) == [k for k, _ in ROWS]
 
     # a finished output is skipped untouched
     mtime = out.stat().st_mtime_ns
@@ -81,8 +81,8 @@ def test_embed_from_asr(tmp_path):
     assert embed_text.main(argv) == 0
     out = tmp_path / "text_asr_test_p2.npy"
     arr = np.load(out)
-    meta = json.loads(embed_text.meta_path(out).read_text())
-    assert arr.shape == (3, 768) and json.loads(embed_text.keys_path(out).read_text()) == keys.tolist()
+    meta = json.loads(embed_text.meta_path(out).read_text(encoding="utf-8"))
+    assert arr.shape == (3, 768) and json.loads(embed_text.keys_path(out).read_text(encoding="utf-8")) == keys.tolist()
     assert meta["source"]["field"] == "asr_text_p2" and meta["n_empty_text"] == 1 and meta["loader"] == "audio cache"
     expert = TextExpert(ONNX, TOK_DIR, threads=1)
     assert np.allclose(arr[2], expert.encode(""), atol=1e-5) and np.allclose(arr[1], expert.encode("hello"), atol=1e-5)

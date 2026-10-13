@@ -88,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
            "same_file_at_main_and_pinned": same,
            "container_download": CONTAINER_DOWNLOAD}
     a.out.parent.mkdir(parents=True, exist_ok=True)
-    a.out.write_text(json.dumps(out, indent=1) + "\n", encoding="utf-8")
+    a.out.write_text(json.dumps(out, indent=1) + "\n", encoding="utf-8", newline="\n")
     print(f"wrote {a.out}: main is {main_rev['sha']}, {FILE} {at_pin['x-linked-size']} bytes, "
           f"lfs sha256 {at_pin['x-linked-etag']}, licence {pinned_rev['card_license']}, same file at main: {same}")
     return 0

@@ -329,11 +329,11 @@ def main(argv: list[str] | None = None) -> int:
     res = build(a.models, a.heads)
     res["generated_at"] = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     res["wall_s"] = round(time.perf_counter() - t0, 2)
-    res["command"] = f"python tools/count_params.py --models {a.models} --heads {a.heads} --out {a.out}"
+    res["command"] = f"python tools/count_params.py --models {a.models.as_posix()} --heads {a.heads.as_posix()} --out {a.out.as_posix()}"
     md = render(res, a.models, a.heads)
     a.out.parent.mkdir(parents=True, exist_ok=True)
-    a.out.write_text(md, encoding="utf-8")
-    (a.json or a.out.with_suffix(".json")).write_text(json.dumps(res, indent=1), encoding="utf-8")
+    a.out.write_text(md, encoding="utf-8", newline="\n")
+    (a.json or a.out.with_suffix(".json")).write_text(json.dumps(res, indent=1), encoding="utf-8", newline="\n")
     print(md, end="")
     print(f"wrote {a.out} and {a.json or a.out.with_suffix('.json')} in {res['wall_s']} s", file=sys.stderr)
     return 0

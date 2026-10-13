@@ -198,7 +198,9 @@ def status(asset: Asset, dest: Path, dl_dir: Path) -> tuple[bool, list[dict]]:
     ok = True
     rows = []
     for path, expected in expected_files(asset, dest, dl_dir).items():
-        row = {"asset": asset.name, "url": asset.url, "path": str(path.relative_to(ROOT)) if path.is_absolute() and ROOT in path.parents else str(path),
+        # posix separators on every os: the service matches rows by file name, and the committed file reads the same
+        row = {"asset": asset.name, "url": asset.url,
+               "path": path.relative_to(ROOT).as_posix() if path.is_absolute() and ROOT in path.parents else path.as_posix(),
                "exists": path.exists(), "expected_sha256": expected}
         if asset.group != "core":
             row["group"] = asset.group
@@ -234,7 +236,7 @@ def merged_rows(checked: dict[str, list[dict]], old_path: Path) -> list[dict]:
     rows for the others (none when the file is missing or unreadable)."""
     old: dict[str, list[dict]] = {}
     try:
-        for r in json.loads(old_path.read_text()).get("files", []):
+        for r in json.loads(old_path.read_text(encoding="utf-8")).get("files", []):
             old.setdefault(r["asset"], []).append(r)
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         old = {}
@@ -282,7 +284,7 @@ def main(argv: list[str] | None = None) -> int:
 
     report = merged_rows(checked, args.provenance)
     args.provenance.parent.mkdir(parents=True, exist_ok=True)
-    with open(args.provenance, "w") as f:
+    with open(args.provenance, "w", encoding="utf-8", newline="\n") as f:
         json.dump({"generated_by": "tools/fetch_models.py", "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
                    "all_ok": all(r.get("ok") for r in report), "files": report}, f, indent=1)
     print(f"{'all verified' if all_ok else 'some files missing or mismatched'}; wrote {args.provenance}")

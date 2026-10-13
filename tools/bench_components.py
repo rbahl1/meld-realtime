@@ -51,35 +51,84 @@ LONG_TEXT = ("well that went great, the GR-6 system failed again and nobody in t
 
 # -- machine ---------------------------------------------------------------
 
-def cpu_info() -> dict:
-    """model name and the instruction flags that matter for int8 inference, from /proc/cpuinfo."""
+def cpu_info(cpuinfo: Path = Path("/proc/cpuinfo")) -> dict:
+    """model name and the instruction flags that matter for int8 inference, from /proc/cpuinfo.
+    without that file (windows, macos) the name and flags come from cpu_name_fallback and
+    cpu_flags_fallback, and model_source and flags_source say so."""
     model, flags = "", set()
     try:
-        for line in Path("/proc/cpuinfo").read_text().splitlines():
+        for line in cpuinfo.read_text(encoding="utf-8").splitlines():
             if line.startswith("model name") and not model:
                 model = line.split(":", 1)[1].strip()
             elif line.startswith("flags") and not flags:
                 flags = set(line.split(":", 1)[1].split())
     except OSError:
-        pass
+        model, source = cpu_name_fallback()
+        return {"model_name": model, "model_source": source, "nproc": os.cpu_count(),
+                "flags": cpu_flags_fallback(FLAGS_OF_INTEREST), "flags_source": "numpy"}
     return {"model_name": model, "nproc": os.cpu_count(), "flags": {f: (f in flags) for f in FLAGS_OF_INTEREST}}
 
 
-def machine() -> dict:
+def cpu_name_fallback(platform_name: str | None = None) -> tuple[str, str]:
+    """(cpu name, where it came from) where /proc/cpuinfo and lscpu are missing: on windows the
+    Name of Win32_Processor (cpython's _wmi module, which platform.processor() also queries),
+    else and on failure platform.processor()."""
+    if (platform_name or sys.platform) == "win32":
+        try:
+            import _wmi
+
+            rows = _wmi.exec_query("SELECT Name FROM Win32_Processor").split("\0")
+        except Exception:  # noqa: BLE001 - a label only, platform.processor() follows
+            rows = []
+        for item in rows:
+            k, _, v = item.partition("=")
+            if k == "Name" and v.strip():
+                return v.strip(), "Win32_Processor"
+    return platform.processor(), "platform.processor()"
+
+
+# flags of interest -> the names in numpy's runtime cpu dispatch table (cpuid). the amx flags are not in it
+NUMPY_FLAGS = {"avx2": "AVX2", "fma": "FMA3", "avx512f": "AVX512F", "avx512bw": "AVX512BW", "avx512_vnni": "AVX512VNNI"}
+
+
+def cpu_flags_fallback(flags) -> dict:
+    """flags where /proc/cpuinfo and lscpu are missing, from numpy's runtime cpu detection,
+    None (unknown) for a flag numpy does not report."""
+    try:
+        from numpy._core._multiarray_umath import __cpu_features__ as feats
+    except ImportError:
+        feats = {}
+    return {f: (bool(feats[NUMPY_FLAGS[f]]) if NUMPY_FLAGS.get(f) in feats else None) for f in flags}
+
+
+def mem_fallback() -> dict:
+    """MemTotal and MemAvailable in MB (2**20 bytes, as /proc/meminfo // 1024) from psutil."""
+    import psutil
+
+    vm = psutil.virtual_memory()
+    return {"MemTotal": int(vm.total) // 2**20, "MemAvailable": int(vm.available) // 2**20}
+
+
+def machine(meminfo: Path = Path("/proc/meminfo"), cpuinfo: Path = Path("/proc/cpuinfo")) -> dict:
     import onnxruntime as ort
     mem = {}
     try:
-        for line in Path("/proc/meminfo").read_text().splitlines():
+        for line in meminfo.read_text(encoding="utf-8").splitlines():
             k, v = line.split(":", 1)
             if k in ("MemTotal", "MemAvailable"):
                 mem[k] = int(v.split()[0]) // 1024
-    except (OSError, ValueError):
+    except OSError:
+        mem = mem_fallback()
+    except ValueError:
         pass
-    return {"hostname": socket.gethostname(), "cpu": cpu_info(), "mem_mb": mem, "platform": platform.platform(),
+    return {"hostname": socket.gethostname(), "cpu": cpu_info(cpuinfo), "mem_mb": mem, "platform": platform.platform(),
             "python": platform.python_version(), "onnxruntime": ort.__version__, "numpy": np.__version__}
 
 
 def loadavg() -> list[float]:
+    """the 1, 5 and 15 minute load averages, [] where the os has none (windows)."""
+    if not hasattr(os, "getloadavg"):
+        return []
     try:
         return [round(x, 2) for x in os.getloadavg()]
     except OSError:
@@ -329,7 +378,7 @@ def main(argv: list[str] | None = None) -> int:
     out = {"host": socket.gethostname(), "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
            "command": "python tools/bench_components.py " + " ".join(sys.argv[1:] if argv is None else argv),
            "machine": machine(), "loadavg_start": loadavg(), "runs": a.runs, "warmup": 1,
-           "source_wav": str(a.source.relative_to(ROOT)) if a.source.is_relative_to(ROOT) else str(a.source),
+           "source_wav": a.source.relative_to(ROOT).as_posix() if a.source.is_relative_to(ROOT) else a.source.as_posix(),
            "clips": [{k: v for k, v in c.items() if k != "file"} for c in clips],
            "model_files": {k: (a.models / v).stat().st_size if (a.models / v).exists() else None for k, v in MODEL_FILES.items()},
            "head_files": {p.name: p.stat().st_size for p in sorted(a.heads.glob("*.npz"))} if a.heads.exists() else {},
@@ -344,7 +393,7 @@ def main(argv: list[str] | None = None) -> int:
     out["loadavg_end"] = loadavg()
     out["wall_s"] = round(time.perf_counter() - t_start, 1)
     a.out.parent.mkdir(parents=True, exist_ok=True)
-    a.out.write_text(json.dumps(out, indent=1), encoding="utf-8")
+    a.out.write_text(json.dumps(out, indent=1), encoding="utf-8", newline="\n")
     log(f"wrote {a.out} in {out['wall_s']} s")
     # the summary table, stdout
     print(f"sensevoice p50 ms by clip length (threads x seconds), {out['host']}:")

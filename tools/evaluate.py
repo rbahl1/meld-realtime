@@ -171,7 +171,7 @@ def run_conditions(cache: Path, heads_dir: Path, meld: Path, wanted: set[str] | 
     train = load_split("train", meld)
     y, ys, groups = emotion_ids(test), sentiment_ids(test), groups_of(test)
     emb = load_text_cache(cache, "test", test)
-    manifest = json.loads((heads_dir / "manifest.json").read_text()) if (heads_dir / "manifest.json").exists() else {}
+    manifest = json.loads((heads_dir / "manifest.json").read_text(encoding="utf-8")) if (heads_dir / "manifest.json").exists() else {}
     text_head = head_or_none(heads.TextContextHead, heads_dir / "text_ctx.npz")
     text_k0 = head_or_none(heads.TextContextHead, heads_dir / "text_ctx_k0.npz")
     sent_head = head_or_none(heads.SentimentHead, heads_dir / "sentiment.npz")
@@ -410,10 +410,10 @@ class Experiments:
             kpath, mpath = path.with_name(path.stem + "_keys.json"), path.with_name(path.stem + "_meta.json")
             out = None
             if path.exists() and kpath.exists():
-                keys = json.loads(kpath.read_text())
+                keys = json.loads(kpath.read_text(encoding="utf-8"))
                 if sorted(keys) != sorted(str(k) for k in self.aud["keys"]):
                     raise ValueError(f"{kpath.name} does not list the clips of cache/audio_test.npz")
-                src = json.loads(mpath.read_text()).get("source", {}) if mpath.exists() else {}
+                src = json.loads(mpath.read_text(encoding="utf-8")).get("source", {}) if mpath.exists() else {}
                 if src.get("field", f"asr_text{suffix}") != f"asr_text{suffix}" or (
                         src.get("sha256") and self.audio_record and src["sha256"] != self.audio_record["sha256"]):
                     raise ValueError(f"{path.name} was embedded from another field or audio cache, rerun tools/embed_text.py --from-asr")
@@ -471,7 +471,7 @@ class Experiments:
         if self.lp_text is None:
             return "pending (needs heads/text_ctx.npz)"
         wer_path = self.cache / "wer_test.json"
-        wer = json.loads(wer_path.read_text()) if wer_path.exists() else {}
+        wer = json.loads(wer_path.read_text(encoding="utf-8")) if wer_path.exists() else {}
         failed, low, min_conf = self.gate
         bad = failed | low
         extra = {"wer": wer.get("wer"), "wer_n": wer.get("n"), "n_empty_transcripts": int(failed.sum()),
@@ -731,8 +731,8 @@ def main(argv: list[str] | None = None) -> int:
     payload = {"command": cmd, "split": "test", "n_resamples": N_RESAMPLES, "seed": SEED, "wall_s": round(time.perf_counter() - t0, 1),
                **meta, "published": [{"row": r, "task": t, "weighted_f1": v, "source": s} for r, t, v, s in PUBLISHED],
                "conditions": results}
-    js.write_text(json.dumps(payload, indent=1))
-    md.write_text(render(results, meta, cmd))
+    js.write_text(json.dumps(payload, indent=1), encoding="utf-8", newline="\n")
+    md.write_text(render(results, meta, cmd), encoding="utf-8", newline="\n")
     print(f"wrote {md} and {js} in {payload['wall_s']} s")
     return 0
 
