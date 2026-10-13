@@ -14,7 +14,7 @@ uv run python tools/make_proxy_clips.py
 uv run pytest -q
 ```
 
-None of these steps was timed. The downloads depend on the network, and [README.md](../README.md) lists the file sizes. `fetch_models.py` rewrites [results/provenance_hashes.json](../results/provenance_hashes.json) with the hashes it computed. On a correct download the file comes out the same, apart from its time stamp. `pytest` should pass. Its tests skip themselves when models or data are missing.
+None of these steps was timed. The downloads depend on the network, and [README.md](../README.md) lists the file sizes. `fetch_models.py` rewrites [results/provenance_hashes.json](../results/provenance_hashes.json) with the hashes it computed. On a correct download the file comes out the same, apart from its time stamp. `pytest` should pass. The tests need the MELD CSV files that `tools/fetch_meld_csv.py` fetches, and the tests that need model files skip themselves when those files are missing.
 
 ## 2. Measurements
 

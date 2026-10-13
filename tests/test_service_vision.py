@@ -1011,6 +1011,7 @@ def test_typed_text_in_vision_mode_with_bank_reply(vservice, vclient):
     assert d["seq"] == 0 and d["text"] == r["text"] and "source" not in r and r["template_id"]
 
 
+@have_audio_models
 def test_health_reports_the_extension(vservice):
     c = Client(vservice)
     try:
