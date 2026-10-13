@@ -1,0 +1,1945 @@
+{
+ "command": "python tools/evaluate_vision.py --cache cache/ --heads heads/ --audio audio/ --meld meld/ --out results/RESULTS_vision.md results/metrics_vision.json",
+ "split": "test",
+ "n_resamples": 1000,
+ "seed": 0,
+ "wall_s": 4.4,
+ "inputs": {
+  "cache/video_test.npz": {
+   "bytes": 104034302,
+   "sha256": "87c64ec30e51e95259765bef1aee06858df6b3d0da06e400b4d625855311f561"
+  },
+  "cache/envelope_test.npz": {
+   "bytes": 4511090,
+   "sha256": "9214e621fa573c37c63df6c793d56196782666286fd5646365df24c9a76cfb18"
+  },
+  "cache/text_test.npy": {
+   "bytes": 8018048,
+   "sha256": "bd454c8e0f496e649b8e9f61a1acd098ffe478c51184a30e28185c71135e3ce7"
+  },
+  "cache/audio_test.npz": {
+   "bytes": 30360152,
+   "sha256": "a9e22761afa2096ec65841c9f8adc9af541a05e2517e8c0b9e7a1337c58007e2"
+  },
+  "cache/text_asr_test.npy": {
+   "bytes": 8018048,
+   "sha256": "241d14d7567d99dc4d27f94a43e7278581ab0221460b113e8d9453cd74070f8b"
+  },
+  "meld/test_sent_emo.csv": {
+   "bytes": 294526,
+   "sha256": "8d37103938f7067600839fe29d5a114a6cd1bcdafb75bec101e06464c5006888"
+  },
+  "heads/text_ctx.npz": {
+   "bytes": 808726,
+   "sha256": "916806bf4f0a0055e989c6e73a289441378c719b9a4fb68c0628ad652d97dd92"
+  },
+  "heads/audio_cal.npz": {
+   "bytes": 3622,
+   "sha256": "49be433bf1a2b0b7cb635dda743c4416af0ed8958fc28235f84f5f3a31509cfc"
+  },
+  "heads/fusion.npz": {
+   "bytes": 3192,
+   "sha256": "19fb219aa787d75611ec39d65067bc8afdd982bc807ea9b4601729e8c95c154d"
+  },
+  "heads/vision_cal.npz": {
+   "bytes": 22018,
+   "sha256": "c06849f97c476bbb94eb7b10825ef874227591ef52e0febfd887f3916f022d7a"
+  },
+  "heads/fusion3.npz": {
+   "bytes": 3810,
+   "sha256": "abd9babc406418a87c6a3d57432d313656756a2d95992059cea362e83537d15f"
+  },
+  "heads/sentiment3.npz": {
+   "bytes": 3202,
+   "sha256": "62e099844deb6a13620058d8a21876b49b142671010b6980312efe8268d432a0"
+  }
+ },
+ "claim": {
+  "rule": "the face adds to text and audio only if the paired 95 % interval of fused3_stacked minus fused_stacked (weighted f1, gold-text test, all clips with audio) lies above zero",
+  "gold_all_ci95_weighted_f1": [
+   0.001951,
+   0.014772
+  ],
+  "face_adds": true
+ },
+ "comparisons": {
+  "gold_all": {
+   "a": "fused3_stacked",
+   "b": "fused_stacked",
+   "rows": "all",
+   "n": 2610,
+   "n_groups": 280,
+   "n_resamples": 1000,
+   "seed": 0,
+   "diff": {
+    "weighted_f1": 0.007963,
+    "macro_f1": 0.01266,
+    "accuracy": 0.00613
+   },
+   "ci95": {
+    "weighted_f1": [
+     0.001951,
+     0.014772
+    ],
+    "macro_f1": [
+     0.002454,
+     0.0274
+    ],
+    "accuracy": [
+     0.000787,
+     0.01184
+    ]
+   },
+   "excludes_zero": {
+    "weighted_f1": true,
+    "macro_f1": true,
+    "accuracy": true
+   },
+   "share_at_or_below_zero": {
+    "weighted_f1": 0.006,
+    "macro_f1": 0.004,
+    "accuracy": 0.016
+   }
+  },
+  "live_all": {
+   "a": "live_asr_fused3",
+   "b": "live_asr_text",
+   "rows": "all",
+   "n": 2610,
+   "n_groups": 280,
+   "n_resamples": 1000,
+   "seed": 0,
+   "diff": {
+    "weighted_f1": 0.0091,
+    "macro_f1": 0.013246,
+    "accuracy": 0.006513
+   },
+   "ci95": {
+    "weighted_f1": [
+     0.003126,
+     0.015161
+    ],
+    "macro_f1": [
+     0.005041,
+     0.02425
+    ],
+    "accuracy": [
+     0.001101,
+     0.011976
+    ]
+   },
+   "excludes_zero": {
+    "weighted_f1": true,
+    "macro_f1": true,
+    "accuracy": true
+   },
+   "share_at_or_below_zero": {
+    "weighted_f1": 0.001,
+    "macro_f1": 0.003,
+    "accuracy": 0.009
+   }
+  },
+  "gold_face_rows": {
+   "a": "fused3_stacked",
+   "b": "fused_stacked",
+   "rows": "face",
+   "n": 2596,
+   "n_groups": 280,
+   "n_resamples": 1000,
+   "seed": 0,
+   "diff": {
+    "weighted_f1": 0.00801,
+    "macro_f1": 0.012782,
+    "accuracy": 0.006163
+   },
+   "ci95": {
+    "weighted_f1": [
+     0.001974,
+     0.014852
+    ],
+    "macro_f1": [
+     0.002464,
+     0.027503
+    ],
+    "accuracy": [
+     0.000789,
+     0.011909
+    ]
+   },
+   "excludes_zero": {
+    "weighted_f1": true,
+    "macro_f1": true,
+    "accuracy": true
+   },
+   "share_at_or_below_zero": {
+    "weighted_f1": 0.006,
+    "macro_f1": 0.004,
+    "accuracy": 0.016
+   }
+  },
+  "live_face_rows": {
+   "a": "live_asr_fused3",
+   "b": "live_asr_text",
+   "rows": "face",
+   "n": 2596,
+   "n_groups": 280,
+   "n_resamples": 1000,
+   "seed": 0,
+   "diff": {
+    "weighted_f1": 0.008861,
+    "macro_f1": 0.013064,
+    "accuracy": 0.006163
+   },
+   "ci95": {
+    "weighted_f1": [
+     0.002823,
+     0.014984
+    ],
+    "macro_f1": [
+     0.004805,
+     0.023961
+    ],
+    "accuracy": [
+     0.000754,
+     0.011761
+    ]
+   },
+   "excludes_zero": {
+    "weighted_f1": true,
+    "macro_f1": true,
+    "accuracy": true
+   },
+   "share_at_or_below_zero": {
+    "weighted_f1": 0.001,
+    "macro_f1": 0.003,
+    "accuracy": 0.014
+   }
+  },
+  "gold_face_disagreement": {
+   "a": "fused3_stacked",
+   "b": "fused_stacked",
+   "rows": "disagree",
+   "n": 557,
+   "n_groups": 214,
+   "n_resamples": 1000,
+   "seed": 0,
+   "diff": {
+    "weighted_f1": 0.011744,
+    "macro_f1": 0.02635,
+    "accuracy": 0.008977
+   },
+   "ci95": {
+    "weighted_f1": [
+     -0.002936,
+     0.026
+    ],
+    "macro_f1": [
+     -0.001226,
+     0.063043
+    ],
+    "accuracy": [
+     -0.00367,
+     0.021127
+    ]
+   },
+   "excludes_zero": {
+    "weighted_f1": false,
+    "macro_f1": false,
+    "accuracy": false
+   },
+   "share_at_or_below_zero": {
+    "weighted_f1": 0.058,
+    "macro_f1": 0.042,
+    "accuracy": 0.121
+   }
+  },
+  "gold_face_disagreement_vs_text": {
+   "a": "fused3_stacked",
+   "b": "text_best_k",
+   "rows": "disagree",
+   "n": 557,
+   "n_groups": 214,
+   "n_resamples": 1000,
+   "seed": 0,
+   "diff": {
+    "weighted_f1": -0.008424,
+    "macro_f1": -0.037584,
+    "accuracy": -0.001795
+   },
+   "ci95": {
+    "weighted_f1": [
+     -0.037083,
+     0.021969
+    ],
+    "macro_f1": [
+     -0.106241,
+     0.033347
+    ],
+    "accuracy": [
+     -0.026449,
+     0.024622
+    ]
+   },
+   "excludes_zero": {
+    "weighted_f1": false,
+    "macro_f1": false,
+    "accuracy": false
+   },
+   "share_at_or_below_zero": {
+    "weighted_f1": 0.714,
+    "macro_f1": 0.841,
+    "accuracy": 0.588
+   }
+  }
+ },
+ "label_flips": {
+  "gold": {
+   "text": "gold CSV text",
+   "a": "fused3_stacked",
+   "b": "fused_stacked",
+   "n": 2610,
+   "changed": 80,
+   "wrong_to_right": 36,
+   "right_to_wrong": 20
+  },
+  "live": {
+   "text": "SenseVoice transcripts, asr gate",
+   "a": "live_asr_fused3",
+   "b": "live_asr_text",
+   "n": 2610,
+   "changed": 86,
+   "wrong_to_right": 37,
+   "right_to_wrong": 20
+  }
+ },
+ "vision": {
+  "rule": "asd",
+  "variant": "B",
+  "jsd_face_flag": 0.5729,
+  "thresholds": {
+   "low_conf": 0.56,
+   "high_conf": 0.73,
+   "source": "dev",
+   "dev_accuracy_at": {
+    "0.1": 0.0,
+    "0.2": 0.0,
+    "0.3": 0.25,
+    "0.4": 0.4409,
+    "0.5": 0.4772,
+    "0.6": 0.6214,
+    "0.7": 0.6214,
+    "0.8": 0.7884,
+    "0.9": 0.9298
+   }
+  },
+  "face_coverage": {
+   "train": 0.9958,
+   "dev": 0.9946
+  },
+  "rule_disagreement": {
+   "train": {
+    "n_face_clips": 9947,
+    "multi_track_share": 0.8361,
+    "any_rule_differs": 0.6965,
+    "largest|present": 0.3551,
+    "largest|asd": 0.5573,
+    "largest|mouth": 0.5612,
+    "present|asd": 0.4819,
+    "present|mouth": 0.4859,
+    "asd|mouth": 0.4844
+   },
+   "dev": {
+    "n_face_clips": 1103,
+    "multi_track_share": 0.815,
+    "any_rule_differs": 0.6709,
+    "largest|present": 0.3518,
+    "largest|asd": 0.5222,
+    "largest|mouth": 0.5467,
+    "present|asd": 0.4633,
+    "present|mouth": 0.4705,
+    "asd|mouth": 0.4488
+   }
+  }
+ },
+ "dev": {
+  "rules": {
+   "largest": {
+    "dev": {
+     "weighted_f1": 0.2519,
+     "macro_f1": 0.0849,
+     "accuracy": 0.4229
+    },
+    "dev_face_rows": {
+     "weighted_f1": 0.2524,
+     "macro_f1": 0.085,
+     "accuracy": 0.4234
+    },
+    "fallback_rate": {
+     "train": 0.0,
+     "dev": 0.0
+    }
+   },
+   "present": {
+    "dev": {
+     "weighted_f1": 0.2557,
+     "macro_f1": 0.0884,
+     "accuracy": 0.4238
+    },
+    "dev_face_rows": {
+     "weighted_f1": 0.2562,
+     "macro_f1": 0.0885,
+     "accuracy": 0.4243
+    },
+    "fallback_rate": {
+     "train": 0.0,
+     "dev": 0.0
+    }
+   },
+   "asd": {
+    "dev": {
+     "weighted_f1": 0.2582,
+     "macro_f1": 0.0904,
+     "accuracy": 0.4265
+    },
+    "dev_face_rows": {
+     "weighted_f1": 0.2587,
+     "macro_f1": 0.0905,
+     "accuracy": 0.427
+    },
+    "fallback_rate": {
+     "train": 0.0333,
+     "dev": 0.0408
+    }
+   },
+   "mouth": {
+    "dev": {
+     "weighted_f1": 0.2553,
+     "macro_f1": 0.0883,
+     "accuracy": 0.4229
+    },
+    "dev_face_rows": {
+     "weighted_f1": 0.2558,
+     "macro_f1": 0.0884,
+     "accuracy": 0.4234
+    },
+    "fallback_rate": {
+     "train": 0.0252,
+     "dev": 0.0326
+    }
+   }
+  },
+  "calibrator": {
+   "A": {
+    "weighted_f1": 0.2582,
+    "macro_f1": 0.0904,
+    "accuracy": 0.4265
+   },
+   "B": {
+    "weighted_f1": 0.302,
+    "macro_f1": 0.1402,
+    "accuracy": 0.422
+   }
+  },
+  "fusion3": {
+   "weighted_f1": 0.5953,
+   "macro_f1": 0.4053,
+   "accuracy": 0.6264
+  },
+  "two_way": {
+   "weighted_f1": 0.5795,
+   "macro_f1": 0.3886,
+   "accuracy": 0.6137
+  },
+  "sentiment3": {
+   "weighted_f1": 0.6777,
+   "macro_f1": 0.6583,
+   "accuracy": 0.6823
+  }
+ },
+ "test_face_coverage": {
+  "all_rows": 0.994636,
+  "rows_with_audio": 0.994636
+ },
+ "n_test_rows": 2610,
+ "n_rows_with_audio": 2610,
+ "conditions": {
+  "vision_raw_fer": {
+   "condition": "vision_raw_fer",
+   "task": "emotion",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.322238,
+   "macro_f1": 0.15917,
+   "accuracy": 0.344444,
+   "per_class_f1": {
+    "neutral": 0.525253,
+    "surprise": 0.06846,
+    "fear": 0.0,
+    "sadness": 0.172494,
+    "joy": 0.280763,
+    "disgust": 0.035556,
+    "anger": 0.031662
+   },
+   "confusion": [
+    [
+     676,
+     59,
+     0,
+     84,
+     354,
+     70,
+     13
+    ],
+    [
+     129,
+     14,
+     0,
+     22,
+     82,
+     29,
+     5
+    ],
+    [
+     28,
+     1,
+     0,
+     6,
+     11,
+     2,
+     2
+    ],
+    [
+     105,
+     9,
+     0,
+     37,
+     46,
+     9,
+     2
+    ],
+    [
+     181,
+     12,
+     0,
+     27,
+     162,
+     16,
+     4
+    ],
+    [
+     27,
+     4,
+     0,
+     11,
+     20,
+     4,
+     2
+    ],
+    [
+     172,
+     29,
+     0,
+     34,
+     77,
+     27,
+     6
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.2977176214990568,
+     0.3489495456161824
+    ],
+    "macro_f1": [
+     0.14441489138255484,
+     0.17444691617625913
+    ],
+    "accuracy": [
+     0.3208921126706911,
+     0.3699088036621448
+    ]
+   },
+   "ece": 0.366334,
+   "note": "rule asd, raw fer, no calibration, face coverage 99.46 %",
+   "face_coverage": 0.994636,
+   "n_face": 2596,
+   "face_rows": {
+    "weighted_f1": 0.321328,
+    "macro_f1": 0.159096,
+    "accuracy": 0.34322
+   },
+   "no_face_rows": {
+    "weighted_f1": 0.415584,
+    "macro_f1": 0.145455,
+    "accuracy": 0.571429
+   },
+   "description": "argmax of the averaged fer posterior of the chosen track; no face: uniform, label neutral; all test rows"
+  },
+  "vision_cal": {
+   "condition": "vision_cal",
+   "task": "emotion",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.343684,
+   "macro_f1": 0.126952,
+   "accuracy": 0.470498,
+   "per_class_f1": {
+    "neutral": 0.643817,
+    "surprise": 0.038835,
+    "fear": 0.0,
+    "sadness": 0.0,
+    "joy": 0.112186,
+    "disgust": 0.0,
+    "anger": 0.093827
+   },
+   "confusion": [
+    [
+     1174,
+     11,
+     1,
+     5,
+     46,
+     1,
+     18
+    ],
+    [
+     241,
+     6,
+     0,
+     1,
+     21,
+     1,
+     11
+    ],
+    [
+     46,
+     0,
+     0,
+     1,
+     3,
+     0,
+     0
+    ],
+    [
+     195,
+     3,
+     1,
+     0,
+     4,
+     0,
+     5
+    ],
+    [
+     363,
+     3,
+     0,
+     2,
+     29,
+     0,
+     5
+    ],
+    [
+     64,
+     0,
+     0,
+     0,
+     2,
+     0,
+     2
+    ],
+    [
+     308,
+     5,
+     1,
+     2,
+     10,
+     0,
+     19
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.31833953686124977,
+     0.37315551358595084
+    ],
+    "macro_f1": [
+     0.11624944269741394,
+     0.1369714060913794
+    ],
+    "accuracy": [
+     0.44758629831211516,
+     0.49686074804453617
+    ]
+   },
+   "ece": 0.083216,
+   "note": "rule asd, calibrator B, face coverage 99.46 %",
+   "face_coverage": 0.994636,
+   "n_face": 2596,
+   "face_rows": {
+    "weighted_f1": 0.343288,
+    "macro_f1": 0.126978,
+    "accuracy": 0.469954
+   },
+   "no_face_rows": {
+    "weighted_f1": 0.415584,
+    "macro_f1": 0.145455,
+    "accuracy": 0.571429
+   },
+   "description": "deployed vision calibrator (heads/vision_cal.npz); no face: uniform, label neutral; all test rows"
+  },
+  "text_best_k": {
+   "condition": "text_best_k",
+   "task": "emotion",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.596152,
+   "macro_f1": 0.412159,
+   "accuracy": 0.627586,
+   "per_class_f1": {
+    "neutral": 0.779349,
+    "surprise": 0.536332,
+    "fear": 0.202899,
+    "sadness": 0.24,
+    "joy": 0.54878,
+    "disgust": 0.193548,
+    "anger": 0.384201
+   },
+   "confusion": [
+    [
+     1102,
+     50,
+     2,
+     16,
+     61,
+     5,
+     20
+    ],
+    [
+     56,
+     155,
+     2,
+     2,
+     36,
+     4,
+     26
+    ],
+    [
+     18,
+     7,
+     7,
+     7,
+     6,
+     0,
+     5
+    ],
+    [
+     116,
+     12,
+     4,
+     33,
+     23,
+     0,
+     20
+    ],
+    [
+     125,
+     25,
+     1,
+     1,
+     225,
+     3,
+     22
+    ],
+    [
+     34,
+     7,
+     0,
+     2,
+     4,
+     9,
+     12
+    ],
+    [
+     121,
+     41,
+     3,
+     6,
+     63,
+     4,
+     107
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.573757113085864,
+     0.6203265207989127
+    ],
+    "macro_f1": [
+     0.38229445146031027,
+     0.4423991763356413
+    ],
+    "accuracy": [
+     0.6079719001455236,
+     0.6483566350401546
+    ]
+   },
+   "ece": 0.038314,
+   "note": "2610 test rows with audio",
+   "n_face": 2596,
+   "face_rows": {
+    "weighted_f1": 0.595802,
+    "macro_f1": 0.412754,
+    "accuracy": 0.627119
+   },
+   "no_face_rows": {
+    "weighted_f1": 0.622222,
+    "macro_f1": 0.281481,
+    "accuracy": 0.714286
+   },
+   "description": "reference: deployed text head, gold text, rows with audio"
+  },
+  "fused_stacked": {
+   "condition": "fused_stacked",
+   "task": "emotion",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.607679,
+   "macro_f1": 0.392359,
+   "accuracy": 0.639847,
+   "per_class_f1": {
+    "neutral": 0.778717,
+    "surprise": 0.549091,
+    "fear": 0.0,
+    "sadness": 0.281588,
+    "joy": 0.560701,
+    "disgust": 0.105263,
+    "anger": 0.471154
+   },
+   "confusion": [
+    [
+     1105,
+     41,
+     0,
+     14,
+     59,
+     3,
+     34
+    ],
+    [
+     61,
+     151,
+     1,
+     0,
+     41,
+     1,
+     26
+    ],
+    [
+     25,
+     3,
+     0,
+     7,
+     4,
+     0,
+     11
+    ],
+    [
+     112,
+     10,
+     4,
+     39,
+     15,
+     0,
+     28
+    ],
+    [
+     134,
+     24,
+     0,
+     3,
+     224,
+     0,
+     17
+    ],
+    [
+     35,
+     4,
+     0,
+     4,
+     5,
+     4,
+     16
+    ],
+    [
+     110,
+     36,
+     1,
+     2,
+     49,
+     0,
+     147
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.5864829426296081,
+     0.6299646126460865
+    ],
+    "macro_f1": [
+     0.37066063733290117,
+     0.4141108971388496
+    ],
+    "accuracy": [
+     0.6206212565875067,
+     0.6592876228320871
+    ]
+   },
+   "ece": 0.015236,
+   "note": "2610 test rows with audio",
+   "n_face": 2596,
+   "face_rows": {
+    "weighted_f1": 0.60742,
+    "macro_f1": 0.392584,
+    "accuracy": 0.639445
+   },
+   "no_face_rows": {
+    "weighted_f1": 0.622222,
+    "macro_f1": 0.281481,
+    "accuracy": 0.714286
+   },
+   "description": "reference: deployed two-way fusion (heads/fusion.npz), gold text"
+  },
+  "fused3_stacked": {
+   "condition": "fused3_stacked",
+   "task": "emotion",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.615642,
+   "macro_f1": 0.405019,
+   "accuracy": 0.645977,
+   "per_class_f1": {
+    "neutral": 0.781228,
+    "surprise": 0.544423,
+    "fear": 0.036364,
+    "sadness": 0.301754,
+    "joy": 0.573604,
+    "disgust": 0.103896,
+    "anger": 0.493865
+   },
+   "confusion": [
+    [
+     1107,
+     38,
+     0,
+     17,
+     53,
+     3,
+     38
+    ],
+    [
+     62,
+     144,
+     0,
+     0,
+     41,
+     1,
+     33
+    ],
+    [
+     25,
+     1,
+     1,
+     7,
+     4,
+     0,
+     12
+    ],
+    [
+     107,
+     9,
+     3,
+     43,
+     15,
+     0,
+     31
+    ],
+    [
+     136,
+     22,
+     0,
+     2,
+     226,
+     0,
+     16
+    ],
+    [
+     35,
+     4,
+     0,
+     4,
+     5,
+     4,
+     16
+    ],
+    [
+     106,
+     30,
+     1,
+     4,
+     42,
+     1,
+     161
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.5945382051479525,
+     0.6379045182304203
+    ],
+    "macro_f1": [
+     0.3798312110876668,
+     0.4300087164390747
+    ],
+    "accuracy": [
+     0.6270534463186244,
+     0.664918945553092
+    ]
+   },
+   "ece": 0.020315,
+   "note": "2610 test rows with audio",
+   "face_coverage": 0.994636,
+   "n_face": 2596,
+   "face_rows": {
+    "weighted_f1": 0.61543,
+    "macro_f1": 0.405366,
+    "accuracy": 0.645609
+   },
+   "no_face_rows": {
+    "weighted_f1": 0.622222,
+    "macro_f1": 0.281481,
+    "accuracy": 0.714286
+   },
+   "description": "fusion3 (heads/fusion3.npz) over gold-text, audio and face posteriors"
+  },
+  "live_asr_text": {
+   "condition": "live_asr_text",
+   "task": "emotion",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.470541,
+   "macro_f1": 0.274976,
+   "accuracy": 0.525287,
+   "per_class_f1": {
+    "neutral": 0.675341,
+    "surprise": 0.19943,
+    "fear": 0.075472,
+    "sadness": 0.266187,
+    "joy": 0.356241,
+    "disgust": 0.0,
+    "anger": 0.352159
+   },
+   "confusion": [
+    [
+     1064,
+     16,
+     0,
+     20,
+     99,
+     0,
+     57
+    ],
+    [
+     180,
+     35,
+     0,
+     2,
+     31,
+     1,
+     32
+    ],
+    [
+     34,
+     0,
+     2,
+     3,
+     5,
+     0,
+     6
+    ],
+    [
+     118,
+     3,
+     0,
+     37,
+     20,
+     0,
+     30
+    ],
+    [
+     258,
+     5,
+     0,
+     2,
+     127,
+     2,
+     8
+    ],
+    [
+     40,
+     1,
+     0,
+     2,
+     7,
+     0,
+     18
+    ],
+    [
+     201,
+     10,
+     1,
+     4,
+     22,
+     1,
+     106
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.4453349548530856,
+     0.4957247668716929
+    ],
+    "macro_f1": [
+     0.2518077741259229,
+     0.2978735452457804
+    ],
+    "accuracy": [
+     0.5040631450299199,
+     0.5482339507947591
+    ]
+   },
+   "ece": 0.097079,
+   "note": "2610 test rows with audio",
+   "n_face": 2596,
+   "face_rows": {
+    "weighted_f1": 0.470924,
+    "macro_f1": 0.275773,
+    "accuracy": 0.525424
+   },
+   "no_face_rows": {
+    "weighted_f1": 0.380952,
+    "macro_f1": 0.133333,
+    "accuracy": 0.5
+   },
+   "description": "reference: two-way fusion on the sensevoice transcripts with the service's asr gate"
+  },
+  "live_asr_fused3": {
+   "condition": "live_asr_fused3",
+   "task": "emotion",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.479641,
+   "macro_f1": 0.288221,
+   "accuracy": 0.531801,
+   "per_class_f1": {
+    "neutral": 0.677306,
+    "surprise": 0.202899,
+    "fear": 0.074074,
+    "sadness": 0.291667,
+    "joy": 0.373219,
+    "disgust": 0.027778,
+    "anger": 0.370607
+   },
+   "confusion": [
+    [
+     1061,
+     15,
+     1,
+     21,
+     92,
+     0,
+     66
+    ],
+    [
+     178,
+     35,
+     0,
+     3,
+     30,
+     2,
+     33
+    ],
+    [
+     34,
+     0,
+     2,
+     3,
+     5,
+     0,
+     6
+    ],
+    [
+     114,
+     2,
+     0,
+     42,
+     19,
+     0,
+     31
+    ],
+    [
+     255,
+     4,
+     0,
+     3,
+     131,
+     0,
+     9
+    ],
+    [
+     39,
+     1,
+     0,
+     2,
+     5,
+     1,
+     20
+    ],
+    [
+     196,
+     7,
+     1,
+     6,
+     18,
+     1,
+     116
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.45604776104931555,
+     0.504033772911928
+    ],
+    "macro_f1": [
+     0.26431182686657695,
+     0.313255264264161
+    ],
+    "accuracy": [
+     0.5095228786095808,
+     0.5540752351097179
+    ]
+   },
+   "ece": 0.091257,
+   "note": "2610 test rows with audio",
+   "face_coverage": 0.994636,
+   "without_gate": {
+    "weighted_f1": 0.480775,
+    "macro_f1": 0.289351,
+    "accuracy": 0.532567
+   },
+   "n_empty_transcripts": 35,
+   "n_low_asr_conf": 38,
+   "n_degraded": 73,
+   "min_asr_conf": 0.3,
+   "n_face": 2596,
+   "face_rows": {
+    "weighted_f1": 0.479785,
+    "macro_f1": 0.288837,
+    "accuracy": 0.531587
+   },
+   "no_face_rows": {
+    "weighted_f1": 0.415584,
+    "macro_f1": 0.145455,
+    "accuracy": 0.571429
+   },
+   "description": "fusion3 on the sensevoice transcripts with the service's asr gate"
+  },
+  "text_best_k_face_rows": {
+   "condition": "text_best_k_face_rows",
+   "task": "emotion",
+   "status": "done",
+   "n": 2596,
+   "weighted_f1": 0.595802,
+   "macro_f1": 0.412754,
+   "accuracy": 0.627119,
+   "per_class_f1": {
+    "neutral": 0.778648,
+    "surprise": 0.538194,
+    "fear": 0.205882,
+    "sadness": 0.240876,
+    "joy": 0.547239,
+    "disgust": 0.193548,
+    "anger": 0.384892
+   },
+   "confusion": [
+    [
+     1094,
+     50,
+     2,
+     16,
+     61,
+     5,
+     20
+    ],
+    [
+     56,
+     155,
+     2,
+     2,
+     35,
+     4,
+     25
+    ],
+    [
+     17,
+     7,
+     7,
+     7,
+     6,
+     0,
+     5
+    ],
+    [
+     115,
+     12,
+     4,
+     33,
+     23,
+     0,
+     20
+    ],
+    [
+     125,
+     25,
+     1,
+     1,
+     223,
+     3,
+     22
+    ],
+    [
+     34,
+     7,
+     0,
+     2,
+     4,
+     9,
+     12
+    ],
+    [
+     121,
+     41,
+     3,
+     6,
+     63,
+     4,
+     107
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.5728221232141608,
+     0.6194864909664576
+    ],
+    "macro_f1": [
+     0.3829130269045029,
+     0.4430241835353894
+    ],
+    "accuracy": [
+     0.6069169126469608,
+     0.6479518755539811
+    ]
+   },
+   "ece": 0.038573,
+   "note": "clips with a face",
+   "description": "reference: text head, gold text, clips with a face"
+  },
+  "fused_stacked_face_rows": {
+   "condition": "fused_stacked_face_rows",
+   "task": "emotion",
+   "status": "done",
+   "n": 2596,
+   "weighted_f1": 0.60742,
+   "macro_f1": 0.392584,
+   "accuracy": 0.639445,
+   "per_class_f1": {
+    "neutral": 0.778014,
+    "surprise": 0.551095,
+    "fear": 0.0,
+    "sadness": 0.282609,
+    "joy": 0.559194,
+    "disgust": 0.105263,
+    "anger": 0.47191
+   },
+   "confusion": [
+    [
+     1097,
+     41,
+     0,
+     14,
+     59,
+     3,
+     34
+    ],
+    [
+     61,
+     151,
+     1,
+     0,
+     40,
+     1,
+     25
+    ],
+    [
+     24,
+     3,
+     0,
+     7,
+     4,
+     0,
+     11
+    ],
+    [
+     111,
+     10,
+     4,
+     39,
+     15,
+     0,
+     28
+    ],
+    [
+     134,
+     24,
+     0,
+     3,
+     222,
+     0,
+     17
+    ],
+    [
+     35,
+     4,
+     0,
+     4,
+     5,
+     4,
+     16
+    ],
+    [
+     110,
+     36,
+     1,
+     2,
+     49,
+     0,
+     147
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.5860753572605459,
+     0.6292760474555674
+    ],
+    "macro_f1": [
+     0.37081990385499386,
+     0.4141756214147796
+    ],
+    "accuracy": [
+     0.6204188596265359,
+     0.6584839067211112
+    ]
+   },
+   "ece": 0.014959,
+   "note": "clips with a face",
+   "description": "reference: two-way fusion, gold text, clips with a face"
+  },
+  "fused3_stacked_face_rows": {
+   "condition": "fused3_stacked_face_rows",
+   "task": "emotion",
+   "status": "done",
+   "n": 2596,
+   "weighted_f1": 0.61543,
+   "macro_f1": 0.405366,
+   "accuracy": 0.645609,
+   "per_class_f1": {
+    "neutral": 0.78054,
+    "surprise": 0.54649,
+    "fear": 0.037037,
+    "sadness": 0.302817,
+    "joy": 0.572158,
+    "disgust": 0.103896,
+    "anger": 0.494624
+   },
+   "confusion": [
+    [
+     1099,
+     38,
+     0,
+     17,
+     53,
+     3,
+     38
+    ],
+    [
+     62,
+     144,
+     0,
+     0,
+     40,
+     1,
+     32
+    ],
+    [
+     24,
+     1,
+     1,
+     7,
+     4,
+     0,
+     12
+    ],
+    [
+     106,
+     9,
+     3,
+     43,
+     15,
+     0,
+     31
+    ],
+    [
+     136,
+     22,
+     0,
+     2,
+     224,
+     0,
+     16
+    ],
+    [
+     35,
+     4,
+     0,
+     4,
+     5,
+     4,
+     16
+    ],
+    [
+     106,
+     30,
+     1,
+     4,
+     42,
+     1,
+     161
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.5945944455487,
+     0.6367121083610934
+    ],
+    "macro_f1": [
+     0.38027281992878686,
+     0.43030743428276236
+    ],
+    "accuracy": [
+     0.6264119846538883,
+     0.6648450226200365
+    ]
+   },
+   "ece": 0.020652,
+   "note": "clips with a face",
+   "description": "fusion3, gold text, clips with a face"
+  },
+  "live_asr_text_face_rows": {
+   "condition": "live_asr_text_face_rows",
+   "task": "emotion",
+   "status": "done",
+   "n": 2596,
+   "weighted_f1": 0.470924,
+   "macro_f1": 0.275773,
+   "accuracy": 0.525424,
+   "per_class_f1": {
+    "neutral": 0.675399,
+    "surprise": 0.200573,
+    "fear": 0.076923,
+    "sadness": 0.268116,
+    "joy": 0.357243,
+    "disgust": 0.0,
+    "anger": 0.352159
+   },
+   "confusion": [
+    [
+     1057,
+     16,
+     0,
+     19,
+     99,
+     0,
+     57
+    ],
+    [
+     178,
+     35,
+     0,
+     2,
+     31,
+     1,
+     32
+    ],
+    [
+     33,
+     0,
+     2,
+     3,
+     5,
+     0,
+     6
+    ],
+    [
+     117,
+     3,
+     0,
+     37,
+     20,
+     0,
+     30
+    ],
+    [
+     256,
+     5,
+     0,
+     2,
+     127,
+     2,
+     8
+    ],
+    [
+     40,
+     1,
+     0,
+     2,
+     7,
+     0,
+     18
+    ],
+    [
+     201,
+     10,
+     1,
+     4,
+     22,
+     1,
+     106
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.44605369216475205,
+     0.4961461743266265
+    ],
+    "macro_f1": [
+     0.25273564068088383,
+     0.29874175086516325
+    ],
+    "accuracy": [
+     0.5038873731955333,
+     0.5489264783109097
+    ]
+   },
+   "ece": 0.09686,
+   "note": "clips with a face",
+   "description": "reference: two-way fusion, transcripts with the asr gate, clips with a face"
+  },
+  "live_asr_fused3_face_rows": {
+   "condition": "live_asr_fused3_face_rows",
+   "task": "emotion",
+   "status": "done",
+   "n": 2596,
+   "weighted_f1": 0.479785,
+   "macro_f1": 0.288837,
+   "accuracy": 0.531587,
+   "per_class_f1": {
+    "neutral": 0.676953,
+    "surprise": 0.204082,
+    "fear": 0.075472,
+    "sadness": 0.292683,
+    "joy": 0.374286,
+    "disgust": 0.027778,
+    "anger": 0.370607
+   },
+   "confusion": [
+    [
+     1053,
+     15,
+     1,
+     21,
+     92,
+     0,
+     66
+    ],
+    [
+     176,
+     35,
+     0,
+     3,
+     30,
+     2,
+     33
+    ],
+    [
+     33,
+     0,
+     2,
+     3,
+     5,
+     0,
+     6
+    ],
+    [
+     113,
+     2,
+     0,
+     42,
+     19,
+     0,
+     31
+    ],
+    [
+     253,
+     4,
+     0,
+     3,
+     131,
+     0,
+     9
+    ],
+    [
+     39,
+     1,
+     0,
+     2,
+     5,
+     1,
+     20
+    ],
+    [
+     196,
+     7,
+     1,
+     6,
+     18,
+     1,
+     116
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.4570649348064993,
+     0.5040024338902954
+    ],
+    "macro_f1": [
+     0.2653307533178433,
+     0.31450162219763955
+    ],
+    "accuracy": [
+     0.5095791335905109,
+     0.5535196664478574
+    ]
+   },
+   "ece": 0.091107,
+   "note": "clips with a face",
+   "description": "fusion3, transcripts with the asr gate, clips with a face"
+  },
+  "face_disagreement_subset": {
+   "condition": "face_disagreement_subset",
+   "task": "emotion",
+   "status": "done",
+   "n": 557,
+   "weighted_f1": 0.640409,
+   "macro_f1": 0.471011,
+   "accuracy": 0.667864,
+   "per_class_f1": {
+    "neutral": 0.792711,
+    "surprise": 0.683128,
+    "fear": 0.133333,
+    "sadness": 0.15,
+    "joy": 0.626506,
+    "disgust": 0.32,
+    "anger": 0.591398
+   },
+   "confusion": [
+    [
+     174,
+     9,
+     0,
+     1,
+     5,
+     0,
+     6
+    ],
+    [
+     18,
+     83,
+     0,
+     0,
+     9,
+     0,
+     7
+    ],
+    [
+     2,
+     1,
+     1,
+     2,
+     0,
+     0,
+     7
+    ],
+    [
+     12,
+     4,
+     1,
+     3,
+     2,
+     0,
+     10
+    ],
+    [
+     23,
+     11,
+     0,
+     0,
+     52,
+     0,
+     2
+    ],
+    [
+     4,
+     2,
+     0,
+     1,
+     2,
+     4,
+     8
+    ],
+    [
+     11,
+     16,
+     0,
+     1,
+     8,
+     0,
+     55
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.5963878609194696,
+     0.6827960220552137
+    ],
+    "macro_f1": [
+     0.4067604004682074,
+     0.5312120986330974
+    ],
+    "accuracy": [
+     0.6294929377598838,
+     0.706399058108478
+    ]
+   },
+   "ece": 0.030337,
+   "note": "557 of 2596 clips with a face have jsd above 0.5729 (vision.jsd_face_flag, dev)",
+   "jsd_face_flag": 0.5729,
+   "n_face_rows": 2596,
+   "n_subset": 557,
+   "share_of_face_rows": 0.214561,
+   "subset": {
+    "n": 557,
+    "text_best_k": {
+     "weighted_f1": 0.648832,
+     "macro_f1": 0.508595,
+     "accuracy": 0.669659
+    },
+    "fused_stacked": {
+     "weighted_f1": 0.628665,
+     "macro_f1": 0.444661,
+     "accuracy": 0.658887
+    },
+    "fused3_stacked": {
+     "weighted_f1": 0.640409,
+     "macro_f1": 0.471011,
+     "accuracy": 0.667864
+    }
+   },
+   "complement": {
+    "n": 2039,
+    "text_best_k": {
+     "weighted_f1": 0.579423,
+     "macro_f1": 0.364342,
+     "accuracy": 0.615498
+    },
+    "fused_stacked": {
+     "weighted_f1": 0.599801,
+     "macro_f1": 0.358472,
+     "accuracy": 0.634134
+    },
+    "fused3_stacked": {
+     "weighted_f1": 0.606309,
+     "macro_f1": 0.36417,
+     "accuracy": 0.639529
+    }
+   },
+   "description": "fusion3 on the clips with a face whose words-face jsd is above vision.jsd_face_flag"
+  },
+  "sentiment3": {
+   "condition": "sentiment3",
+   "task": "sentiment",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.690266,
+   "macro_f1": 0.664409,
+   "accuracy": 0.693103,
+   "per_class_f1": {
+    "neutral": 0.762943,
+    "positive": 0.581699,
+    "negative": 0.648586
+   },
+   "confusion": [
+    [
+     980,
+     62,
+     214
+    ],
+    [
+     130,
+     267,
+     124
+    ],
+    [
+     203,
+     68,
+     562
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.6705310796267627,
+     0.7087759247278451
+    ],
+    "macro_f1": [
+     0.6437655743178746,
+     0.6847205149194302
+    ],
+    "accuracy": [
+     0.6744247705468263,
+     0.71163112164297
+    ]
+   },
+   "ece": 0.028502,
+   "note": "29 fusion3 features, gold text",
+   "description": "sentiment over the 29 fusion3 features (heads/sentiment3.npz), gold text"
+  }
+ }
+}

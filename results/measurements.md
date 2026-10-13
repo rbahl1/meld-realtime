@@ -4,7 +4,7 @@ Rendered by `python tools/render_measurements.py --out results/measurements.md` 
 
 ## Host that rendered this file
 
-- host `vm`, rendered 2026-10-12T22:14:21Z, commit `abe5b3e7c2b1 (main)`
+- host `vm`, rendered 2026-10-13T17:04:44Z, commit `906279e5dd2e (extension)`
 - CPU (lscpu): Intel(R) Xeon(R) Processor @ 2.10GHz
 - nproc: 4
 - flags of interest: avx2 yes, fma yes, avx512f yes, avx512bw yes, avx512_vnni yes, amx_tile yes, amx_int8 yes, amx_bf16 yes
@@ -13,7 +13,7 @@ Rendered by `python tools/render_measurements.py --out results/measurements.md` 
 
 ```
 total        used        free      shared  buff/cache   available
-Mem:           16093         767       11049          15        4607       15325
+Mem:           16093         659        8549          14        7172       15433
 Swap:              0           0           0
 ```
 
@@ -21,7 +21,7 @@ Swap:              0           0           0
 
 ### Parameters (`results/params.json`, written by `tools/count_params.py`)
 
-Generated 2026-10-12T20:58:13Z.
+Generated 2026-10-13T17:04:43Z.
 
 | Component | File | Params | Trained | Note |
 |---|---|---|---|---|
@@ -222,6 +222,135 @@ Definitions:
 - The service, the replay client and the monitor run in one process, so RSS and CPU include all three.
 - A final belongs to the clip whose span holds its `t_media_end`, the time the speech stopped (rule: `t_media_end within [media_start, next clip's media_start)`). A span runs from the start of a clip to the start of the next one, so it includes the silence streamed after the clip. The segment start is not used because it carries the VAD pre-roll.
 - The clips are MELD utterances, converted to 16 kHz WAV by `tools/extract_audio.py`. They are cut at the end of the subtitle, so the detected end of speech can fall after the end of the clip. The buckets group finals by segment length, and the clip-attribution row shows where the segments and the clips differ.
+
+### Replay bench with video, `--reply llm` (`replay_bench_vm_tav.json`, written by `tools/replay_bench.py --video`)
+
+Generated 2026-10-13T02:57:56Z on `vm` by `python tools/replay_bench.py --video --clips /home/user/meld-data/mp4/test/*.mp4 --n 200 --realtime --reply llm --llm-dir models/llm/Qwen2.5-0.5B-Instruct --out results/replay_bench_vm_tav.json`.
+
+- Clips: 200 MP4 files from `/home/user/meld-data/mp4/test` (duration p50 2.77 s, max 16.06 s). The replay client sends the audio and the frames (10.0 fps) of each clip on one media clock, at real-time pace, on one stream, with 1.0 s of silence after each clip. Before the measured run, the first clip was streamed once on a separate stream as a warm-up. Streaming 912.832 s of audio and 7044 frames took 912.8 s.
+- Service: `--vision`, 4 SenseVoice threads, 2 RoBERTa threads, endpoint silence 500 ms, frame-rate cap 10.0 fps, vision lag 150.0 ms, speaker rule `asd`, vision heads vision_cal, fusion3, sentiment3, commit policy `fqi_mlp_c0.05`, replies `llm` from `Qwen2.5-0.5B-Instruct`. The finals report `fused.mode` `stacked_tav` (206).
+- Models loaded in 9.58 s. The load average was [2.07, 3.2, 3.56] at the start and [1.42, 1.58, 2.23] at the end.
+- Messages: 206 finals, 206 responses, 619 provisionals, errors: none.
+
+#### Final state after the endpoint, by utterance length (targets of design 1.10, at 4 threads)
+
+| bucket | n | service-side p50 / p95 ms | target p50 / p95 | endpoint to response p50 / p95 ms | stages p50 (fe / sv / pros / txt / heads) | pass |
+|---|---|---|---|---|---|---|
+| up to 5 s (83 % of MELD) | 175 | 178.4 / 347.7 | 250 / 400 | 735.1 / 1480.0 | 5.4 / 113.5 / 9.3 / 37.0 / 0.7 | pass |
+| 5 to 8 s (95 % cumulative) | 18 | 336.2 / 536.6 | 350 / 550 | 950.2 / 1412.6 | 12.4 / 249.1 / 22.4 / 40.8 / 0.8 | pass |
+| 8 s to the 15 s cap (99.7 % cumulative) | 13 | 651.9 / 809.5 | 700 / 1000 | 1234.7 / 2243.1 | 16.8 / 525.7 / 33.4 / 40.9 / 0.7 | pass |
+| all | 206 | 193.9 / 546.8 | - | 772.6 / 1593.6 | 5.8 / 121.4 / 11.1 / 37.9 / 0.7 | - |
+
+#### Reply, commit, vision, compute and memory
+
+| item | measured | target | pass |
+|---|---|---|---|
+| reply after the final state (p50 / p95 / max ms, n) | 549.92 / 1333.29 / 2440.38, n 206 | none here: the 5.0 ms p95 target of design 1.10 is the bank's | n/a |
+| first streamed delta after the endpoint frame (p50 / p95 ms, n) | 388.85 / 855.99, n 206 | none set before the run | n/a |
+| generation (p50 / p95 ms) | 546.83 / 1329.88 | none set before the run | n/a |
+| reply source | generator 206, bank 0 of 206 responses, 1338 deltas, fallbacks: none | - | - |
+| label committed before the endpoint | share 0.8155 (168 of 206 finals with a commit block) | - | - |
+| commit time of the 168 commits before the endpoint (p50 / p95 s after the segment start) | 1.02 / 2.66 | - | - |
+| committed label equal to the final's label | share 0.767 of the 206 finals with a commit block (an endpoint commit is the final) | - | - |
+| vision thread per processed frame (mean ms) | 30.49 over 7044 frames | - | - |
+| video frames dropped / skipped / bad | 0 / 0 / 0, finals that waited the whole vision lag: 0 | - | - |
+| vision wait at the final (p50 / p95 ms) | 0.01 / 0.03 | - | - |
+| face evidence at the final (p50 / p95 ms) | 1.35 / 3.04 | - | - |
+| worker compute per second of audio | 0.1549 s (0.2003 per speech s) | below 0.3 s | pass |
+| whole process cpu per second of audio | 1.0986 cpu s, cpu % sampled mean 109.48 max 390.7 | - | - |
+| memory | rss 2942.8 MB after load, peak 3422.7 MB during the run | - | - |
+
+Definitions:
+
+- Service-side latency runs from the arrival of the endpoint frame (`t_service_recv_ns`) to the emission of the final state.
+- Endpoint to response runs from the arrival of the endpoint frame to the emission of the response.
+- Reply after the final state runs from the emission of the final state to the emission of the response. With `--reply llm` it includes the whole generation. The first streamed delta runs from the arrival of the endpoint frame to the emission of the first `response.delta`, so it includes the computation of the final state.
+- The commit time counts from the start of the VAD segment. A final without an earlier commit is its own commit, at the endpoint.
+- The vision thread time per frame covers the JPEG decode, the face expert and the row building.
+- Worker compute keeps the rule of the audio benches (the worker's stage timings of every final and provisional). It leaves out the vision thread and the reply thread. The process cpu includes every thread.
+- The service, the replay client and the monitor run in one process, so RSS and CPU include all three, and also the client's MP4 decoding and JPEG encoding.
+
+### Replay bench with video, `--reply bank` (`replay_bench_vm_tav_bank.json`, written by `tools/replay_bench.py --video`)
+
+Generated 2026-10-13T03:13:38Z on `vm` by `python tools/replay_bench.py --video --clips /home/user/meld-data/mp4/test/*.mp4 --n 200 --realtime --reply bank --out results/replay_bench_vm_tav_bank.json`.
+
+- Clips: 200 MP4 files from `/home/user/meld-data/mp4/test` (duration p50 2.77 s, max 16.06 s). The replay client sends the audio and the frames (10.0 fps) of each clip on one media clock, at real-time pace, on one stream, with 1.0 s of silence after each clip. Before the measured run, the first clip was streamed once on a separate stream as a warm-up. Streaming 912.832 s of audio and 7044 frames took 912.8 s.
+- Service: `--vision`, 4 SenseVoice threads, 2 RoBERTa threads, endpoint silence 500 ms, frame-rate cap 10.0 fps, vision lag 150.0 ms, speaker rule `asd`, vision heads vision_cal, fusion3, sentiment3, commit policy `fqi_mlp_c0.05`, replies `bank`. The finals report `fused.mode` `stacked_tav` (206).
+- Models loaded in 2.75 s. The load average was [1.11, 1.5, 2.18] at the start and [0.65, 1.2, 1.58] at the end.
+- Messages: 206 finals, 206 responses, 619 provisionals, errors: none.
+
+#### Final state after the endpoint, by utterance length (targets of design 1.10, at 4 threads)
+
+| bucket | n | service-side p50 / p95 ms | target p50 / p95 | endpoint to response p50 / p95 ms | stages p50 (fe / sv / pros / txt / heads) | pass |
+|---|---|---|---|---|---|---|
+| up to 5 s (83 % of MELD) | 175 | 172.1 / 392.8 | 250 / 400 | 172.3 / 393.0 | 5.1 / 108.8 / 8.6 / 37.3 / 0.7 | pass |
+| 5 to 8 s (95 % cumulative) | 18 | 340.6 / 509.4 | 350 / 550 | 340.9 / 509.6 | 10.9 / 255.3 / 24.3 / 36.2 / 0.8 | pass |
+| 8 s to the 15 s cap (99.7 % cumulative) | 13 | 576.0 / 875.6 | 700 / 1000 | 576.4 / 875.9 | 17.4 / 492.8 / 35.7 / 42.2 / 0.7 | pass |
+| all | 206 | 196.5 / 522.5 | - | 197.0 / 522.7 | 5.7 / 120.8 / 10.2 / 37.7 / 0.7 | - |
+
+#### Reply, commit, vision, compute and memory
+
+| item | measured | target | pass |
+|---|---|---|---|
+| reply after the final state (p50 / p95 / max ms, n) | 0.24 / 0.68 / 4.88, n 206 | 5.0 ms p95 | pass |
+| label committed before the endpoint | share 0.8155 (168 of 206 finals with a commit block) | - | - |
+| commit time of the 168 commits before the endpoint (p50 / p95 s after the segment start) | 1.02 / 2.66 | - | - |
+| committed label equal to the final's label | share 0.767 of the 206 finals with a commit block (an endpoint commit is the final) | - | - |
+| vision thread per processed frame (mean ms) | 29.72 over 7044 frames | - | - |
+| video frames dropped / skipped / bad | 0 / 0 / 0, finals that waited the whole vision lag: 0 | - | - |
+| vision wait at the final (p50 / p95 ms) | 0.01 / 0.02 | - | - |
+| face evidence at the final (p50 / p95 ms) | 1.21 / 2.44 | - | - |
+| worker compute per second of audio | 0.1507 s (0.1948 per speech s) | below 0.3 s | pass |
+| whole process cpu per second of audio | 0.8081 cpu s, cpu % sampled mean 80.55 max 395.0 | - | - |
+| memory | rss 1181.7 MB after load, peak 1644.9 MB during the run | - | - |
+
+Definitions:
+
+- Service-side latency runs from the arrival of the endpoint frame (`t_service_recv_ns`) to the emission of the final state.
+- Endpoint to response runs from the arrival of the endpoint frame to the emission of the response.
+- Reply after the final state runs from the emission of the final state to the emission of the response. With `--reply bank` the response is one bank line.
+- The commit time counts from the start of the VAD segment. A final without an earlier commit is its own commit, at the endpoint.
+- The vision thread time per frame covers the JPEG decode, the face expert and the row building.
+- Worker compute keeps the rule of the audio benches (the worker's stage timings of every final and provisional). It leaves out the vision thread and the reply thread. The process cpu includes every thread.
+- The service, the replay client and the monitor run in one process, so RSS and CPU include all three, and also the client's MP4 decoding and JPEG encoding.
+
+### Reply generator bench (`generator_bench_vm.json`, written by `tools/bench_generator.py`)
+
+Generated 2026-10-13T02:22:13Z on `vm` by `python tools/bench_generator.py --n 200 --threads 2 4 --models Qwen2.5-0.5B-Instruct/model_int8.onnx Qwen2.5-0.5B-Instruct/model_q4.onnx`. The states are 200 test clips from `cache/vision_post_test.npz` (seed 0): 100 on gold text and 100 on SenseVoice transcripts. Decoding is greedy, with at most 40 new tokens. The load average was [1.45, 3.37, 4.29] at the start and [3.67, 3.0, 3.64] at the end. The bench took 528.5 s.
+
+| file | threads | first token p50 / p95 ms | first word p50 / p95 ms | full reply p50 / p95 ms | decode passes per s | final-reply tokens per s | check pass rate | meets the targets at 4 threads |
+|---|---|---|---|---|---|---|---|---|
+| `Qwen2.5-0.5B-Instruct/model_int8.onnx` | 2 | 103.78 / 136.69 | 159.48 / 323.26 | 531.98 / 1304.45 | 20.09 | 16.76 | 0.97 |  |
+| `Qwen2.5-0.5B-Instruct/model_int8.onnx` | 4 | 70.94 / 100.27 | 108.75 / 233.55 | 378.52 / 896.2 | 28.47 | 23.74 | 0.97 | yes |
+| `Qwen2.5-0.5B-Instruct/model_q4.onnx` | 2 | 274.86 / 354.14 | 349.75 / 458.58 | 792.29 / 1291.37 | 17.33 | 14.84 | 0.995 |  |
+| `Qwen2.5-0.5B-Instruct/model_q4.onnx` | 4 | 155.02 / 196.14 | 202.44 / 292.25 | 496.41 / 830.08 | 26.87 | 23.01 | 0.995 | yes |
+
+Targets at 4 threads (`choice.rule` in the file, defined in the docstring of `tools/bench_generator.py`): first-token p95 at most 350.0 ms and a decode rate of at least 15.0 passes per s. Among the files of one model, q4 replaces int8 only when it is faster by more than 1.2x at the same reply length with a check pass rate no lower. The choice of this run covers its own files only. It is `Qwen2.5-0.5B-Instruct/model_int8.onnx`, which meets both targets. The reason recorded in the file: "int8 (q4 speedup 0.80x on a reply of 9.82 tokens, q4 pass rate 0.995 vs 0.97)".
+
+Definitions:
+
+- First token runs from the call to the first chosen token. First word runs to the first word passed to the stream.
+- Decode passes per s counts every forward pass after the first token (rolled-back tokens and the end token included) over the time after the first token. This is the rate the targets use. Final-reply tokens per s counts only the tokens of the final reply.
+- The check pass rate is the share of replies that pass `check_reply` (length, register, emotion words, prompt echo).
+
+### Reply generator bench (`generator_bench_vm_1.5b.json`, written by `tools/bench_generator.py`)
+
+Generated 2026-10-13T02:31:02Z on `vm` by `python tools/bench_generator.py --n 200 --threads 4 --models Qwen2.5-1.5B-Instruct/model_int8.onnx Qwen2.5-1.5B-Instruct/model_q4.onnx --out results/generator_bench_vm_1.5b.json`. The states are 200 test clips from `cache/vision_post_test.npz` (seed 0): 100 on gold text and 100 on SenseVoice transcripts. Decoding is greedy, with at most 40 new tokens. The load average was [3.67, 3.0, 3.64] at the start and [4.01, 3.84, 3.78] at the end. The bench took 621.4 s.
+
+| file | threads | first token p50 / p95 ms | first word p50 / p95 ms | full reply p50 / p95 ms | decode passes per s | final-reply tokens per s | check pass rate | meets the targets at 4 threads |
+|---|---|---|---|---|---|---|---|---|
+| `Qwen2.5-1.5B-Instruct/model_int8.onnx` | 4 | 149.35 / 194.54 | 352.49 / 783.58 | 1228.94 / 2985.06 | 13.22 | 8.79 | 0.97 | no |
+| `Qwen2.5-1.5B-Instruct/model_q4.onnx` | 4 | 473.33 / 580.74 | 575.33 / 773.84 | 1330.17 / 2541.36 | 11.64 | 9.49 | 0.995 | no |
+
+Targets at 4 threads (`choice.rule` in the file, defined in the docstring of `tools/bench_generator.py`): first-token p95 at most 350.0 ms and a decode rate of at least 15.0 passes per s. Among the files of one model, q4 replaces int8 only when it is faster by more than 1.2x at the same reply length with a check pass rate no lower. The choice of this run covers its own files only. It is `Qwen2.5-1.5B-Instruct/model_int8.onnx`, which does not meet both targets. The reason recorded in the file: "no file meets both targets: the smallest model's file with the lower first-token p95".
+
+Definitions:
+
+- First token runs from the call to the first chosen token. First word runs to the first word passed to the stream.
+- Decode passes per s counts every forward pass after the first token (rolled-back tokens and the end token included) over the time after the first token. This is the rate the targets use. Final-reply tokens per s counts only the tokens of the final reply.
+- The check pass rate is the share of replies that pass `check_reply` (length, register, emotion words, prompt echo).
+
+The deployed reply generator is `Qwen2.5-0.5B-Instruct/model_int8.onnx` (`DEFAULT_MODEL` and `DEFAULT_ONNX` in `meld_rt/response/generator.py`).
 
 ## Laptop (user-run)
 

@@ -23,6 +23,9 @@ prosody = ["praat-parselmouth>=0.4.3"]
 mic = ["sounddevice>=0.5"]
 tts = ["sherpa-onnx==1.13.8", "sherpa-onnx-core==1.13.8"]
 finetune = ["torch>=2.4", "transformers>=4.45"]
+vision = [
+    "opencv-python-headless>=4.10",
+]
 
 [dependency-groups]
 dev = ["pytest>=8.0", "msgpack>=1.0", "sherpa-onnx==1.13.8", "sherpa-onnx-core==1.13.8", "praat-parselmouth>=0.4.3"]

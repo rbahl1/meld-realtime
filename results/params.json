@@ -123,6 +123,36 @@
  "heads_pending": [],
  "other_head_files": [
   {
+   "file": "heads/ablation_no_events_audio_cal.npz",
+   "params": 98,
+   "note": "not on the inference path"
+  },
+  {
+   "file": "heads/ablation_no_events_fusion.npz",
+   "params": 133,
+   "note": "not on the inference path"
+  },
+  {
+   "file": "heads/ablation_no_events_no_prosody_audio_cal.npz",
+   "params": 70,
+   "note": "not on the inference path"
+  },
+  {
+   "file": "heads/ablation_no_events_no_prosody_fusion.npz",
+   "params": 133,
+   "note": "not on the inference path"
+  },
+  {
+   "file": "heads/ablation_no_prosody_audio_cal.npz",
+   "params": 147,
+   "note": "not on the inference path"
+  },
+  {
+   "file": "heads/ablation_no_prosody_fusion.npz",
+   "params": 140,
+   "note": "not on the inference path"
+  },
+  {
    "file": "heads/audio_cal_A.npz",
    "params": 175,
    "note": "not on the inference path"
@@ -133,13 +163,161 @@
    "note": "not on the inference path"
   },
   {
+   "file": "heads/sentiment_text_only.npz",
+   "params": 2319,
+   "note": "not on the inference path"
+  },
+  {
    "file": "heads/text_ctx_k0.npz",
    "params": 199687,
    "note": "not on the inference path"
   }
  ],
+ "extension_rows": [
+  {
+   "component": "YuNet 2023mar",
+   "role": "face detection (vision)",
+   "file": "vision/face_detection_yunet_2023mar.onnx",
+   "trained": "frozen",
+   "params": 53121,
+   "bytes": 232589,
+   "by_dtype": {
+    "FLOAT": 53112,
+    "INT64": 9
+   },
+   "note": "112 initializers"
+  },
+  {
+   "component": "FER MobileFaceNet 2022july",
+   "role": "facial expression (vision)",
+   "file": "vision/facial_expression_recognition_mobilefacenet_2022july.onnx",
+   "trained": "frozen",
+   "params": 1193927,
+   "bytes": 4791892,
+   "by_dtype": {
+    "FLOAT": 1193927
+   },
+   "note": "135 initializers"
+  },
+  {
+   "component": "VisionCalibrator",
+   "role": "face posterior",
+   "file": "heads/vision_cal.npz",
+   "trained": "trained",
+   "params": 3703,
+   "bytes": 22018,
+   "weights": {
+    "W": 3696,
+    "b": 7
+   },
+   "note": "lr 528-7, variant B; standardizer 1056 elements not counted"
+  },
+  {
+   "component": "Fusion3",
+   "role": "fused posterior, three inputs",
+   "file": "heads/fusion3.npz",
+   "trained": "trained",
+   "params": 210,
+   "bytes": 3810,
+   "weights": {
+    "W": 203,
+    "b": 7
+   },
+   "note": "lr 29-7, variant tav; standardizer 58 elements not counted"
+  },
+  {
+   "component": "Sentiment3",
+   "role": "sentiment, three inputs",
+   "file": "heads/sentiment3.npz",
+   "trained": "trained",
+   "params": 90,
+   "bytes": 3202,
+   "weights": {
+    "W": 87,
+    "b": 3
+   },
+   "note": "lr 29-3, variant tav; standardizer 58 elements not counted"
+  },
+  {
+   "component": "CommitPolicy",
+   "role": "when to commit the label",
+   "file": "heads/commit_policy.npz",
+   "trained": "trained",
+   "params": 272,
+   "bytes": 13150,
+   "weights": {
+    "p_w": 14,
+    "p_b": 1,
+    "qw_W1": 224,
+    "qw_b1": 16,
+    "qw_W2": 16,
+    "qw_b2": 1
+   },
+   "note": "P(correct) logistic regression and Q_wait mlp; standardizer 28 elements not counted"
+  },
+  {
+   "component": "Qwen2.5-0.5B-Instruct (model_int8.onnx)",
+   "role": "streaming reply",
+   "file": "llm/Qwen2.5-0.5B-Instruct/onnx/model_int8.onnx",
+   "trained": "frozen",
+   "params": 494032768,
+   "bytes": 512096557,
+   "by_dtype": {
+    "FLOAT": 71552,
+    "UINT8": 136134656,
+    "INT8": 357826560
+   },
+   "excluded": {
+    "integer_constants": 2005,
+    "scalar_constants": 149,
+    "exporter_constants": 4194352,
+    "scales_zero_points": 338
+   },
+   "note": "weight tensors once, dequantized element count; not counted: exporter constants 4,194,352, integer constants 2,005, scalar constants 149, scales zero points 338"
+  }
+ ],
+ "llm_candidates": [
+  {
+   "file": "llm/Qwen2.5-0.5B-Instruct/onnx/model_q4.onnx",
+   "params": 494032768,
+   "bytes": 786156820,
+   "excluded": {
+    "integer_constants": 2005,
+    "scalar_constants": 149,
+    "exporter_constants": 4194352,
+    "scales_zero_points": 11182080
+   },
+   "note": "candidate, not deployed"
+  },
+  {
+   "file": "llm/Qwen2.5-1.5B-Instruct/onnx/model_int8.onnx",
+   "params": 1543714304,
+   "bytes": 1578954293,
+   "excluded": {
+    "integer_constants": 2329,
+    "scalar_constants": 173,
+    "exporter_constants": 8388664,
+    "scales_zero_points": 394
+   },
+   "note": "candidate, not deployed"
+  },
+  {
+   "file": "llm/Qwen2.5-1.5B-Instruct/onnx/model_q4.onnx",
+   "params": 1543714304,
+   "bytes": 1787566590,
+   "excluded": {
+    "integer_constants": 2329,
+    "scalar_constants": 173,
+    "exporter_constants": 8388664,
+    "scales_zero_points": 40943616
+   },
+   "note": "candidate, not deployed"
+  }
+ ],
+ "total_extension_only": 495284091,
+ "total_with_extension": 854285506,
  "cap": 6000000000,
- "generated_at": "2026-10-12T20:58:13Z",
- "wall_s": 1.15,
+ "generated_at": "2026-10-13T17:04:43Z",
+ "wall_s": 18.4,
  "command": "python tools/count_params.py --models models --heads heads --out results/params.md"
 }

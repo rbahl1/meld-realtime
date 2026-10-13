@@ -20,6 +20,7 @@ Written by `python tools/evaluate.py --cache cache/ --heads heads/ --out results
 | `heads/audio_cal_B.npz` | 40486 | `4cb548fa197a50e7d83241e03af7cc64237bcfa406e69dae18850a12f3c9c2d4` |
 | `heads/fusion.npz` | 3192 | `19fb219aa787d75611ec39d65067bc8afdd982bc807ea9b4601729e8c95c154d` |
 | `heads/sentiment.npz` | 3010 | `4cd0467fe75f6b97f956994d8b099c63a256f52f68a36fd105766d7301d0abbf` |
+| `heads/sentiment_text_only.npz` | 18328 | `65c6614faa7a553bf62897048bb807eb52173e4ec873a036d50903b95225b78d` |
 | `heads/text_ctx.npz` | 808726 | `916806bf4f0a0055e989c6e73a289441378c719b9a4fb68c0628ad652d97dd92` |
 | `heads/text_ctx_k0.npz` | 808726 | `916806bf4f0a0055e989c6e73a289441378c719b9a4fb68c0628ad652d97dd92` |
 | `cache/text_asr_test.npy` | 8018048 | `241d14d7567d99dc4d27f94a43e7278581ab0221460b113e8d9453cd74070f8b` |
@@ -77,7 +78,7 @@ Deployed text head, from `heads/manifest.json`: k = 0, class weights `none`, tem
 
 | condition | status | weighted F1 | 95 % CI | macro F1 | accuracy | ECE | note |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| sentiment_text_only | pending (run tools/train_heads.py --text-only first) | | | | | | 10. sentiment, text-only head (logistic regression over the text context features) |
+| sentiment_text_only | done | 66.24 | [64.41, 68.20] | 63.33 | 66.70 | 2.04 | heads/sentiment_text_only.npz, k=0, C=0.1, T=1.420 |
 | sentiment_fused | done | 69.17 | [67.37, 70.96] | 66.45 | 69.46 | 1.88 | T=0.805 |
 
 ### Published rows (sentiment)
@@ -357,6 +358,14 @@ Abstain rate (OTHER + EMO_UNKNOWN above half the mass): 97.51 %.
 | disgust | 44 | 1 | 0 | 1 | 3 | 0 | 19 |
 | anger | 220 | 10 | 2 | 4 | 18 | 0 | 91 |
 
+### Confusion matrix of sentiment_text_only (rows true, columns predicted)
+
+| true \ pred | neutral | positive | negative |
+| --- | --- | --- | --- |
+| neutral | 1004 | 87 | 165 |
+| positive | 134 | 287 | 100 |
+| negative | 253 | 130 | 450 |
+
 ### Confusion matrix of sentiment_fused (rows true, columns predicted)
 
 | true \ pred | neutral | positive | negative |
@@ -417,4 +426,3 @@ A provisional state runs the deployed calibrator with the prosody set to zero ex
 - Runtime-regime window: the previous utterances are restricted to the same speaker within the dialogue, the same-speaker flags are 1, and the turn index counts that speaker's earlier utterances (what a single user in front of the robot has said so far). The head is the one trained on the full-dialogue window.
 - Majority floor: every test utterance gets the train majority class. Its posterior is the train class prior, which is what the ECE column scores.
 - Rows without a clip: the audio and fused conditions leave out test rows that have no cached clip. The note says how many, and `results/metrics.json` gives the text head's weighted F1 on the same rows (`text_best_k_same_rows_weighted_f1`).
-- Pending rows: a row stays pending until its inputs exist, and its status names the missing input. The audio and fused rows need MELD audio (`tools/extract_audio.py`, `tools/cache_audio_features.py`, then `tools/train_heads.py` without `--text-only`). The ablation rows also need `tools/train_heads.py --ablation`, and the live ASR and fused early-commit rows need the transcript embeddings (`tools/embed_text.py --from-asr`).

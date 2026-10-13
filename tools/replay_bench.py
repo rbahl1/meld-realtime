@@ -14,7 +14,21 @@ proxy clips are piper tts of meld dev text: their latencies are real, their
 emotion labels are not a result (sensevoice labels affectless tts neutral or
 unknown).
 
+--video (extension spec 3.3, 6): the clips are mp4 files. each clip's audio
+(ffmpeg, the options of tools/extract_audio.py) and its frames (--video-fps,
+640 px wide, jpeg quality 80) go out on one media-time schedule, the service
+runs with --vision (and --reply, the commit policy), and the result gets a
+"vision" section: vision wait and aggregation per final, face coverage,
+degraded counts, video frames processed / dropped / skipped, the vision
+thread's time per frame, provisional text-expert time, commits, and the
+streamed reply's first-delta time. the frames of the next clips are decoded by
+a prefetch thread while a clip streams, so the client holds a few clips of
+jpegs at a time; its decoding and encoding run in this process and count in
+its cpu and rss. without --video the bench and its json are what they were.
+
 usage: python tools/replay_bench.py --clips "proxy/*.wav" --n 20 --realtime --out results/replay_bench_$(hostname).json
+       python tools/replay_bench.py --video --clips "/home/user/meld-data/mp4/test/*.mp4" --n 200 --realtime \
+           --reply llm --out results/replay_bench_$(hostname)_tav.json
 """
 
 from __future__ import annotations
@@ -23,6 +37,7 @@ import argparse
 import glob
 import json
 import os
+import queue
 import socket
 import sys
 import threading
@@ -39,7 +54,14 @@ sys.path.insert(0, str(ROOT))
 
 from meld_rt import protocol as P  # noqa: E402
 from meld_rt.clients import connect_push, connect_sub  # noqa: E402
-from meld_rt.clients.replay import load_wav, send_frames  # noqa: E402
+from meld_rt.clients.replay import (  # noqa: E402
+    VIDEO_FPS,
+    decode_audio,
+    decode_frames,
+    load_wav,
+    send_av,
+    send_frames,
+)
 from meld_rt.service import Service, ServiceConfig  # noqa: E402
 
 # design 1.10, at 4 threads on the build container; ms after the endpoint frame arrived
@@ -157,10 +179,12 @@ class Sampler(threading.Thread):
 
 
 def wait_idle(col: Collector, svc: Service, idle_s: float, timeout_s: float) -> bool:
-    """true once nothing but health has arrived for idle_s and the worker is idle."""
+    """true once nothing but health has arrived for idle_s, the worker is idle and (--reply llm)
+    no reply is waiting or streaming: a generation can be silent for longer than idle_s (prefill
+    under load, the first-token timeout), and its deltas, response and cpu belong to the run."""
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        if time.monotonic() - col.last_non_health >= idle_s and svc.queue_s() == 0.0:
+        if time.monotonic() - col.last_non_health >= idle_s and svc.queue_s() == 0.0 and svc.reply_idle():
             return True
         time.sleep(0.05)
     return False
@@ -311,6 +335,145 @@ def analyze(msgs: list[tuple[int, str, dict]], clips: list[dict], stream_id: str
             "worker_compute_s": round(worker_ms / 1000, 3), "utterances": rows}
 
 
+# -- video (--video) ---------------------------------------------------------------
+
+class Prefetcher(threading.Thread):
+    """decodes the frames of the clips in order and jpeg-encodes them, at most `ahead`
+    clips before the one streaming; get(i) blocks until clip i is ready."""
+
+    def __init__(self, clips: list[dict], fps: float, ahead: int = 2, quality: int = P.JPEG_QUALITY):
+        super().__init__(name="prefetch", daemon=True)
+        self.clips, self.fps, self.quality = clips, float(fps), int(quality)
+        self._q: queue.Queue = queue.Queue(maxsize=max(1, int(ahead)))
+        self.decode_s: list[float] = []
+        self._halt = threading.Event()
+
+    def run(self) -> None:
+        for i, c in enumerate(self.clips):
+            if self._halt.is_set():
+                return
+            t = time.perf_counter()
+            try:
+                frames = decode_frames(Path(c["path"]), self.fps)
+                jpegs = [P.encode_jpeg(f, self.quality) for f in frames]
+                w, h = (int(frames.shape[2]), int(frames.shape[1])) if len(frames) else (0, 0)
+                item = {"jpegs": jpegs, "w": w, "h": h, "error": None}
+            except Exception as e:  # noqa: BLE001 - the clip goes out without video
+                item = {"jpegs": [], "w": 0, "h": 0, "error": f"{type(e).__name__}: {e}"}
+            self.decode_s.append(time.perf_counter() - t)
+            while not self._halt.is_set():
+                try:
+                    self._q.put((i, item), timeout=0.2)
+                    break
+                except queue.Full:
+                    continue
+
+    def get(self, i: int, timeout: float = 120.0) -> dict:
+        j, item = self._q.get(timeout=timeout)
+        if j != i:
+            raise RuntimeError(f"prefetch order: wanted clip {i}, got {j}")
+        return item
+
+    def stop(self) -> None:
+        self._halt.set()
+
+
+def stream_clips_av(push, clips: list[dict], stream_id: str, realtime: bool, tail_s: float, fps: float,
+                    ahead: int = 2) -> dict:
+    """ctl start, every clip's audio and video on one media clock (each clip followed by
+    tail_s of silence without video), ctl stop. the media span of each clip is fixed up
+    front from its audio, as stream_clips does."""
+    tail = P.pcm16_frames(np.zeros(int(tail_s * P.SR), np.int16))
+    n = 0
+    for c in clips:
+        c["_frames"] = P.pcm16_frames(c["pcm"])
+        c["media_start"] = round(n * P.FRAME_S, 3)
+        c["media_end"] = round((n + len(c["_frames"])) * P.FRAME_S, 3)
+        n += len(c["_frames"]) + len(tail)
+    pre = Prefetcher(clips, fps, ahead)
+    pre.start()
+    first = pre.get(0) if clips else None    # the clock starts once the first clip's frames are ready
+    push.send_multipart(P.ctl_msg(stream_id, "start"))
+    t0 = time.monotonic()
+    seq = vseq = late = 0
+    errors = {}
+    try:
+        for i, c in enumerate(clips):
+            v = first if i == 0 else pre.get(i)
+            if v["error"]:
+                errors[c["name"]] = v["error"]
+            c["n_video_frames"] = len(v["jpegs"])
+            start = seq * P.FRAME_S
+            if realtime and time.monotonic() > t0 + start + 0.05:
+                late += 1
+            seq, vseq = send_av(push, c.pop("_frames") + tail, v["jpegs"], v["w"], v["h"], fps, stream_id, realtime,
+                                seq0=seq, vseq0=vseq, t0_media=start, t0=t0 + start)
+    finally:
+        pre.stop()
+    wall = time.monotonic() - t0
+    push.send_multipart(P.ctl_msg(stream_id, "stop"))
+    return {"frames": seq, "video_frames": vseq, "audio_s": round(seq * P.FRAME_S, 3), "wall_s": round(wall, 3),
+            "clips_started_late": late, "video_decode_errors": errors,
+            "video_decode_s": summary(pre.decode_s)}
+
+
+def analyze_vision(msgs: list[tuple[int, str, dict]], stream_id: str) -> dict:
+    """the vision-mode numbers of a --video run (see the module docstring)."""
+    finals = [m for _, t, m in msgs if t == "state.final" and m.get("stream_id") == stream_id]
+    provs = [m for _, t, m in msgs if t == "state.provisional" and m.get("stream_id") == stream_id]
+    commits = [m for _, t, m in msgs if t == "state.commit" and m.get("stream_id") == stream_id]
+    deltas = [m for _, t, m in msgs if t == "response.delta" and m.get("stream_id") == stream_id]
+    resps = [m for _, t, m in msgs if t == "response" and m.get("stream_id") == stream_id]
+    healths = [m for _, t, m in msgs if t == "health" and m.get("stream_id") == stream_id]
+    vfin = [f for f in finals if f.get("vision")]
+    degraded: dict[str, int] = {}
+    for f in finals:
+        for d in f.get("degraded", []):
+            degraded[d] = degraded.get(d, 0) + 1
+    present = [f for f in vfin if f["vision"]["present"]]
+    full = [p for p in provs if p.get("window") == "full"]
+    cblocks = [f["commit"] for f in finals if f.get("commit")]
+    early = [c for c in cblocks if c.get("source") == "policy"]
+    by_utt = {f["utt_id"]: f for f in finals}
+    gain = [round(by_utt[c["utt_id"]]["t_media_end"] - by_utt[c["utt_id"]]["t_media_start"]
+                  + by_utt[c["utt_id"]]["timing_ms"].get("vad_tail", 0.0) / 1000 - c["t_commit_s"], 3)
+            for c in commits if c["utt_id"] in by_utt]
+    fallbacks: dict[str, int] = {}
+    for r in resps:
+        if r.get("fallback"):
+            k = str(r["fallback"]).split(":")[0]
+            fallbacks[k] = fallbacks.get(k, 0) + 1
+    h = healths[-1] if healths else {}
+    return {
+        "n_finals": len(finals), "finals_with_vision_block": len(vfin),
+        "face_present_finals": len(present), "face_present_rate": round(len(present) / len(vfin), 4) if vfin else None,
+        "presence_when_present": summary([f["vision"]["presence"] for f in present]),
+        "n_tracks_when_present": summary([f["vision"]["n_tracks"] for f in present]),
+        "vision_wait_ms": summary([f["timing_ms"].get("vision_wait") for f in vfin]),
+        "vision_aggregate_ms": summary([f["timing_ms"].get("vision_aggregate") for f in vfin]),
+        "degraded": degraded,
+        "fused_modes": {m: sum(f["fused"]["mode"] == m for f in finals) for m in sorted({f["fused"]["mode"] for f in finals})},
+        "face_flag_finals": sum(bool(f["discrepancy"].get("face_flag")) for f in finals),
+        "provisionals_full_stacked_tav": f"{sum(p['fused']['mode'] == 'stacked_tav' for p in full)}/{len(full)}",
+        "provisional_text_encoder_ms": summary([p["timing_ms"].get("text_encoder") for p in full if p["timing_ms"].get("text_encoder")]),
+        "provisional_vision_aggregate_ms": summary([p["timing_ms"].get("vision_aggregate") for p in provs]),
+        "commits": {"state_commit_messages": len(commits), "finals_with_commit_block": len(cblocks),
+                    "committed_before_endpoint": len(early),
+                    "rate_before_endpoint": round(len(early) / len(cblocks), 4) if cblocks else None,
+                    "matches_final_rate": round(sum(c["matches_final"] for c in cblocks) / len(cblocks), 4) if cblocks else None,
+                    "t_commit_s": summary([c["t_commit_s"] for c in commits]),
+                    "seconds_before_endpoint_commit": summary(gain)},
+        "reply": {"n_responses": len(resps), "n_deltas": len(deltas),
+                  "sources": {s: sum(r.get("source", "bank") == s for r in resps) for s in ("llm", "bank")},
+                  "fallbacks": fallbacks,
+                  "first_delta_ms": summary([r.get("first_delta_ms") for r in resps]),
+                  "gen_ms": summary([r.get("gen_ms") for r in resps]),
+                  "n_tokens": summary([r.get("n_tokens") for r in resps if r.get("source") == "llm"])},
+        "video": {k: h.get(k) for k in ("video_frames", "dropped_video_frames", "skipped_video_frames", "bad_video_frames",
+                                        "vision_lag_finals", "vision_frame_ms_mean", "vision_error")},
+    }
+
+
 def reattribute(path: Path, command: str) -> dict:
     """recompute the clip attribution of a written bench file under ATTRIBUTION_RULE, from the
     utterances and clip spans it stores, and rewrite it. the latencies are not touched."""
@@ -352,6 +515,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--models", type=Path, default=ROOT / "models")
     ap.add_argument("--heads", type=Path, default=ROOT / "heads")
     ap.add_argument("--jsonl", type=Path, default=None, help="also write every message as json lines")
+    g = ap.add_argument_group("--video: mp4 clips through the vision path (extension spec 3.3)")
+    g.add_argument("--video", action="store_true", help="the clips are mp4 files: audio and frames, service with --vision")
+    g.add_argument("--video-fps", type=float, default=VIDEO_FPS, help="frames per second sent")
+    g.add_argument("--video-fps-max", type=float, default=ServiceConfig().video_fps_max)
+    g.add_argument("--vision-lag-ms", type=float, default=ServiceConfig().vision_lag_ms)
+    g.add_argument("--reply", choices=("bank", "llm"), default="bank")
+    g.add_argument("--llm-dir", type=Path, default=None)
+    g.add_argument("--llm-threads", type=int, default=ServiceConfig().llm_threads)
+    g.add_argument("--commit-policy", type=Path, default=None)
+    g.add_argument("--no-commit", action="store_true")
+    g.add_argument("--prefetch", type=int, default=2, help="clips decoded ahead of the one streaming")
     a = ap.parse_args(argv)
     if a.reattribute:
         cmd = "python tools/replay_bench.py " + " ".join(sys.argv[1:] if argv is None else argv)
@@ -366,7 +540,7 @@ def main(argv: list[str] | None = None) -> int:
     files = collect_clips(a.clips, a.n)
     if not files:
         ap.error(f"no clips match {a.clips}")
-    clips = [{"name": f.name, "path": str(f), "pcm": load_wav(f)} for f in files] * max(1, a.repeat)
+    clips = [{"name": f.name, "path": str(f), "pcm": decode_audio(f) if a.video else load_wav(f)} for f in files] * max(1, a.repeat)
     clips = [dict(c) for c in clips]
     for c in clips:
         c["duration_s"] = round(len(c["pcm"]) / P.SR, 3)
@@ -376,10 +550,19 @@ def main(argv: list[str] | None = None) -> int:
 
     log(f"{len(clips)} clips, {sum(c['duration_s'] for c in clips):.1f} s of speech, tail {a.tail_s} s each, realtime={a.realtime}")
 
+    ext = {}
+    if a.video:
+        ext = {"vision": True, "video_fps_max": a.video_fps_max, "vision_lag_ms": a.vision_lag_ms, "reply": a.reply,
+               "llm_dir": a.llm_dir, "llm_threads": a.llm_threads, "commit_policy": a.commit_policy, "commit": not a.no_commit}
     cfg = ServiceConfig(models=a.models, heads=a.heads, in_addr="tcp://127.0.0.1:*", out_addr="tcp://127.0.0.1:*",
                         threads=a.threads, text_threads=a.text_threads, endpoint_silence_ms=a.endpoint_silence_ms,
                         provisional_hz=a.provisional_hz, provisional_window_s=a.provisional_window_s,
-                        provisional_budget_ms=a.provisional_budget_ms, fusion_mode=a.fusion_mode, preload=True)
+                        provisional_budget_ms=a.provisional_budget_ms, fusion_mode=a.fusion_mode, preload=True, **ext)
+
+    def stream(clip_list: list[dict], sid: str) -> dict:
+        if a.video:
+            return stream_clips_av(push, clip_list, sid, a.realtime, a.tail_s, a.video_fps, a.prefetch)
+        return stream_clips(push, clip_list, sid, a.realtime, a.tail_s)
     svc = Service(cfg)
     rss_before = psutil.Process().memory_info().rss
     t0 = time.perf_counter()
@@ -404,7 +587,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if a.warmup > 0:
             w = [dict(c) for c in clips[:a.warmup]]
-            stream_clips(push, w, WARMUP_STREAM, a.realtime, a.tail_s)
+            stream(w, WARMUP_STREAM)
             wait_idle(col, svc, 2.0, 60)
             n_before = len(col.msgs)
         else:
@@ -415,7 +598,7 @@ def main(argv: list[str] | None = None) -> int:
         cpu0 = proc.cpu_times()
         load0 = [round(x, 2) for x in os.getloadavg()]
         t_stream0 = time.monotonic()
-        sent = stream_clips(push, clips, STREAM, a.realtime, a.tail_s)
+        sent = stream(clips, STREAM)
         finished = wait_idle(col, svc, 2.0, 120)
         wall_total = time.monotonic() - t_stream0
         cpu1 = proc.cpu_times()
@@ -432,6 +615,8 @@ def main(argv: list[str] | None = None) -> int:
         with open(a.jsonl, "w", encoding="utf-8") as fh:
             fh.writelines(json.dumps({"topic": topic, "t_recv_ns": t, **m}, ensure_ascii=False) + "\n" for t, topic, m in msgs)
     res = analyze(msgs, clips, STREAM)
+    if a.video:
+        res["vision"] = analyze_vision(msgs, STREAM)
     cpu_s = (cpu1.user + cpu1.system) - (cpu0.user + cpu0.system)
     audio_s = sent["audio_s"]
     speech_s = round(sum(c["duration_s"] for c in clips), 3)
@@ -451,13 +636,23 @@ def main(argv: list[str] | None = None) -> int:
                       "heads": svc.model_versions.get("heads", []), "model_versions": svc.model_versions,
                       "realtime": a.realtime, "tail_s": a.tail_s, "warmup_clips": a.warmup, "n_clips": len(clips), "repeat": a.repeat,
                       "clip_source": str(Path(files[0]).parent), "clips": [{"name": c["name"], "duration_s": c["duration_s"],
-                                                                            "media_start": c["media_start"], "media_end": c["media_end"]} for c in clips],
-                      "clip_duration_s": summary([c["duration_s"] for c in clips])},
+                                                                            "media_start": c["media_start"], "media_end": c["media_end"],
+                                                                            **({"n_video_frames": c.get("n_video_frames")} if a.video else {})}
+                                                                           for c in clips],
+                      "clip_duration_s": summary([c["duration_s"] for c in clips]),
+                      **({"video": True, "video_fps": a.video_fps, "video_fps_max": a.video_fps_max,
+                          "vision_lag_ms": a.vision_lag_ms, "reply": a.reply, "generator": svc.generator_status(),
+                          "commit_policy": svc.commit_policy_name, "vision_rule": svc.vision_rule,
+                          "vision_heads": [k for k in ("vision_cal", "fusion3", "sentiment3") if svc.heads.get(k) is not None]}
+                         if a.video else {})},
            "load_s": load_s, "sent": sent, "finished_cleanly": finished, "loadavg_start": load0, "loadavg_end": load1,
            "memory": {"rss_mb_before_load": round(rss_before / 2**20, 1), "rss_mb_after_load": round(rss_loaded / 2**20, 1),
                       "peak_rss_mb": round(max(sampler.rss) / 2**20, 1) if sampler.rss else None, "health_rss_mb_last": res["health_rss_mb_last"]},
            "compute": comp, "targets": TARGETS,
-           "notes": ["service, replay client and monitor run in one process on this host; rss and cpu include all three",
+           "notes": (["video: the client decodes the mp4 frames and jpeg-encodes them in this process, so cpu and rss include that work",
+                      ("video: worker_compute_s keeps its rule (the worker's stage timings); the vision thread's time is "
+                       "vision.video.vision_frame_ms_mean per processed frame")] if a.video else []) +
+                    ["service, replay client and monitor run in one process on this host; rss and cpu include all three",
                      "service_total_ms is the service-side latency: endpoint frame arrival (t_service_recv_ns) to the final's emission",
                      "client_ms is the monitor's arrival time minus the capture time of the endpoint frame, valid because both run here",
                      "response_ms is from the endpoint frame arrival to the response's emission",
@@ -487,6 +682,14 @@ def main(argv: list[str] | None = None) -> int:
     print(f"provisional cadence: full-window gap p50 {cad['full_window_interval_s'].get('p50')} s, tail gap p50 "
           f"{cad['tail_window_interval_s'].get('p50')} s, per utterance p50 {cad['per_utterance'].get('p50')}, "
           f"{cad['utterances_over_1p5s_with_a_provisional']} utterances over 1.5 s got one: {'pass' if cad['pass'] else 'FAIL' if cad['pass'] is not None else 'n/a'}")
+    if a.video:
+        v = r["vision"]
+        print(f"vision: face in {v['face_present_finals']}/{v['finals_with_vision_block']} finals, vision wait p50 "
+              f"{v['vision_wait_ms'].get('p50')} p95 {v['vision_wait_ms'].get('p95')} ms, aggregate p50 {v['vision_aggregate_ms'].get('p50')} ms, "
+              f"degraded {v['degraded'] or 'none'}, video {v['video']}")
+        print(f"commit: {v['commits']['committed_before_endpoint']}/{v['commits']['finals_with_commit_block']} before the endpoint; "
+              f"reply: {v['reply']['sources']} first delta p50 {v['reply']['first_delta_ms'].get('p50')} "
+              f"p95 {v['reply']['first_delta_ms'].get('p95')} ms, fallbacks {v['reply']['fallbacks'] or 'none'}")
     print(f"compute: worker {comp['worker_compute_s_per_audio_s']} s per audio s (target <= {comp['target_max']}): "
           f"{'pass' if comp['pass'] else 'FAIL'}; process cpu {comp['process_cpu_s_per_audio_s']} s per audio s, "
           f"cpu% sampled mean {comp['process_cpu_percent_sampled'].get('mean')} max {comp['process_cpu_percent_sampled'].get('max')}; "

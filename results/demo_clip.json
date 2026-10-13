@@ -1,0 +1,97 @@
+{
+ "rule": "test clip; chosen face present in at least 80 % of the frames; SenseVoice transcript passes the asr gate; text head on that transcript wrong; three-way fusion on that transcript right; lowest dialogue id, then lowest utterance id",
+ "min_presence": 0.8,
+ "n_clips_meeting_rule": 122,
+ "n_test_clips": 2610,
+ "chosen": {
+  "key": "4_7",
+  "gold": "anger",
+  "text_live": "neutral",
+  "fused3_live": "anger",
+  "presence": 1.0,
+  "mp4": "dia4_utt7.mp4"
+ },
+ "first_ten": [
+  {
+   "key": "4_7",
+   "gold": "anger",
+   "text_live": "neutral",
+   "fused3_live": "anger",
+   "presence": 1.0,
+   "mp4": "dia4_utt7.mp4"
+  },
+  {
+   "key": "12_8",
+   "gold": "joy",
+   "text_live": "anger",
+   "fused3_live": "joy",
+   "presence": 1.0,
+   "mp4": "dia12_utt8.mp4"
+  },
+  {
+   "key": "13_2",
+   "gold": "neutral",
+   "text_live": "joy",
+   "fused3_live": "neutral",
+   "presence": 1.0,
+   "mp4": "dia13_utt2.mp4"
+  },
+  {
+   "key": "13_5",
+   "gold": "anger",
+   "text_live": "neutral",
+   "fused3_live": "anger",
+   "presence": 0.963,
+   "mp4": "dia13_utt5.mp4"
+  },
+  {
+   "key": "13_6",
+   "gold": "anger",
+   "text_live": "neutral",
+   "fused3_live": "anger",
+   "presence": 1.0,
+   "mp4": "dia13_utt6.mp4"
+  },
+  {
+   "key": "17_19",
+   "gold": "neutral",
+   "text_live": "anger",
+   "fused3_live": "neutral",
+   "presence": 1.0,
+   "mp4": "dia17_utt19.mp4"
+  },
+  {
+   "key": "17_23",
+   "gold": "neutral",
+   "text_live": "joy",
+   "fused3_live": "neutral",
+   "presence": 1.0,
+   "mp4": "dia17_utt23.mp4"
+  },
+  {
+   "key": "21_4",
+   "gold": "sadness",
+   "text_live": "anger",
+   "fused3_live": "sadness",
+   "presence": 0.8889,
+   "mp4": "dia21_utt4.mp4"
+  },
+  {
+   "key": "22_11",
+   "gold": "neutral",
+   "text_live": "anger",
+   "fused3_live": "neutral",
+   "presence": 1.0,
+   "mp4": "dia22_utt11.mp4"
+  },
+  {
+   "key": "25_11",
+   "gold": "neutral",
+   "text_live": "joy",
+   "fused3_live": "neutral",
+   "presence": 1.0,
+   "mp4": "dia25_utt11.mp4"
+  }
+ ],
+ "command": "python tools/pick_demo_clip.py"
+}

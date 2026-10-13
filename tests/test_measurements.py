@@ -259,6 +259,38 @@ def test_render_from_the_committed_json_files():
         assert f"{b['by_threads'][t]['sensevoice_ms']['2']['p50']:.1f}" in md
 
 
+def test_render_gives_video_benches_and_the_generator_their_own_sections(tmp_path):
+    """replay benches with video are not rendered as audio replay sections; the llm run reports its
+    reply numbers without the bank's target; the generator bench has one row per file and thread count."""
+    vids = [p for p in sorted((ROOT / "results").glob("replay_bench_*.json")) if json.loads(p.read_text())["config"].get("video")]
+    gens = sorted((ROOT / "results").glob("generator_bench_*.json"))
+    if not vids or not gens:
+        pytest.skip("no committed video or generator bench json")
+    for p in vids + gens:
+        shutil.copy(p, tmp_path / p.name)
+    md = rm.render(ROOT, tmp_path)
+    assert "### Replay bench (" not in md and md.count("### Replay bench with video") == len(vids)
+    for p in vids:
+        r = json.loads(p.read_text())
+        sec = md.split(f"(`{p.name}`")[1].split("\n### ")[0]
+        rp = r["results"]["reply_after_final_ms"]
+        if r["config"]["reply"] == "llm":
+            fd = r["results"]["vision"]["reply"]["first_delta_ms"]
+            assert f"{fd['p50']} / {fd['p95']}" in sec and "is the bank's | n/a |" in sec
+        else:
+            assert f"| {rp['target_p95_ms']} ms p95 | {rm.pf(rp['pass'])} |" in sec
+        assert f"share {r['results']['vision']['commits']['rate_before_endpoint']}" in sec
+        assert f"{r['results']['vision']['video']['vision_frame_ms_mean']} over" in sec and f"peak {r['memory']['peak_rss_mb']} MB" in sec
+    for p in gens:
+        g = json.loads(p.read_text())
+        for f, by_t in g["results"].items():
+            for t in (k for k in by_t if k.isdigit()):
+                sm = by_t[t]["summary"]
+                assert f"| `{f}` | {t} | {sm['first_token_ms']['p50']} / {sm['first_token_ms']['p95']} |" in md
+    container, laptop = md.split("## Laptop (user-run)")
+    assert "### Reply generator bench" in container and rm.NOT_YET in laptop
+
+
 def test_commit_hash_reads_git_files_without_running_git():
     h = rm.commit_hash(ROOT)
     assert h == "unknown" or len(h.split()[0]) == 12

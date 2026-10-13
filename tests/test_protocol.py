@@ -104,3 +104,58 @@ def test_replay_reads_pcm16_wav_exactly(tmp_path):
     p = tmp_path / "a.wav"
     sf.write(str(p), x, 16000, subtype="PCM_16")
     assert np.array_equal(load_wav(p), x)
+
+
+# -- three-input extension (spec 3.1) ---------------------------------------
+
+def test_extension_topics_are_kept_apart_from_the_core_sets():
+    assert P.EXT_IN_TOPICS == ("video",) and set(P.EXT_OUT_TOPICS) == {"state.commit", "response.delta"}
+    assert set(P.ALL_IN_TOPICS) == set(P.IN_TOPICS) | {"video"}
+    assert set(P.ALL_OUT_TOPICS) == set(P.OUT_TOPICS) | {"state.commit", "response.delta"}
+    for topic in P.EXT_OUT_TOPICS:
+        t, d = P.parse_out(P.out_msg(topic, {"stream_id": "s1", "utt_id": 2}))
+        assert t == topic and d["utt_id"] == 2
+
+
+def test_video_round_trip_with_a_real_jpeg():
+    pytest.importorskip("cv2")
+    frame = np.zeros((48, 64, 3), np.uint8)
+    frame[:, :32] = (0, 0, 255)
+    msg = P.frame_msg("s1", 3, 987654321, 0.3, frame)
+    assert msg[0] == b"video" and msg[2][:2] == P.JPEG_SOI
+    topic, hdr, payload = P.parse_in(msg)
+    assert topic == "video"
+    assert hdr == {"stream_id": "s1", "seq": 3, "t_capture_ns": 987654321, "t_media": 0.3, "w": 64, "h": 48, "fmt": "jpeg"}
+    back = P.decode_jpeg(payload)
+    assert back.shape == frame.shape and abs(int(back[10, 5, 2]) - 255) < 8 and int(back[10, 50, 2]) < 8
+    # an integer media time is accepted and comes back as float
+    _, hdr, _ = P.parse_in(P.video_msg("s1", 0, 1, 2, 64, 48, payload))
+    assert hdr["t_media"] == 2.0 and isinstance(hdr["t_media"], float)
+    with pytest.raises(ValueError):
+        P.decode_jpeg(b"\xff\xd8 not really a jpeg")
+
+
+JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 16
+
+
+@pytest.mark.parametrize("hdr,payload", [
+    ({"stream_id": "s1", "seq": 1, "t_capture_ns": 1, "t_media": 0.1, "w": 64, "h": 48}, b"not a jpeg"),
+    ({"stream_id": "s1", "seq": 1, "t_capture_ns": 1, "t_media": 0.1, "w": 64, "h": 48}, b""),
+    ({"stream_id": "s1", "seq": "1", "t_capture_ns": 1, "t_media": 0.1, "w": 64, "h": 48}, JPEG),
+    ({"stream_id": "s1", "seq": True, "t_capture_ns": 1, "t_media": 0.1, "w": 64, "h": 48}, JPEG),
+    ({"stream_id": "s1", "seq": 1, "t_capture_ns": 1, "w": 64, "h": 48}, JPEG),
+    ({"stream_id": "s1", "seq": 1, "t_capture_ns": 1, "t_media": -0.1, "w": 64, "h": 48}, JPEG),
+    ({"stream_id": "s1", "seq": 1, "t_capture_ns": 1, "t_media": "0.1", "w": 64, "h": 48}, JPEG),
+    ({"stream_id": "s1", "seq": 1, "t_capture_ns": 1, "t_media": 0.1, "w": 0, "h": 48}, JPEG),
+    ({"stream_id": "s1", "seq": 1, "t_capture_ns": 1, "t_media": 0.1, "w": 64, "h": 48, "fmt": "png"}, JPEG),
+    ({"seq": 1, "t_capture_ns": 1, "t_media": 0.1, "w": 64, "h": 48}, JPEG),
+])
+def test_bad_video_raises_value_error(hdr, payload):
+    with pytest.raises(ValueError):
+        P.parse_in([b"video", json.dumps(hdr).encode(), payload])
+
+
+def test_nan_media_time_is_rejected():
+    hdr = b'{"stream_id": "s1", "seq": 1, "t_capture_ns": 1, "t_media": NaN, "w": 64, "h": 48}'
+    with pytest.raises(ValueError):
+        P.parse_in([b"video", hdr, JPEG])

@@ -22,7 +22,14 @@ same folds, grids and dev selection as stage 2. writes
 heads/ablation_<name>_{audio_cal,fusion}.npz and adds an "ablations" section to
 manifest.json. the deployed heads and the other manifest entries are not touched.
 
-usage: python tools/train_heads.py --cache cache/ --out heads/ --config configs/heads.yaml [--text-only | --ablation]
+--sentiment-text-only (experiment 10): with the deployed heads and manifest in place,
+fits the text-only sentiment head of --text-only (same function, config, seed, text
+caches and the deployed text head's k, all checked against the manifest) and writes
+it to heads/sentiment_text_only.npz with a "sentiment_text_only" section in
+manifest.json. heads/sentiment.npz (the fused head the service uses) and the other
+manifest entries are not touched.
+
+usage: python tools/train_heads.py --cache cache/ --out heads/ --config configs/heads.yaml [--text-only | --ablation | --sentiment-text-only]
 """
 
 from __future__ import annotations
@@ -55,6 +62,7 @@ from meld_rt.data import class_weights as emotion_class_weights  # noqa: E402
 N_EMO = len(labels.EMOTIONS)
 N_SENT = len(labels.SENTIMENTS)
 MIN_BUCKET = 20  # dev predictions needed before a threshold rule may fire
+SENTIMENT_TEXT_ONLY = "sentiment_text_only.npz"  # --sentiment-text-only writes the text-only head here, next to the fused one
 
 # calibrator A columns (layout in meld_rt/heads.py) and the ablations of experiment 6
 N_SLOTS, N_EVENTS = len(labels.SV_EMO_TOKENS), len(labels.SV_EVENT_TOKENS)
@@ -321,8 +329,9 @@ def train_text_stage(cache: Path, out: Path, cfg: dict, utts: dict[str, list[Utt
 
 
 def train_sentiment_text_only(out: Path, cfg: dict, utts: dict[str, list[Utt]], emb: dict[str, np.ndarray],
-                              k: int, seed: int) -> dict:
-    """logistic regression over the chosen k's text features, MELD sentiment labels."""
+                              k: int, seed: int, filename: str = "sentiment.npz") -> dict:
+    """logistic regression over the chosen k's text features, MELD sentiment labels. written to
+    out/filename (sentiment.npz with --text-only, sentiment_text_only.npz with --sentiment-text-only)."""
     t0 = time.perf_counter()
     Xtr, Xdev = text_matrix(emb["train"], utts["train"], k), text_matrix(emb["dev"], utts["dev"], k)
     ytr, ydev = sentiment_ids(utts["train"]), sentiment_ids(utts["dev"])
@@ -335,11 +344,11 @@ def train_sentiment_text_only(out: Path, cfg: dict, utts: dict[str, list[Utt]], 
                                 weights, cfg["lr"], seed, variant="text_only", k=k)
     h = heads.SentimentHead(h.params)
     cal = calibrate(h, Xdev, ydev)
-    h.save(out / "sentiment.npz")
+    h.save(out / filename)
     dev = metrics.summary(metrics.confusion(ydev, h.predict_log_proba_batch(Xdev).argmax(axis=1), N_SENT))
     for name, s in scores.items():
         print(f"sentiment {name}: dev weighted f1 {s['weighted_f1']:.4f} macro f1 {s['macro_f1']:.4f}", flush=True)
-    return {"variant": "text_only", "input": f"TextContextHead features, k={k} (768*(k+1)+4)", "file": "sentiment.npz",
+    return {"variant": "text_only", "input": f"TextContextHead features, k={k} (768*(k+1)+4)", "file": filename,
             **choice, "dev": {m: round(v, 4) for m, v in dev.items()}, "dev_scores": scores, "calibration_dev": cal,
             "wall_time_s": round(time.perf_counter() - t0, 1)}
 
@@ -616,9 +625,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--text-only", action="store_true", help="skip the audio and fusion stage; write a text-only sentiment head")
     ap.add_argument("--ablation", action="store_true",
                     help="train the ablation heads of experiment 6 next to the deployed heads, which stay as they are")
+    ap.add_argument("--sentiment-text-only", action="store_true",
+                    help=f"fit only the text-only sentiment head and write it to {SENTIMENT_TEXT_ONLY} next to the deployed heads, "
+                         "which stay as they are")
     args = ap.parse_args(argv)
-    if args.ablation and args.text_only:
-        ap.error("--ablation and --text-only exclude each other")
+    if sum((args.text_only, args.ablation, args.sentiment_text_only)) > 1:
+        ap.error("--text-only, --ablation and --sentiment-text-only exclude each other")
     cfg = yaml.safe_load(args.config.read_text())
     seed = int(cfg.get("seed", 0))
     import sklearn
@@ -626,6 +638,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.ablation:
         return run_ablation(args, cfg, seed, argv)
+    if args.sentiment_text_only:
+        return run_sentiment_text_only(args, cfg, seed, argv)
     t_all = time.perf_counter()
     with threadpoolctl.threadpool_limits(int(cfg.get("threads", 2))):
         utts = {s: load_split(s, args.meld) for s in ("train", "dev")}
@@ -660,8 +674,7 @@ def main(argv: list[str] | None = None) -> int:
         "histories": text["histories"],
         # the ablation heads are listed in their own section (--ablation)
         "files": {p.name: file_record(p) for p in sorted(args.out.glob("*.npz")) if not p.name.startswith("ablation_")},
-        "inputs": {str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p): file_record(p)
-                   for p in [args.cache / f"text_{s}.npy" for s in ("train", "dev")] + [args.meld / f"{s}_sent_emo.csv" for s in ("train", "dev")]},
+        "inputs": inputs_record(args),
         "config": cfg, "seed": seed, "threads": int(cfg.get("threads", 2)),
         "wall_time_s": {"text_ctx": text["wall_time_s"], "sentiment": stages["sentiment"].get("wall_time_s"),
                         "audio_fusion": stages["audio_fusion"].get("wall_time_s"), "total": round(time.perf_counter() - t_all, 1)},
@@ -672,6 +685,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"selected {sel['grid_point']}: dev weighted f1 {sel['dev']['weighted_f1']:.4f}, T={sel['calibration_dev']['temperature']}, "
           f"thresholds {manifest['thresholds']}; total {manifest['wall_time_s']['total']} s -> {args.out / 'manifest.json'}")
     return 0
+
+
+def inputs_record(args: argparse.Namespace) -> dict:
+    """bytes and sha256 of the text caches and csv files of train and dev (manifest "inputs")."""
+    paths = [args.cache / f"text_{s}.npy" for s in ("train", "dev")] + [args.meld / f"{s}_sent_emo.csv" for s in ("train", "dev")]
+    return {str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p): file_record(p) for p in paths}
 
 
 def run_ablation(args: argparse.Namespace, cfg: dict, seed: int, argv: list[str] | None) -> int:
@@ -693,6 +712,38 @@ def run_ablation(args: argparse.Namespace, cfg: dict, seed: int, argv: list[str]
     manifest["ablations"] = section
     path.write_text(json.dumps(manifest, indent=1))
     print(f"ablations: {', '.join(section['variants'])} in {section['wall_time_s']} s -> {path}")
+    return 0
+
+
+def run_sentiment_text_only(args: argparse.Namespace, cfg: dict, seed: int, argv: list[str] | None) -> int:
+    """--sentiment-text-only: reads the deployed manifest, fits train_sentiment_text_only with its config,
+    seed and the deployed text head's k on the same text caches, writes heads/sentiment_text_only.npz and
+    adds the "sentiment_text_only" section. every other manifest entry and every other head file stays as it is."""
+    import threadpoolctl
+
+    path = args.out / "manifest.json"
+    if not path.exists() or not (args.out / "text_ctx.npz").exists():
+        raise SystemExit(f"--sentiment-text-only needs the deployed heads and {path} (run tools/train_heads.py first)")
+    manifest = json.loads(path.read_text())
+    # same config, seed and text features as the deployed text head, or the head would not be its text-only counterpart
+    if manifest.get("config") != cfg or manifest.get("seed") != seed:
+        raise SystemExit(f"{args.config} is not the config recorded in {path}")
+    if list(inputs_record(args).values()) != list(manifest.get("inputs", {}).values()):
+        raise SystemExit(f"the text caches or csv files differ from the inputs recorded in {path}")
+    text_sel = manifest["selected"]["text_ctx"]
+    k = int(text_sel["k"])
+    with threadpoolctl.threadpool_limits(int(cfg.get("threads", 2))):
+        utts = {s: load_split(s, args.meld) for s in ("train", "dev")}
+        emb = {s: load_text_cache(args.cache, s, utts[s]) for s in ("train", "dev")}
+        section = train_sentiment_text_only(args.out, cfg, utts, emb, k, seed, SENTIMENT_TEXT_ONLY)
+    section["text_head"] = {"file": text_sel["file"], "grid_point": text_sel["grid_point"], "k": k}
+    section["seed"] = seed
+    section["files"] = {SENTIMENT_TEXT_ONLY: file_record(args.out / SENTIMENT_TEXT_ONLY)}
+    section["command"] = "python tools/train_heads.py " + " ".join(sys.argv[1:] if argv is None else argv)
+    manifest["sentiment_text_only"] = section
+    path.write_text(json.dumps(manifest, indent=1))
+    print(f"sentiment_text_only: C={section['C']}, class weights {section['class_weight_scheme']}, dev weighted f1 "
+          f"{section['dev']['weighted_f1']:.4f}, T={section['calibration_dev']['temperature']} -> {args.out / SENTIMENT_TEXT_ONLY}, {path}")
     return 0
 
 

@@ -3,9 +3,10 @@ tools/evaluate.py), heads/manifest.json (written by tools/train_heads.py) and th
 published rows that evaluate.py embeds in results/metrics.json: the main tables,
 gold text next to the live asr transcripts, the ablations, the disagreement
 subset, early commit, per-class f1, the published rows with their sources, the
-pending rows with what each needs, the dev choices, and sentences of observation
-computed from the numbers, the negative ones included. a sentence whose inputs are
-missing is skipped. nothing in the output is typed by hand.
+pending rows with what each needs (only while a row is pending), the dev choices,
+and sentences of observation computed from the numbers, the negative ones
+included. a sentence whose inputs are missing is skipped. nothing in the output
+is typed by hand.
 
 usage: python tools/render_results.py [--metrics results/metrics.json] [--manifest heads/manifest.json] [--out RESULTS.md]
 """
@@ -52,9 +53,8 @@ NEEDS = {
     "early_commit_audio_4s": "the 4 s prefix features of `cache/audio_test.npz` (`--prefixes 2,4`)",
     "early_commit_fused_2s": "the 2 s prefix features and `cache/text_asr_test_p2.npy` (`tools/embed_text.py --split test --from-asr asr_text_p2`)",
     "early_commit_fused_4s": "the 4 s prefix features and `cache/text_asr_test_p4.npy` (`tools/embed_text.py --split test --from-asr asr_text_p4`)",
-    "sentiment_text_only": ("a text-only `heads/sentiment.npz` (`tools/train_heads.py --text-only`). The committed sentiment head is the fused one, "
-                            "which the service uses, so this row is not scored in this run. The earlier text-only run is in "
-                            "[results/01_text_only.md](results/01_text_only.md)"),
+    "sentiment_text_only": ("`heads/sentiment_text_only.npz` (`tools/train_heads.py --sentiment-text-only`, next to the fused "
+                            "`heads/sentiment.npz` that the service uses), or a text-only `heads/sentiment.npz` (`tools/train_heads.py --text-only`)"),
     "sentiment_fused": "`cache/audio_test.npz`, `heads/audio_cal.npz` and a fused `heads/sentiment.npz` (`tools/train_heads.py` without `--text-only`)",
 }
 TABLE_HEAD = ["| condition | what it is | n | weighted F1 [95 % CI] | macro F1 | accuracy | ECE |", "|---|---|---|---|---|---|---|"]
@@ -304,10 +304,20 @@ def sentiment_notes(met: dict) -> list[str]:
     c = met["conditions"]
     pub = {p["row"]: p["weighted_f1"] for p in met.get("published", [])}
     out = []
-    for name, label in (("sentiment_text_only", "text-only"), ("sentiment_fused", "fused")):
-        if done(c, name) and TEXT_ROWS["s_drnn_t"] in pub and TEXT_ROWS["s_drnn_ta"] in pub:
-            out.append(f"The {label} sentiment head scores {pct(c[name]['weighted_f1'])}, next to {pub[TEXT_ROWS['s_drnn_t']]:.2f} for "
-                       f"DialogueRNN on text and {pub[TEXT_ROWS['s_drnn_ta']]:.2f} on text and audio (MELD paper, Table 13).")
+    paper = TEXT_ROWS["s_drnn_t"] in pub and TEXT_ROWS["s_drnn_ta"] in pub
+    ref = (f"{pub[TEXT_ROWS['s_drnn_t']]:.2f} for DialogueRNN on text and {pub[TEXT_ROWS['s_drnn_ta']]:.2f} on text and audio "
+           "(MELD paper, Table 13)") if paper else ""
+    if done(c, "sentiment_text_only") and done(c, "sentiment_fused"):
+        t, f = c["sentiment_text_only"], c["sentiment_fused"]
+        if paper:
+            out.append(f"The text-only sentiment head scores {pct(t['weighted_f1'])} and the fused one {pct(f['weighted_f1'])}, next to {ref}.")
+        (tlo, thi), (flo, fhi) = ci(t), ci(f)
+        out.append(f"The fused head scores {pts(f['weighted_f1'], t['weighted_f1'])} points {side(f['weighted_f1'], t['weighted_f1'])} "
+                   "the text-only head, and the two intervals " + ("overlap." if flo <= thi and tlo <= fhi else "do not overlap."))
+    else:
+        for name, label in (("sentiment_text_only", "text-only"), ("sentiment_fused", "fused")):
+            if done(c, name) and paper:
+                out.append(f"The {label} sentiment head scores {pct(c[name]['weighted_f1'])}, next to {ref}.")
     for name in ("sentiment_text_only", "sentiment_fused"):
         if name in c and not done(c, name):
             out.append(f"`{name}` is not scored in this run (see the pending rows).")
@@ -513,10 +523,343 @@ def observations(met: dict) -> list[str]:
     return out[:6]
 
 
-def render(met: dict, man: dict, cmd: str, metrics_path: str, manifest_path: str) -> str:
-    ab_cmd = man.get("ablations", {}).get("command")
+# -- extension: three inputs, commit policy, streamed reply (appended sections) ----
+
+def above(lo_hi) -> str:
+    return "yes" if lo_hi[0] > 0 else "no"
+
+
+ACRONYMS = {"fer": "FER", "sensevoice": "SenseVoice", "asr": "ASR", "jsd": "JSD", "mlp": "MLP"}
+
+
+def acr(text: str) -> str:
+    """the acronyms and model names that the result files write in lower case, as the prose writes them."""
+    return re.sub(r"\b(" + "|".join(ACRONYMS) + r")\b", lambda m: ACRONYMS[m.group(1)], text)
+
+
+def three_inputs(vm: dict, met: dict, path: str) -> list[str]:
+    """RESULTS.md section from results/metrics_vision.json (tools/evaluate_vision.py)."""
+    c, comp, cl, v, dev = vm["conditions"], vm["comparisons"], vm["claim"], vm["vision"], vm["dev"]
+    th = v.get("thresholds") or {}
+    L = [(f"Rendered from `{path}` (written by `{vm['command']}`). The speaker rule (`{v['rule']}`), the face calibrator (variant "
+          f"{v['variant']}), fusion3 (a logistic regression over 29 features built from the text, audio and face posteriors) and its thresholds were chosen on dev by "
+          "`tools/train_vision.py` (`heads/manifest.json`, section `vision`). "
+          f"A face was found in {pct(vm['test_face_coverage']['all_rows'])} % of the {vm['n_test_rows']} test clips. In `vision_raw_fer` and "
+          "`vision_cal`, a clip without a face gets the uniform posterior and the label neutral. The test protocol and the intervals are those of the "
+          f"main tables. The paired differences resample test dialogues ({vm['n_resamples']} resamples, seed {vm['seed']}) and score both "
+          "conditions on each resample."), ""]
+    obs = []
+    if done(c, "vision_cal") and done(c, "vision_raw_fer") and done(c, "text_best_k"):
+        obs.append(f"The face alone scores {pct(c['vision_cal']['weighted_f1'])} weighted F1 with the calibrator and "
+                   f"{pct(c['vision_raw_fer']['weighted_f1'])} as the raw FER label, against {pct(c['text_best_k']['weighted_f1'])} for the text head.")
+    g, lv = comp.get("gold_all", {}), comp.get("live_all", {})
+    if done(c, "fused3_stacked") and done(c, "fused_stacked") and "ci95" in g:
+        obs.append(f"Fusion3 scores {wci(c['fused3_stacked'])} on gold text against {pct(c['fused_stacked']['weighted_f1'])} for the two-way "
+                   f"fusion, a paired difference of {pct(g['diff']['weighted_f1'])} points [{pct(g['ci95']['weighted_f1'][0])}, "
+                   f"{pct(g['ci95']['weighted_f1'][1])}].")
+    if done(c, "live_asr_fused3") and done(c, "live_asr_text") and "ci95" in lv:
+        obs.append(f"On SenseVoice transcripts it scores {pct(c['live_asr_fused3']['weighted_f1'])} against "
+                   f"{pct(c['live_asr_text']['weighted_f1'])}, a paired difference of {pct(lv['diff']['weighted_f1'])} points "
+                   f"[{pct(lv['ci95']['weighted_f1'][0])}, {pct(lv['ci95']['weighted_f1'][1])}].")
+    if cl.get("gold_all_ci95_weighted_f1"):
+        obs.append("The claim rule was fixed before the run: the face adds to text and audio only if the paired 95 % interval of fusion3 "
+                   "minus the two-way fusion on gold text lies above zero. "
+                   + ("It does, so by this rule the face adds measured value here." if cl["face_adds"] else
+                      "It does not, so the gain is not shown."))
+    fl = (vm.get("label_flips") or {}).get("gold", {})
+    if "changed" in fl:
+        other = fl["changed"] - fl["wrong_to_right"] - fl["right_to_wrong"]
+        obs.append(f"Fusion3 changes {fl['changed']} of the {fl['n']} gold-text labels of the two-way fusion: {fl['wrong_to_right']} from wrong "
+                   f"to right, {fl['right_to_wrong']} from right to wrong and {other} from one wrong label to another.")
+    L += [" ".join(obs), ""] if obs else []
+    L += ["| condition | what it is | n | weighted F1 [95 % CI] | macro F1 | accuracy | ECE | face coverage |", "|---|---|---|---|---|---|---|---|"]
+    for name, r in c.items():
+        if r["status"] != "done":
+            L.append(f"| `{name}` | {acr(what(r))} | | {r['status']} | | | | |")
+            continue
+        L.append(f"| `{name}` | {acr(what(r))} | {r['n']} | {wci(r)} | {pct(r['macro_f1'])} | {pct(r['accuracy'])} | {pct(r['ece'])} | "
+                 f"{pct(r.get('face_coverage'))} |")
+    if done(c, "sentiment3") and done(met["conditions"], "sentiment_fused"):
+        L += ["", (f"`sentiment3` is a 3-class task. It scores {pct(c['sentiment3']['weighted_f1'])} against "
+                   f"{pct(met['conditions']['sentiment_fused']['weighted_f1'])} for the deployed two-way sentiment head (`sentiment_fused`).")]
+    L += ["", "### Paired differences (weighted F1, a minus b, in points)", "",
+          "| comparison | a | b | rows | n | difference | 95 % CI | interval above zero |", "|---|---|---|---|---|---|---|---|"]
+    for name, d in comp.items():
+        if "ci95" not in d:
+            L.append(f"| `{name}` | `{d['a']}` | `{d['b']}` | {d['rows']} | | pending | | |")
+            continue
+        lo, hi = d["ci95"]["weighted_f1"]
+        L.append(f"| `{name}` | `{d['a']}` | `{d['b']}` | {d['rows']} | {d['n']} | {pct(d['diff']['weighted_f1'])} | [{pct(lo)}, {pct(hi)}] | "
+                 f"{above((lo, hi))} |")
+    flips = vm.get("label_flips") or {}
+    if flips:
+        L += ["", "### Label flips (fusion3 against the two-way fusion)", "",
+              "| text input | n | labels changed | wrong to right | right to wrong | wrong to another wrong label |", "|---|---|---|---|---|---|"]
+        for f in flips.values():
+            if "changed" not in f:
+                L.append(f"| {acr(f['text'])} | | pending | | | |")
+                continue
+            L.append(f"| {acr(f['text'])} | {f['n']} | {f['changed']} | {f['wrong_to_right']} | {f['right_to_wrong']} | "
+                     f"{f['changed'] - f['wrong_to_right'] - f['right_to_wrong']} |")
+    r = c.get("face_disagreement_subset", {})
+    if r.get("status") == "done":
+        L += ["", "### Face-disagreement subset", "",
+              "| rows | n | text weighted F1 | two-way weighted F1 | fusion3 weighted F1 | text accuracy | two-way accuracy | fusion3 accuracy |",
+              "|---|---|---|---|---|---|---|---|"]
+        for part in ("subset", "complement"):
+            q = r[part]
+            L.append(f"| {part} | {q['n']} | " + " | ".join(pct(q[b]["weighted_f1"]) for b in ("text_best_k", "fused_stacked", "fused3_stacked"))
+                     + " | " + " | ".join(pct(q[b]["accuracy"]) for b in ("text_best_k", "fused_stacked", "fused3_stacked")) + " |")
+        s = r["subset"]
+        text = (f"The subset holds the {r['n_subset']} of {r['n_face_rows']} test clips with a face ({pct(r['share_of_face_rows'])} %) whose JSD "
+                f"between the gold-text posterior and the raw face posterior is above {r['jsd_face_flag']} (`vision.jsd_face_flag`, chosen on dev). "
+                f"There, fusion3 scores {pct(s['fused3_stacked']['weighted_f1'])} against {pct(s['fused_stacked']['weighted_f1'])} for the two-way "
+                f"fusion and {pct(s['text_best_k']['weighted_f1'])} for the text head.")
+        pairs = [(who, comp[key]) for key, who in (("gold_face_disagreement", "the two-way fusion"),
+                                                   ("gold_face_disagreement_vs_text", "the text head")) if "ci95" in comp.get(key, {})]
+
+        def diff(d: dict) -> str:
+            lo, hi = d["ci95"]["weighted_f1"]
+            return f"{pct(d['diff']['weighted_f1'])} points [{pct(lo)}, {pct(hi)}]"
+
+        def side_of_zero(d: dict) -> str:
+            lo, hi = d["ci95"]["weighted_f1"]
+            return "lies above zero" if lo > 0 else "lies below zero" if hi < 0 else "includes zero"
+
+        if len(pairs) == 2 and all(side_of_zero(d) == "includes zero" for _, d in pairs):
+            text += (f" The paired differences to {pairs[0][0]} ({diff(pairs[0][1])}) and to {pairs[1][0]} ({diff(pairs[1][1])}) both have "
+                     "intervals that include zero.")
+        else:
+            for who, d in pairs:
+                text += f" The paired difference to {who} is {diff(d)}, and its interval {side_of_zero(d)}."
+        L += ["", text]
+    if dev.get("rules"):
+        L += ["", "### Choices made on dev (`heads/manifest.json`, section `vision`)", "",
+              "| speaker rule | dev weighted F1, all rows | dev weighted F1, rows with a face | fallback rate on dev (%) | chosen |", "|---|---|---|---|---|"]
+        for rule, q in dev["rules"].items():
+            fb = (q.get("fallback_rate") or {}).get("dev")
+            L.append(f"| `{rule}` | {pct(q['dev']['weighted_f1'])} | {pct(q['dev_face_rows']['weighted_f1'])} | {pct(fb)} | "
+                     f"{'yes' if rule == v.get('rule') else ''} |")
+        L.append("")
+        dis = (v.get("rule_disagreement") or {}).get("dev") or {}
+        if dis:
+            L.append(f"- Of the {dis['n_face_clips']} dev clips with a face, {pct(dis['multi_track_share'])} % have more than one track, and on "
+                     f"{pct(dis['any_rule_differs'])} % the four rules do not all choose the same track.")
+        cal = dev.get("calibrator") or {}
+        if cal.get("A") and cal.get("B"):
+            other = "A" if v["variant"] == "B" else "B"
+            L.append(f"- Face calibrator: variant {v['variant']}, dev weighted F1 {pct(cal[v['variant']]['weighted_f1'])} against "
+                     f"{pct(cal[other]['weighted_f1'])} for variant {other}.")
+        if dev.get("fusion3") and dev.get("two_way"):
+            L.append(f"- Fusion3: dev weighted F1 {pct(dev['fusion3']['weighted_f1'])} against {pct(dev['two_way']['weighted_f1'])} for the "
+                     "two-way fusion.")
+        if dev.get("sentiment3"):
+            L.append(f"- Sentiment3: dev weighted F1 {pct(dev['sentiment3']['weighted_f1'])}.")
+        if th:
+            L.append(f"- Selector thresholds in the vision mode: low_conf {th.get('low_conf')}, high_conf {th.get('high_conf')}. "
+                     f"Words-face flag: JSD above {v.get('jsd_face_flag')}.")
+    return L + [""]
+
+
+def commit_policy(cp: dict, path: str) -> list[str]:
+    """RESULTS.md section from results/commit_policy.json (tools/train_commit_policy.py)."""
+    costs = [str(c) for c in cp["costs"]]
+    dc = str(cp["deploy_c"])
+    tr = cp["inputs"]["train"]
+    L = [(f"Rendered from `{path}` (written by `{cp['command']}`). At each full-window provisional of an utterance "
+          f"(t = {', '.join(str(t) for t in cp['grids']['fixed_T'][:-1])} and {cp['grids']['fixed_T'][-1]} s while the segment is open), "
+          "the policy commits the fused label or waits. Without a commit, the label of the endpoint is committed. The reward is one for a "
+          "correct label minus c times the commit time in seconds. The policy is trained by fitted Q-iteration on the train traces "
+          f"({tr['ticks']} ticks of {tr['clips']} clips). The Q_wait model and the parameters of the three baselines were chosen on dev for "
+          f"each c, and test was read once per method and c. The deployed policy uses c = {dc}.")]
+    t = cp.get("test")
+    obs = []
+    if t and dc in t:
+        m = t[dc]["methods"]
+        f, e = m["fqi"], m["endpoint"]
+        any_pair = next(iter(t[dc]["paired_fqi_minus"].values()))
+        L[0] += (f" The intervals are 95 % bootstrap intervals over test dialogues ({any_pair['n_resamples']} resamples, seed "
+                 f"{any_pair['seed']}).")
+        obs.append(f"At c = {dc} the policy commits {pct(f['early_share'])} % of the test labels before the endpoint, at a mean of "
+                   f"{f['mean_commit_s']:.3f} s after the segment start against {e['mean_commit_s']:.3f} s at the endpoint. Its accuracy is "
+                   f"{pct(f['accuracy'])} against {pct(e['accuracy'])} at the endpoint, and its weighted F1 {pct(f['weighted_f1'])} against "
+                   f"{pct(e['weighted_f1'])}.")
+        fq = cp["train"]["costs"][dc]["fqi"]
+        if not fq.get("converged"):
+            obs.append(f"Its Q_wait model ({acr(fq['kind'])}) stopped at the cap of {cp['grids']['max_iterations']} iterations before the emit "
+                       "decisions on the train ticks stopped changing.")
+        names = {"endpoint": "the endpoint", "fixed": "the fixed time", "threshold": "the threshold"}
+        parts = []
+        for b in t[dc]["rl_adds_value_over"]:
+            yes = [c for c in costs if t[c]["rl_adds_value_over"][b]]
+            where = ("at every cost" if len(yes) == len(costs) else "at no cost" if not yes else
+                     "at " + " and ".join(f"c = {c}" for c in yes) + " only")
+            parts.append(f"over {names.get(b, b)} {where}")
+        missing = [names.get(b, b) for b, v in t[dc]["rl_adds_value_over"].items() if not v]
+        obs.append("The claim rule was fixed before the run: RL adds measured value over a baseline at a cost c only where the paired 95 % "
+                   "interval of the test reward difference lies above zero. By that rule the policy adds measured value "
+                   + (", ".join(parts[:-1]) + " and " + parts[-1] if len(parts) > 1 else parts[0]) + ". "
+                   + (f"At the deployed c = {dc} the gain over {' and over '.join(missing)} is not shown." if missing else
+                      f"At the deployed c = {dc} it adds measured value over every baseline."))
+        sens = {c: t[c].get("sensitivity_tick_latency") for c in costs}
+        if all(sens.values()):
+            changed = [f"c = {c} against the {b}" for c in costs for b, d in sens[c]["paired_fqi_minus"].items()
+                       if d["above_zero"] != t[c]["rl_adds_value_over"][b]]
+            obs.append(f"Charging every tick commit {sens[costs[0]]['latency_s']} s more, as the endpoint commit is charged for the computation "
+                       "of the final, "
+                       + ("changes none of these outcomes." if not changed else "changes the outcome at " + ", ".join(changed) + "."))
+    L += ["", " ".join(obs), ""] if obs else [""]
+    L += ["### Choices made on dev", "",
+          "| c | Q_wait model | iterations | dev reward of the policy | fixed T | dev reward fixed | tau | dev reward threshold | dev reward endpoint |",
+          "|---|---|---|---|---|---|---|---|---|"]
+    for c, rc in cp["train"]["costs"].items():
+        dv = cp["dev"][c]["methods"]
+        f, b = rc["fqi"], rc["baselines"]
+        L.append(f"| {c} | {acr(f['kind'])}, alpha {f['alpha']:g} | {f['n_iterations']} | {dv['fqi']['mean_reward']:.4f} | {b['fixed']['param']} s | "
+                 f"{dv['fixed']['mean_reward']:.4f} | {b['threshold']['param']} | {dv['threshold']['mean_reward']:.4f} | "
+                 f"{dv['endpoint']['mean_reward']:.4f} |")
+    if t:
+        L += ["", "### Test, every method and cost", "",
+              "| c | method | mean reward [95 % CI] | accuracy | weighted F1 | mean commit s | committed before the endpoint |",
+              "|---|---|---|---|---|---|---|"]
+        for c in costs:
+            for name, s in t[c]["methods"].items():
+                lo, hi = s["mean_reward_ci95"]
+                label = ("policy" if name == "fqi" else name if s["param"] is None else
+                         f"fixed time ({s['param']} s)" if name == "fixed" else f"{name} ({s['param']})")
+                L.append(f"| {c} | {label} | {s['mean_reward']:.4f} [{lo:.4f}, {hi:.4f}] | {pct(s['accuracy'])} | {pct(s['weighted_f1'])} | "
+                         f"{s['mean_commit_s']:.3f} | {pct(s['early_share'])} % |")
+        L += ["", "### Test, policy minus each baseline (paired bootstrap over dialogues)", "",
+              "| c | baseline | reward difference | 95 % CI | RL adds measured value (claim rule) |", "|---|---|---|---|---|"]
+        for c in costs:
+            for b, d in t[c]["paired_fqi_minus"].items():
+                L.append(f"| {c} | {b} | {d['diff']:.4f} | [{d['ci95'][0]:.4f}, {d['ci95'][1]:.4f}] | "
+                         f"{'yes' if t[c]['rl_adds_value_over'][b] else 'no'} |")
+        L.append("")
+        L.append("The full tables, the P(correct) grid and the sensitivity rows are in [results/commit_policy.md](results/commit_policy.md).")
+    return L + [""]
+
+
+def deployed_choice(gens: list[dict]) -> dict | None:
+    """the choice rule over the files of several bench runs: of each run's choice that meets the targets, the
+    largest model's (each run applies the same-model int8 / q4 rule to its own files)."""
+    ok = [g["choice"] for g in gens if (g.get("choice") or {}).get("meets_targets")]
+    if not ok:
+        return None
+    order = {cand["file"]: cand["params_order"] for g in gens for cand in g["choice"].get("candidates", [])}
+    return max(ok, key=lambda ch: order.get(ch["deployed"], -1))
+
+
+# the choice rule as first worded (docstring of tools/bench_generator.py): a decode rate of at least 15 tokens per
+# second, read here as the final-reply rate (decode_tokens_per_s), and q4 only when it is faster by more than 20 %,
+# read here on the full-reply p50
+ORIGINAL_MIN_TOKENS_PER_S, ORIGINAL_Q4_FASTER = 15, 0.20
+
+
+def original_wording_choice(gens: list[dict]) -> str | None:
+    """a sentence on the file that the first wording of the choice rule picks from the same runs, or None."""
+    rows = []
+    for g in gens:
+        ch = g.get("choice") or {}
+        rule, th = ch.get("rule") or {}, str((ch.get("rule") or {}).get("threads"))
+        for cand in ch.get("candidates", []):
+            sm = ((g.get("results") or {}).get(cand["file"]) or {}).get(th, {}).get("summary") or {}
+            if sm.get("decode_tokens_per_s") is None:
+                return None
+            rows.append({**cand, "tok_s": sm["decode_tokens_per_s"], "threads": th,
+                         "ok": cand["first_token_p95"] <= rule["first_token_p95_max_ms"] and sm["decode_tokens_per_s"] >= ORIGINAL_MIN_TOKENS_PER_S})
+    ok = [r for r in rows if r["ok"]]
+    deployed = deployed_choice(gens)
+    if not ok or deployed is None:
+        return None
+    top = [r for r in ok if r["params_order"] == max(q["params_order"] for q in ok)]
+    i8, q4 = (next((r for r in top if kind in r["onnx"]), None) for kind in ("int8", "q4"))
+    pick = i8 or top[0]
+    if (i8 and q4 and i8["full_reply_p50"] / q4["full_reply_p50"] > 1 + ORIGINAL_Q4_FASTER
+            and q4["check_pass_rate"] >= i8["check_pass_rate"]):
+        pick = q4
+    text = (f"The original wording asked for {ORIGINAL_MIN_TOKENS_PER_S} tokens per s and a q4 file faster by more than "
+            f"{ORIGINAL_Q4_FASTER * 100:.0f} %")
+    if pick["file"] != deployed["deployed"]:
+        return text + f", and it would pick `{pick['file']}`."
+
+    def kind(r: dict) -> str:
+        return r["onnx"].removeprefix("model_").removesuffix(".onnx")
+
+    models = list(dict.fromkeys(r["model"] for r in rows))
+    rates = [(" and ".join(kind(r) for r in rows if r["model"] == m), m,
+              " and ".join(f"{r['tok_s']}" for r in rows if r["model"] == m)) for m in models]
+    text += (f", and it picks the same file: at {rows[0]['threads']} threads the {rates[0][0]} files of {rates[0][1]} write {rates[0][2]} "
+             "final-reply tokens per s" + "".join(f", those of {m} {v}" for _, m, v in rates[1:]))
+    if i8 and q4 and pick is i8:
+        p50s = f"({q4['full_reply_p50']} against {i8['full_reply_p50']} ms)"
+        text += (f", and the q4 file of {q4['model']} has the longer full-reply p50 {p50s}" if q4["full_reply_p50"] >= i8["full_reply_p50"] else
+                 f", and the q4 file of {q4['model']} is not faster by more than {ORIGINAL_Q4_FASTER * 100:.0f} % on the full-reply p50 {p50s}")
+    return text + "."
+
+
+def streamed_reply(gens: list[tuple[str, dict]], replay: tuple[str, dict] | None) -> list[str]:
+    """RESULTS.md section from the generator bench files (tools/bench_generator.py)."""
+    g0 = gens[0][1]
+    st = g0.get("states") or {}
+    rule = (g0.get("choice") or {}).get("rule") or {}
+    L = [(f"Rendered from {' and '.join(f'`{p}`' for p, _ in gens)} (written by `tools/bench_generator.py`, commands in the files). "
+          f"Every run replies to the same {st.get('n')} test states, {st.get('n_gold')} with gold text and {st.get('n_live')} with SenseVoice "
+          f"transcripts, drawn from `{st.get('source')}` with seed {st.get('seed')}. Decoding is greedy, with at most {g0.get('max_new_tokens')} "
+          "new tokens. The decode rate counts every forward pass after the first token, and the check pass rate is the share of replies that "
+          "pass `check_reply` (length, register, emotion words, prompt echo)."), "",
+         "| file | threads | first token p50 / p95 ms | first word p50 / p95 ms | full reply p50 / p95 ms | decode passes per s | words per reply | check pass rate |",
+         "|---|---|---|---|---|---|---|---|"]
+    for _, g in gens:
+        for f, by_t in g["results"].items():
+            for th in sorted((k for k in by_t if k.isdigit()), key=int):
+                sm = by_t[th]["summary"]
+                L.append(f"| `{f}` | {th} | {sm['first_token_ms']['p50']} / {sm['first_token_ms']['p95']} | {sm['first_word_ms']['p50']} / "
+                         f"{sm['first_word_ms']['p95']} | {sm['full_reply_ms']['p50']} / {sm['full_reply_ms']['p95']} | {sm['decode_passes_per_s']} | "
+                         f"{sm['words_per_reply']['mean']} | {sm['check_pass_rate']} |")
+    text = [(f"The choice rule was fixed before the bench on {st.get('n')} states. It deploys the largest model with a file whose first-token "
+             f"p95 is at most {rule.get('first_token_p95_max_ms')} ms and whose decode rate is at least {rule.get('decode_min_passes_per_s')} "
+             f"passes per s at {rule.get('threads')} threads. Among the files of one model it keeps int8 unless q4 is faster by more than "
+             f"{rule.get('q4_same_length_speedup_over_int8')}x at the same reply length with a check pass rate no lower. These definitions of "
+             "the decode rate and of a faster q4 were set after preliminary benches on 20 states (the docstring of `tools/bench_generator.py`).")]
+    cands = [cand for _, g in gens for cand in (g.get("choice") or {}).get("candidates", [])]
+    for model in dict.fromkeys(cand["model"] for cand in sorted(cands, key=lambda x: -x["params_order"])):
+        files = [cand for cand in cands if cand["model"] == model]
+        if not any(cand["meets_targets"] for cand in files):
+            text.append(f"No file of {model} meets both targets (decode rates "
+                        + " and ".join(f"{cand['decode_passes_per_s']}" for cand in files) + " passes per s).")
+    ch = deployed_choice([g for _, g in gens])
+    if ch:
+        text.append(f"The deployed file is `{ch['deployed']}`. The reason recorded by its run: \"{ch['reason']}\".")
+    orig = original_wording_choice([g for _, g in gens])
+    if orig:
+        text.append(orig)
+    if replay:
+        p, r = replay
+        rep = (((r.get("results") or {}).get("vision") or {}).get("reply") or {})
+        fd, ra = rep.get("first_delta_ms") or {}, (r.get("results") or {}).get("reply_after_final_ms") or {}
+        if fd.get("n"):
+            text.append(f"In the replay bench with video and `--reply llm` (`{p}`), the first streamed word is emitted {fd['p50']} / {fd['p95']} ms "
+                        f"(p50 / p95) after the endpoint frame arrives, and the whole reply {ra.get('p50')} / {ra.get('p95')} ms after the final "
+                        "state. [results/measurements.md](results/measurements.md) has the rest of that bench.")
+    return L + ["", " ".join(text), ""]
+
+
+def extension(met: dict, ext: dict) -> list[str]:
+    """the three appended sections. a section whose file is missing says so."""
+    L = ["## Text, voice and face on MELD test", ""]
+    L += three_inputs(ext["vision"][1], met, ext["vision"][0]) if ext.get("vision") else ["`results/metrics_vision.json` does not exist yet.", ""]
+    L += ["## Commit policy (fitted Q-iteration)", ""]
+    L += commit_policy(ext["commit"][1], ext["commit"][0]) if ext.get("commit") else ["`results/commit_policy.json` does not exist yet.", ""]
+    L += ["## Streamed reply", ""]
+    L += streamed_reply(ext["generator"], ext.get("replay")) if ext.get("generator") else ["No generator bench file exists yet.", ""]
+    return L
+
+
+def render(met: dict, man: dict, cmd: str, metrics_path: str, manifest_path: str, ext: dict | None = None) -> str:
+    writers = [f"`{x}`" for x in (man["command"], man.get("ablations", {}).get("command"), man.get("sentiment_text_only", {}).get("command")) if x]
     intro = (f"Rendered by `{cmd}` from `{metrics_path}` (written by `{met['command']}`) and `{manifest_path}` "
-             f"(written by `{man['command']}`" + (f" and `{ab_cmd}`" if ab_cmd else "") + "). "
+             "(written by " + (", ".join(writers[:-1]) + " and " + writers[-1] if len(writers) > 1 else writers[0]) + "). "
              "The full report with the confusion matrices is [results/RESULTS.md](results/RESULTS.md), "
              "and the dev grid of the text head is in [results/01_text_only.md](results/01_text_only.md). Model selection, temperature and thresholds were chosen on dev. "
              "The test split was read once per condition. Weighted F1 is the primary metric, as in the published rows. "
@@ -534,8 +877,11 @@ def render(met: dict, man: dict, cmd: str, metrics_path: str, manifest_path: str
     L += [f"| {sentences(p['row'])} | {p['task']} | {'' if p['weighted_f1'] is None else f'{p['weighted_f1']:.2f}'} | {sentences(p['source'])} |"
           for p in published(met)]
     L += [""] + published_notes(met)
-    L += ["## Pending rows", ""] + pending(met)
+    if any(r["status"] != "done" for r in met["conditions"].values()):
+        L += ["## Pending rows", ""] + pending(met)
     L += ["## Choices made on dev (`heads/manifest.json`)", ""] + dev_choices(man)
+    if ext is not None:
+        L += extension(met, ext)
     return "\n".join(L)
 
 
@@ -544,6 +890,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--metrics", type=Path, default=ROOT / "results" / "metrics.json")
     ap.add_argument("--manifest", type=Path, default=ROOT / "heads" / "manifest.json")
     ap.add_argument("--out", type=Path, default=ROOT / "RESULTS.md")
+    ap.add_argument("--vision-metrics", type=Path, default=ROOT / "results" / "metrics_vision.json", help="tools/evaluate_vision.py output")
+    ap.add_argument("--commit-policy", type=Path, default=ROOT / "results" / "commit_policy.json", help="tools/train_commit_policy.py output")
+    ap.add_argument("--generator", type=Path, nargs="*", default=None,
+                    help="tools/bench_generator.py outputs (default: results/generator_bench_*.json)")
+    ap.add_argument("--replay-video", type=Path, default=ROOT / "results" / "replay_bench_vm_tav.json",
+                    help="tools/replay_bench.py --video --reply llm output, for the streamed reply's live numbers")
     a = ap.parse_args(argv)
     met = json.loads(a.metrics.read_text(encoding="utf-8"))
     man = json.loads(a.manifest.read_text(encoding="utf-8"))
@@ -553,7 +905,13 @@ def main(argv: list[str] | None = None) -> int:
         p = p.resolve()
         return str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(p)
 
-    a.out.write_text(render(met, man, cmd, rel(a.metrics), rel(a.manifest)), encoding="utf-8")
+    def load(p: Path) -> tuple[str, dict] | None:
+        return (rel(p), json.loads(p.read_text(encoding="utf-8"))) if p.exists() else None
+
+    gens = a.generator if a.generator is not None else sorted((ROOT / "results").glob("generator_bench_*.json"))
+    ext = {"vision": load(a.vision_metrics), "commit": load(a.commit_policy), "generator": [x for x in map(load, gens) if x],
+           "replay": load(a.replay_video)}
+    a.out.write_text(render(met, man, cmd, rel(a.metrics), rel(a.manifest), ext), encoding="utf-8")
     print(f"wrote {a.out}")
     return 0
 

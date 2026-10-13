@@ -3,7 +3,7 @@
  "split": "test",
  "n_resamples": 1000,
  "seed": 0,
- "wall_s": 3.3,
+ "wall_s": 4.2,
  "inputs": {
   "cache/text_test.npy": {
    "bytes": 8018048,
@@ -60,6 +60,10 @@
   "heads/sentiment.npz": {
    "bytes": 3010,
    "sha256": "4cd0467fe75f6b97f956994d8b099c63a256f52f68a36fd105766d7301d0abbf"
+  },
+  "heads/sentiment_text_only.npz": {
+   "bytes": 18328,
+   "sha256": "65c6614faa7a553bf62897048bb807eb52173e4ec873a036d50903b95225b78d"
   },
   "heads/text_ctx.npz": {
    "bytes": 808726,
@@ -412,7 +416,7 @@
    "ece": 0.038314,
    "note": "class weights none, T=1.223",
    "description": "2. text only, k = 0 (heads/text_ctx_k0.npz, gold transcripts)",
-   "wall_s": 0.1
+   "wall_s": 0.11
   },
   "text_best_k": {
    "condition": "text_best_k",
@@ -614,7 +618,7 @@
    "ece": 0.035441,
    "note": "same head as text_best_k, same-speaker window (k=0: differs from text_best_k only through the turn-index flags)",
    "description": "2. text only, best k, runtime-regime window: same-speaker previous utterances only, flags 1",
-   "wall_s": 0.1
+   "wall_s": 0.12
   },
   "audio_raw_tag": {
    "condition": "audio_raw_tag",
@@ -716,7 +720,7 @@
    "note": "argmax over the seven named tokens",
    "abstain_rate": 0.975096,
    "description": "3. audio only, raw sensevoice tag: argmax over the seven named tokens",
-   "wall_s": 0.08
+   "wall_s": 0.1
   },
   "audio_cal_A": {
    "condition": "audio_cal_A",
@@ -817,7 +821,7 @@
    "ece": 0.028419,
    "note": "T=1.015",
    "description": "4. audio only, AudioCalibrator A (slots + events + prosody)",
-   "wall_s": 0.08
+   "wall_s": 0.12
   },
   "audio_cal_B": {
    "condition": "audio_cal_B",
@@ -918,7 +922,7 @@
    "ece": 0.047269,
    "note": "T=2.061",
    "description": "4. audio only, AudioCalibrator B (+ encoder states)",
-   "wall_s": 0.21
+   "wall_s": 0.24
   },
   "fused_stacked": {
    "condition": "fused_stacked",
@@ -1120,7 +1124,7 @@
    "ece": 0.111237,
    "note": "w=0.75; calibrated audio posterior",
    "description": "5. fused, product of experts with the dev-chosen weight",
-   "wall_s": 0.13
+   "wall_s": 0.17
   },
   "fused_poe_uncalibrated": {
    "condition": "fused_poe_uncalibrated",
@@ -1221,7 +1225,7 @@
    "ece": 0.131399,
    "note": "w=0.5; raw sensevoice posterior, uncalibrated",
    "description": "5. fused, fixed poe_uncalibrated fallback (w = 0.5)",
-   "wall_s": 0.14
+   "wall_s": 0.2
   },
   "ablation_no_events": {
    "condition": "ablation_no_events",
@@ -1332,7 +1336,7 @@
     "accuracy": 0.54023
    },
    "description": "6. fused without event features (calibrator A without the 11 events, fusion without p_laughter)",
-   "wall_s": 0.13
+   "wall_s": 0.12
   },
   "ablation_no_prosody": {
    "condition": "ablation_no_prosody",
@@ -1555,7 +1559,7 @@
     "accuracy": 0.534866
    },
    "description": "6. fused without events and prosody (calibrator A on the 9 emotion slots, fusion without p_laughter)",
-   "wall_s": 0.11
+   "wall_s": 0.12
   },
   "live_asr_text_only": {
    "condition": "live_asr_text_only",
@@ -1672,7 +1676,7 @@
     "accuracy": 0.627586
    },
    "description": "7. text only, deployed text head on the sensevoice transcripts instead of gold text, with the service's asr gate (empty transcript or asr_conf below min_asr_conf: uniform posterior, label neutral)",
-   "wall_s": 0.13
+   "wall_s": 0.19
   },
   "live_asr_text": {
    "condition": "live_asr_text",
@@ -1789,7 +1793,7 @@
     "accuracy": 0.639847
    },
    "description": "7. fused, deployed stacked fusion with the text posterior from the sensevoice transcripts and the service's asr gate, plus WER",
-   "wall_s": 0.13
+   "wall_s": 0.16
   },
   "disagreement_subset": {
    "condition": "disagreement_subset",
@@ -1931,7 +1935,7 @@
     }
    },
    "description": "8. utterances with jsd above the dev threshold: size, share, per-branch scores on the subset and its complement",
-   "wall_s": 0.17
+   "wall_s": 0.24
   },
   "early_commit_audio_2s": {
    "condition": "early_commit_audio_2s",
@@ -2066,7 +2070,7 @@
     }
    },
    "description": "9. audio only, deployed calibrator on the first 2 s with the cached prefix prosody, versus the full clip (offline prefix experiment, not the service's provisional state)",
-   "wall_s": 0.09
+   "wall_s": 0.12
   },
   "early_commit_fused_2s": {
    "condition": "early_commit_fused_2s",
@@ -2191,7 +2195,7 @@
     "label_agreement_with_full_clip": 0.780415
    },
    "description": "9. stacked fusion on the first 2 s (prefix audio and prefix transcript), versus the full clip (offline prefix experiment, a provisional state runs no text expert)",
-   "wall_s": 0.18
+   "wall_s": 0.27
   },
   "early_commit_audio_4s": {
    "condition": "early_commit_audio_4s",
@@ -2326,7 +2330,7 @@
     }
    },
    "description": "9. audio only, deployed calibrator on the first 4 s with the cached prefix prosody, versus the full clip (offline prefix experiment, not the service's provisional state)",
-   "wall_s": 0.12
+   "wall_s": 0.11
   },
   "early_commit_fused_4s": {
    "condition": "early_commit_fused_4s",
@@ -2451,14 +2455,56 @@
     "label_agreement_with_full_clip": 0.791304
    },
    "description": "9. stacked fusion on the first 4 s (prefix audio and prefix transcript), versus the full clip (offline prefix experiment, a provisional state runs no text expert)",
-   "wall_s": 0.18
+   "wall_s": 0.25
   },
   "sentiment_text_only": {
    "condition": "sentiment_text_only",
    "task": "sentiment",
-   "status": "pending (run tools/train_heads.py --text-only first)",
+   "status": "done",
+   "n": 2610,
+   "weighted_f1": 0.662397,
+   "macro_f1": 0.63333,
+   "accuracy": 0.66705,
+   "per_class_f1": {
+    "neutral": 0.758595,
+    "positive": 0.56,
+    "negative": 0.581395
+   },
+   "confusion": [
+    [
+     1004,
+     87,
+     165
+    ],
+    [
+     134,
+     287,
+     100
+    ],
+    [
+     253,
+     130,
+     450
+    ]
+   ],
+   "ci95": {
+    "weighted_f1": [
+     0.6441346341359375,
+     0.6820380288739826
+    ],
+    "macro_f1": [
+     0.6115184595372989,
+     0.655145262616964
+    ],
+    "accuracy": [
+     0.6485973257050596,
+     0.6854004739336492
+    ]
+   },
+   "ece": 0.020414,
+   "note": "heads/sentiment_text_only.npz, k=0, C=0.1, T=1.420",
    "description": "10. sentiment, text-only head (logistic regression over the text context features)",
-   "wall_s": 0.0
+   "wall_s": 0.14
   },
   "sentiment_fused": {
    "condition": "sentiment_fused",
@@ -2507,7 +2553,7 @@
    "ece": 0.018808,
    "note": "T=0.805",
    "description": "10. sentiment, fused head over the 19 fusion features",
-   "wall_s": 0.1
+   "wall_s": 0.16
   }
  }
 }
