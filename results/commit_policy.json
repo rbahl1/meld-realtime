@@ -1,5 +1,5 @@
 {
- "command": "python tools/train_commit_policy.py ",
+ "command": "python tools/train_commit_policy.py",
  "costs": [
   0.02,
   0.05,
@@ -70,7 +70,7 @@
  },
  "inputs": {
   "train": {
-   "file": "/home/user/meld-realtime/cache/commit_traces_train.npz",
+   "file": "cache/commit_traces_train.npz",
    "bytes": 4594827,
    "sha256": "9cd31ab0af8e7efb76a43f70e57c280fcae8c906a9f9124c8bac364aea0ff3bf",
    "clips": 9988,
@@ -78,7 +78,7 @@
    "mode": "vision"
   },
   "dev": {
-   "file": "/home/user/meld-realtime/cache/commit_traces_dev.npz",
+   "file": "cache/commit_traces_dev.npz",
    "bytes": 510375,
    "sha256": "9fe95b652631403296ae16cc348000c5eabb095cd6ca8f229aab5c613d70ff78",
    "clips": 1108,
@@ -86,7 +86,7 @@
    "mode": "vision"
   },
   "test": {
-   "file": "/home/user/meld-realtime/cache/commit_traces_test.npz",
+   "file": "cache/commit_traces_test.npz",
    "bytes": 1338770,
    "sha256": "81a1d9ac2ddabd7b2acc1af44ec2a26d82519034e035395233eb21acc9481920",
    "clips": 2610,
@@ -782,7 +782,7 @@
       "param": null
      }
     },
-    "wall_s": 15.2
+    "wall_s": 14.0
    },
    "0.05": {
     "fqi": {
@@ -1289,7 +1289,7 @@
       "param": null
      }
     },
-    "wall_s": 12.9
+    "wall_s": 12.2
    },
    "0.1": {
     "fqi": {
@@ -1747,7 +1747,7 @@
       "param": null
      }
     },
-    "wall_s": 9.8
+    "wall_s": 9.5
    },
    "0.2": {
     "fqi": {
@@ -2177,7 +2177,7 @@
       "param": null
      }
     },
-    "wall_s": 9.0
+    "wall_s": 9.2
    }
   }
  },
@@ -3459,11 +3459,11 @@
   }
  },
  "export": {
-  "file": "/home/user/meld-realtime/heads/commit_policy.npz",
-  "bytes": 13154,
-  "sha256": "142df17b08fe3c0b6ee58ce73daff21e04d8b94d7bcf82e28ebba44f71ae68ef",
+  "file": "heads/commit_policy.npz",
+  "bytes": 13150,
+  "sha256": "a7aeebf8244ce44f7e155ad4b70a7cab9ae1ee69fbe5201ebcce2a7d28e245c1",
   "c": 0.05,
   "name": "fqi_mlp_c0.05"
  },
- "wall_s": 53.0
+ "wall_s": 51.3
 }

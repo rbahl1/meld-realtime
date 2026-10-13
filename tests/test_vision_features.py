@@ -85,6 +85,40 @@ def test_live_envelope_equals_offline():
     assert np.isclose(vf.frame_log_rms(pcm16[:512]), vf.frame_log_rms(P.pcm16_to_f32(pcm16[:512].tobytes())))
 
 
+def test_load_envelopes_reads_a_wav_again_when_it_changes(tmp_path, monkeypatch):
+    import os
+
+    import soundfile as sf
+    w = [tmp_path / "a.wav", tmp_path / "b.wav"]
+    cache = tmp_path / "envelope_x.npz"
+    sf.write(w[0], np.full(16000, 0.1, np.float32), 16000)
+    env = vf.load_envelopes(["a", "b"], w, cache)                     # b.wav missing: empty envelope cached
+    assert len(env["a"][0]) == 32 and len(env["b"][0]) == 0
+    sf.write(w[1], np.full(8000, 0.2, np.float32), 16000)             # the wav appears later
+    env = vf.load_envelopes(["a", "b"], w, cache)
+    assert len(env["b"][0]) == 16 and np.isclose(env["b"][1][0], np.log(0.2), atol=1e-3)
+    sf.write(w[0], np.full(16000, 0.5, np.float32), 16000)            # rewritten, same size
+    st = w[0].stat()
+    os.utime(w[0], ns=(st.st_atime_ns, st.st_mtime_ns + 10**9))
+    env = vf.load_envelopes(["a", "b"], w, cache)
+    assert np.isclose(env["a"][1][0], np.log(0.5), atol=1e-3)
+    # nothing changed: the cache is read and no wav is opened
+    monkeypatch.setattr(sf, "read", lambda *a, **k: (_ for _ in ()).throw(AssertionError("wav read")))
+    env2 = vf.load_envelopes(["a", "b"], w, cache)
+    assert all(np.array_equal(env[k][1], env2[k][1]) for k in ("a", "b"))
+    w[1].unlink()                                                      # a wav that went away
+    monkeypatch.undo()
+    assert len(vf.load_envelopes(["a", "b"], w, cache)["b"][0]) == 0
+    # a cache written before the stats were stored is computed again
+    with np.load(cache) as z:
+        np.savez(cache, **{k: z[k] for k in z.files if k != "wav_stat"})
+    monkeypatch.setattr(sf, "read", lambda *a, **k: (_ for _ in ()).throw(AssertionError("wav read")))
+    with pytest.raises(AssertionError, match="wav read"):
+        vf.load_envelopes(["a", "b"], w, cache)
+    with pytest.raises(ValueError):
+        vf.load_envelopes(["a", "b"], w[:1], cache)
+
+
 def test_envelope_ring_keeps_max_s():
     ring = vf.EnvelopeRing(max_s=1.0)
     for i in range(100):

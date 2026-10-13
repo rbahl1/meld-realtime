@@ -25,7 +25,7 @@ from test_train_pipeline import subset, synth_caches, write_csv  # noqa: E402
 
 from meld_rt import heads, labels, metrics  # noqa: E402
 from meld_rt import vision_features as vf  # noqa: E402
-from meld_rt.data import emotion_ids, key, load_split  # noqa: E402
+from meld_rt.data import clip_path, emotion_ids, key, load_split  # noqa: E402
 from meld_rt.experts.vision import FER_CLASSES, FER_TO_MELD  # noqa: E402
 
 FPS, N_FRAMES, DUR, SR = 10.0, 20, 2.0, 16000
@@ -183,7 +183,10 @@ def test_fold_heads_reproduce_the_out_of_fold_rows(ws):
     fold = post["fold"][keep]
     assert set(fold.tolist()) == set(range(n_folds)) and (post["fold"] >= 0).sum() == len(keep)
     video = vf.load_video_cache("train", cache)
-    env = vf.load_envelopes([key(u) for u in train], [], cache / "envelope_train.npz")
+    env_cache = cache / "envelope_train.npz"
+    stamp = env_cache.stat().st_mtime_ns
+    env = vf.load_envelopes([key(u) for u in train], [clip_path(u, ws["audio"]) for u in train], env_cache)
+    assert env_cache.stat().st_mtime_ns == stamp     # the wavs did not change: read from the cache
     rule = meta["rule"]
     T = train_vision.evidence_tables(video, env, train, (rule,))[rule]
     for f in range(n_folds):
@@ -277,10 +280,24 @@ def test_evaluate_vision(ws):
     assert g["diff"]["weighted_f1"] == pytest.approx(C["fused3_stacked"]["weighted_f1"] - C["fused_stacked"]["weighted_f1"], abs=1e-5)
     assert met["claim"]["face_adds"] == (g["ci95"]["weighted_f1"][0] > 0)
     assert comp["gold_face_rows"]["n"] == C["fused3_stacked_face_rows"]["n"]
+    # label flips of fused3 against the two-way fusion, from the posterior file's predictions
+    for name, a, b in (("gold", "fused3", "fused2"), ("live", "fused3_live", "fused2_live")):
+        pa, pb, yy = z[a][ok].argmax(axis=1), z[b][ok].argmax(axis=1), y[ok]
+        f = met["label_flips"][name]
+        assert (f["n"], f["changed"], f["wrong_to_right"], f["right_to_wrong"]) == (
+            len(yy), int((pa != pb).sum()), int(((pa != pb) & (pa == yy)).sum()), int(((pa != pb) & (pb == yy)).sum())), name
     text = md.read_text()
-    for header in ("## Emotion (7 classes)", "## Paired differences", "## Per-class F1", "## Speaker rules on dev"):
+    for header in ("## Emotion (7 classes)", "## Paired differences", "## Label flips", "## Per-class F1", "## Speaker rules on dev"):
         assert header in text
     assert "| asd |" in text
+
+
+def test_label_flips():
+    y = np.array([0, 1, 2, 3, 4, 5])
+    a = np.array([0, 1, 0, 3, 5, 6])
+    b = np.array([0, 2, 2, 3, 4, 0])
+    # changed at 1 (b wrong, a right), 2 (b right, a wrong), 4 (b right, a wrong), 5 (both wrong)
+    assert evaluate_vision.label_flips(y, a, b) == {"n": 6, "changed": 4, "wrong_to_right": 1, "right_to_wrong": 2}
 
 
 def test_paired_bootstrap_diff():

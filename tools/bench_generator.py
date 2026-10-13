@@ -36,7 +36,8 @@ one unless q4 is faster by more than 20 % with a check pass rate no lower.
   > 1.2, so a file that writes longer replies is not counted as slower.
 - when no file meets both targets, the smallest model's file with the lower
   first-token p95 is named and meets_targets is false.
-both definitions were set before the phase 2 bench (notes_C section 8).
+both definitions were set after the preliminary benches of all four files on 20
+states (--synthetic 20) and before the bench on 200 states.
 
 usage:
   python tools/bench_generator.py                      # 200 states from cache/vision_post_test.npz

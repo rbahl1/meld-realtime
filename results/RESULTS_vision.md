@@ -68,6 +68,13 @@ Paired bootstrap over test dialogues, 1000 resamples, seed 0.
 | --- | --- | --- |
 | the face adds to text and audio only if the paired 95 % interval of fused3_stacked minus fused_stacked (weighted f1, gold-text test, all clips with audio) lies above zero | [0.20, 1.48] | yes |
 
+## Label flips (a fused3, b the two-way fusion)
+
+| text input | a | b | n | labels changed | wrong to right | right to wrong |
+| --- | --- | --- | --- | --- | --- | --- |
+| gold CSV text | fused3_stacked | fused_stacked | 2610 | 80 | 36 | 20 |
+| SenseVoice transcripts, asr gate | live_asr_fused3 | live_asr_text | 2610 | 86 | 37 | 20 |
+
 ## Face-disagreement subset
 
 jsd_face_flag 0.5729, 557 of 2596 clips with a face.

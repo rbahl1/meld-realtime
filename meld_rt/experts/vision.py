@@ -127,8 +127,9 @@ class VisionExpert:
         self._det = cv2.FaceDetectorYN.create(str(self.yunet_path), "", (320, 320), float(score_threshold),
                                               float(nms_threshold), 50)
         self._det_size: tuple[int, int] | None = None
-        # the fer graph runs in opencv dnn: 6.9 ms per face on one thread against
-        # 17 ms in onnxruntime, which wraps every prelu in layout reorders. the zoo
+        # the fer graph runs in opencv dnn: on one thread it ran faster per face there
+        # than in onnxruntime, which wraps every prelu in layout reorders (a timing no
+        # committed script repeats, so it is not in results/). the zoo
         # graph lists its weights as graph inputs, so they are dropped from the inputs,
         # and the embedding is added as a second output (same values as onnxruntime
         # within 1e-6, tests/test_vision.py).

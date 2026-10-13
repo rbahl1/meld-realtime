@@ -433,13 +433,30 @@ def clip_rows(cache: dict, key: str) -> FaceRows:
                     cache["f_logits"][r], cache["f_mouth"][r], cache["f_face"][r], emb, frame_t)
 
 
+def wav_stats(wav_paths: list[Path]) -> np.ndarray:
+    """(n, 2) int64 size in bytes and mtime in ns of each wav, -1 -1 when it is missing."""
+    out = np.full((len(wav_paths), 2), -1, dtype=np.int64)
+    for i, p in enumerate(wav_paths):
+        try:
+            st = Path(p).stat()
+        except FileNotFoundError:
+            continue
+        out[i] = st.st_size, st.st_mtime_ns
+    return out
+
+
 def load_envelopes(keys: list[str], wav_paths: list[Path], cache_path: Path | None = None) -> dict[str, tuple[np.ndarray, np.ndarray]]:
     """key -> (t, log_rms) of each clip wav (empty arrays when the wav is missing). with cache_path,
-    the envelopes are read from that npz when it holds exactly these keys, else computed and written there."""
+    the envelopes are read from that npz when it holds exactly these keys and the same wav sizes and
+    mtimes (a wav that appeared, went away or was rewritten is read again), else computed and written there."""
     keys = [str(k) for k in keys]
+    if len(wav_paths) != len(keys):
+        raise ValueError(f"{len(keys)} keys and {len(wav_paths)} wav paths")
+    stats = wav_stats(wav_paths)
     if cache_path is not None and Path(cache_path).exists():
         with np.load(cache_path, allow_pickle=False) as z:
-            if [str(k) for k in z["keys"]] == keys and float(z["hop_s"]) == HOP_S:
+            if ([str(k) for k in z["keys"]] == keys and float(z["hop_s"]) == HOP_S and "wav_stat" in z.files
+                    and np.array_equal(z["wav_stat"], stats)):
                 off, t, v = z["offsets"], z["t"], z["v"]
                 return {k: (t[off[i]:off[i + 1]], v[off[i]:off[i + 1]]) for i, k in enumerate(keys)}
     import soundfile as sf
@@ -459,5 +476,5 @@ def load_envelopes(keys: list[str], wav_paths: list[Path], cache_path: Path | No
         off = np.concatenate([[0], np.cumsum(lens)]).astype(np.int64)
         cat = lambda j: np.concatenate([out[k][j] for k in keys]) if keys else np.zeros(0)  # noqa: E731
         Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
-        np.savez(cache_path, keys=np.array(keys), offsets=off, t=cat(0), v=cat(1), hop_s=np.float64(HOP_S))
+        np.savez(cache_path, keys=np.array(keys), offsets=off, t=cat(0), v=cat(1), hop_s=np.float64(HOP_S), wav_stat=stats)
     return out

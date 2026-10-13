@@ -440,8 +440,14 @@ def render(res: dict) -> str:
 
 # ---------------------------------------------------------------- main
 
+def rel(path: Path) -> str:
+    """repo-relative path for the outputs; a path outside the repository as given."""
+    p = Path(path).resolve()
+    return str(p.relative_to(ROOT)) if p.is_relative_to(ROOT) else str(path)
+
+
 def trace_record(path: Path, ep: Episodes) -> dict:
-    return {"file": str(path), **file_record(path), "clips": ep.n, "ticks": int(ep.valid.sum()), "mode": ep.meta.get("mode")}
+    return {"file": rel(path), **file_record(path), "clips": ep.n, "ticks": int(ep.valid.sum()), "mode": ep.meta.get("mode")}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -460,7 +466,7 @@ def main(argv: list[str] | None = None) -> int:
     import threadpoolctl
 
     t_all = time.perf_counter()
-    cmd = "python tools/train_commit_policy.py " + " ".join(sys.argv[1:] if argv is None else argv)
+    cmd = " ".join(["python tools/train_commit_policy.py", *(sys.argv[1:] if argv is None else argv)])
     paths = {s: args.traces / f"commit_traces_{s}.npz" for s in ("train", "dev", "test")}
     eps = {s: episodes(load_traces(paths[s])) for s in ("train", "dev")}
     modes = {s: eps[s].meta.get("mode") for s in eps}
@@ -507,12 +513,12 @@ def main(argv: list[str] | None = None) -> int:
     args.heads.mkdir(parents=True, exist_ok=True)
     out_npz = args.heads / "commit_policy.npz"
     deployed.save(out_npz)
-    res["export"] = {"file": str(out_npz), **file_record(out_npz), "c": c, "name": pol.name}
+    res["export"] = {"file": rel(out_npz), **file_record(out_npz), "c": c, "name": pol.name}
     res["wall_s"] = round(time.perf_counter() - t_all, 1)
     args.results.mkdir(parents=True, exist_ok=True)
     (args.results / "commit_policy.json").write_text(json.dumps(res, indent=1))
     (args.results / "commit_policy.md").write_text(render(res))
-    print(f"commit policy c={c:g} ({pol.name}) -> {out_npz}; {args.results / 'commit_policy.json'}, {args.results / 'commit_policy.md'} "
+    print(f"commit policy c={c:g} ({pol.name}) -> {rel(out_npz)}; {rel(args.results / 'commit_policy.json')}, {rel(args.results / 'commit_policy.md')} "
           f"in {res['wall_s']} s")
     return 0
 

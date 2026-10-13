@@ -888,4 +888,4 @@ def test_count_params_extension_table(tmp_path):
     assert res["total_with_extension"] == res["total_inference_path"] + res["total_extension_only"]
     res["generated_at"] = "test"
     md = cp.render(res, models, heads_dir)
-    assert "Extension (`--vision --reply llm`, spec 4)" in md and "**Total with the extension**" in md
+    assert "Extension (`--vision --reply llm`), on top of the core total above:" in md and "**Total with the extension**" in md

@@ -798,6 +798,82 @@ def test_real_vision_features_module_takes_the_service_rows(tmp_path):
     assert svc._log_rms(np.full(512, 3277, np.int16)) == pytest.approx(vf.frame_log_rms(np.full(512, 3277, np.int16)))
 
 
+class ScriptedExpert:
+    """VisionExpert stand-in that returns given Face lists, one list per processed frame."""
+
+    def __init__(self, frames):
+        self.frames, self.n = frames, 0
+
+    def reset(self):
+        self.n = 0
+
+    def process(self, frame):
+        self.n += 1
+        return self.frames[self.n - 1]
+
+
+class RecordingVF:
+    """the real vision_features module, with every face_evidence result kept."""
+
+    def __init__(self, vf):
+        self._vf, self.evidence = vf, []
+
+    def __getattr__(self, name):
+        return getattr(self._vf, name)
+
+    def face_evidence(self, *a, **k):
+        ev = self._vf.face_evidence(*a, **k)
+        self.evidence.append(ev)
+        return ev
+
+
+def test_live_rows_and_the_video_cache_give_the_same_features(tmp_path, monkeypatch):
+    """the same Face lists through the service's live row builder (_vision_frame -> face_frame into the
+    stream's ring, _face_evidence -> face_rows over the window) and through a written and read video
+    cache (vision_features.clip_rows, what training and evaluation read) give the same vision_features_B
+    under every speaker rule, for the whole clip and for a part of it."""
+    vf = pytest.importorskip("meld_rt.vision_features")
+    monkeypatch.syspath_prepend(str(ROOT / "tests"))
+    from test_vision_features import FPS, H, W, synthetic_faces, write_video_cache
+
+    faces = synthetic_faces(15, 2)
+    for fs in faces:   # values at the cache's storage precision (float16 embeddings, float32 scalars)
+        for i, f in enumerate(fs):
+            fs[i] = Face(f.track, f.box, f.landmarks, float(np.float32(f.score)), f.logits,
+                         None if f.embed is None else f.embed.astype(np.float16).astype(np.float32),
+                         float(np.float32(f.mouth_motion)), float(np.float32(f.face_motion)))
+    frames = faces + [[], [], []]                                   # three trailing frames without a face
+    write_video_cache(tmp_path / "video_test.npz", {"1_1": faces}, {"1_1": 3})
+    off = vf.clip_rows(vf.load_video_cache("test", tmp_path), "1_1")
+    pcm16 = (np.random.default_rng(1).normal(0, 3000, 16000 * 2) * np.repeat(np.sin(np.arange(20) / 3) ** 2, 1600)).astype(np.int16)
+    env_off = vf.audio_envelope(pcm16.astype(np.float32) / 32768.0)
+
+    svc = bare_service(tmp_path)
+    svc.vf = rec = RecordingVF(vf)
+    svc.new_vision_expert = lambda: ScriptedExpert(frames)
+    st = Stream("s", vad=None)
+    for k in range(len(frames)):
+        with st.v_cv:
+            st.v_pending += 1
+        run_frame(svc, VideoItem(st, k, k / FPS, 0, 0, W, H, jpeg(BLACK, W, H), st.v_epoch))
+    assert len(st.v_frames) == len(frames)
+    with st.v_cv:   # the envelope as the ingest thread keeps it: one value per received frame, at its centre
+        st.env.extend((i * P.FRAME_S + P.FRAME_S / 2, vf.frame_log_rms(fr)) for i, fr in enumerate(P.pcm16_frames(pcm16)))
+    tracks = set()
+    for rule in vf.RULES:
+        svc.vision_rule = rule
+        for (t0, t1), (o0, o1) in (((0.0, len(frames) / FPS), (-np.inf, np.inf)), ((0.3, 1.2), (0.3, 1.2))):
+            n = len(rec.evidence)
+            svc._face_evidence(st, t0, t1, [])
+            assert len(rec.evidence) == n + 1
+            live, ref = rec.evidence[-1], vf.face_evidence(off, *env_off, rule, o0, o1)
+            assert (live.present, live.track, live.n_frames, live.n_tracks, live.n_window_frames) == (
+                ref.present, ref.track, ref.n_frames, ref.n_tracks, ref.n_window_frames), (rule, t0)
+            assert np.array_equal(vf.vision_features_B(live), vf.vision_features_B(ref)), (rule, t0)
+            tracks.add((t0, live.track))
+    assert len({tr for t0, tr in tracks if t0 == 0.0}) > 1     # the rules do not all pick the same track
+
+
 # -- end to end ---------------------------------------------------------------
 
 @pytest.fixture(scope="module")

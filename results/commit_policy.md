@@ -1,14 +1,14 @@
 # Commit policy
 
-Written by `python tools/train_commit_policy.py `.
+Written by `python tools/train_commit_policy.py`.
 
 ## Inputs
 
 | file | bytes | sha256 | clips | ticks | mode |
 | --- | --- | --- | --- | --- | --- |
-| `/home/user/meld-realtime/cache/commit_traces_train.npz` | 4594827 | `9cd31ab0af8e7efb76a43f70e57c280fcae8c906a9f9124c8bac364aea0ff3bf` | 9988 | 25384 | vision |
-| `/home/user/meld-realtime/cache/commit_traces_dev.npz` | 510375 | `9fe95b652631403296ae16cc348000c5eabb095cd6ca8f229aab5c613d70ff78` | 1108 | 2821 | vision |
-| `/home/user/meld-realtime/cache/commit_traces_test.npz` | 1338770 | `81a1d9ac2ddabd7b2acc1af44ec2a26d82519034e035395233eb21acc9481920` | 2610 | 6763 | vision |
+| `cache/commit_traces_train.npz` | 4594827 | `9cd31ab0af8e7efb76a43f70e57c280fcae8c906a9f9124c8bac364aea0ff3bf` | 9988 | 25384 | vision |
+| `cache/commit_traces_dev.npz` | 510375 | `9fe95b652631403296ae16cc348000c5eabb095cd6ca8f229aab5c613d70ff78` | 1108 | 2821 | vision |
+| `cache/commit_traces_test.npz` | 1338770 | `81a1d9ac2ddabd7b2acc1af44ec2a26d82519034e035395233eb21acc9481920` | 2610 | 6763 | vision |
 
 ## P(correct) model (dev log loss)
 

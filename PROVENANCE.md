@@ -1,6 +1,6 @@
 # Provenance
 
-This file lists every external file the system uses: where it comes from, its sha256, its licence as stated at the source, and what it contributes. The hashes of the model files come from [results/provenance_hashes.json](results/provenance_hashes.json), which `tools/fetch_models.py` writes after it checks each download against the hashes in its own table. The hashes of the MELD CSV files come from [results/data_stats.md](results/data_stats.md). The size, hash and licence field of MELD.Raw come from [results/meld_raw_source.json](results/meld_raw_source.json), which `tools/meld_raw_source.py` writes from the Hugging Face API and the resolve headers of the named revision. The licence statements were read on 2026-10-12 at the places named. Where no statement was found, this file says so.
+This file lists every external file the system uses: where it comes from, its sha256, its licence as stated at the source, and what it contributes. The hashes of the model files come from [results/provenance_hashes.json](results/provenance_hashes.json), which `tools/fetch_models.py` writes after it checks each download against the hashes in its own table. The hashes of the MELD CSV files come from [results/data_stats.md](results/data_stats.md). The size, hash and licence field of MELD.Raw come from [results/meld_raw_source.json](results/meld_raw_source.json), which `tools/meld_raw_source.py` writes from the Hugging Face API and the resolve headers of the named revision. The licence statements were read on 2026-10-12 at the places named, and those of the face models and the reply generator on 2026-10-13. Where no statement was found, this file says so.
 
 ## SenseVoice-small (sherpa-onnx release of 2024-07-17)
 
@@ -60,6 +60,51 @@ The consequence: MELD audio, or MELD labels through the SER model, may be in Sen
 - Licence: the `MODEL_CARD` in the archive names the training data (the lessac voice of the Blizzard Challenge 2013) and links its licence (`https://www.cstr.ed.ac.uk/projects/blizzard/2013/lessac_blizzard2013/license.html`, not read). It gives no licence for the voice weights, so that licence is unknown. The Piper repository (github.com/rhasspy/piper) has an MIT License file for its code. `espeak-ng-data` comes from espeak-ng, whose repository file COPYING is the GNU General Public License, version 3.
 - Contributes: the synthetic speech of the proxy clips (`tools/make_proxy_clips.py`). It is not on the inference path.
 
+## YuNet face detector (OpenCV zoo)
+
+- URL: `https://huggingface.co/opencv/face_detection_yunet/resolve/3cc26e7f1014a5ee5d74a42acee58bafc9d0a310/face_detection_yunet_2023mar.onnx` (revision `3cc26e7f1014a5ee5d74a42acee58bafc9d0a310`).
+- File: `models/vision/face_detection_yunet_2023mar.onnx`, 232589 bytes, sha256 `8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4`.
+- Licence: the README of the repository at that revision says that all its files are under the MIT License, and its LICENSE file is the MIT License, "Copyright (c) 2020 Shiqi Yu".
+- Contributes: a box, five landmarks and a detection score for each face in a frame, for the MELD video features and for `--vision`.
+
+## FER MobileFaceNet (OpenCV zoo, Progressive Teacher)
+
+- URL: `https://huggingface.co/opencv/facial_expression_recognition/resolve/b473270576eabddaacffd08adb4bed27b3fc54e6/facial_expression_recognition_mobilefacenet_2022july.onnx` (revision `b473270576eabddaacffd08adb4bed27b3fc54e6`).
+- File: `models/vision/facial_expression_recognition_mobilefacenet_2022july.onnx`, 4791892 bytes, sha256 `4f61307602fc089ce20488a31d4e4614e3c9753a7d6c41578c854858b183e1a9`.
+- Licence: the README says that all files in its directory are under the Apache 2.0 License and links a LICENSE file. The repository has no LICENSE file at that revision.
+- Training data: the README names no training set. It reports an accuracy of 88.27 % on RAF-DB and links the RAF-DB page (`http://whdeng.cn/RAF/model1.html`). The method's paper (Jiang and Deng, "Boosting Facial Expression Recognition by A Semi-Supervised Progressive Teacher", arXiv 2205.14361) runs its experiments on RAF-DB and FERPlus. The weights are therefore taken to be trained on RAF-DB. The dataset catalog hyper.ai lists the RAF-DB licence as "Non-Commercial". The RAF-DB page itself could not be reached from the build environment, so its terms were not read at the source. The Apache 2.0 statement covers the files of the model. It does not lift the terms of the data the weights were learned from. This repository uses the model for research only, and any other use needs the RAF-DB terms checked first.
+- Contributes: the expression logits of the seven classes and the embedding of each face, from which the vision calibrator gives the face posterior.
+
+## Qwen2.5-0.5B-Instruct (ONNX export by onnx-community)
+
+- URL: `https://huggingface.co/onnx-community/Qwen2.5-0.5B-Instruct/resolve/22942cb7d7ba4cc81bb4673549ca4d4614469b5e/<file>` (revision `22942cb7d7ba4cc81bb4673549ca4d4614469b5e`).
+
+| kept as (under `models/llm/Qwen2.5-0.5B-Instruct/`) | bytes | sha256 | use |
+|---|---|---|---|
+| `onnx/model_int8.onnx` | 512096557 | `41834041ab1b29eff9fc592f1a29a1844133aea35832ea9fa91682be13016100` | the deployed reply generator |
+| `onnx/model_q4.onnx` | 786156820 | `09235a3b1c135cd04ef570e5053b5c079e028078a2cc5f76ba6a251e91bf3296` | generator bench only |
+| `tokenizer.json` | 7031673 | `a8506e7111b80c6d8635951a02eab0f4e1a8e4e5772da83846579e97b16f61bf` | tokenizer |
+| `config.json` | 678 | `777e01f0fbb3346eb229cb6fb278ed6533c1e4dcb9ebf4bed0f6e94ef17fa1b5` | model settings |
+| `generation_config.json` | 242 | `f7e7ce458658b2d40d9eb213b91b77a8bf698845ab89360976722d7ac46928a3` | stop tokens |
+
+- Licence: the onnx-community model card names no licence, and its `base_model` is `Qwen/Qwen2.5-0.5B-Instruct`. The model card of `Qwen/Qwen2.5-0.5B-Instruct` (revision `7ae557604adf67be50417f59c2c2f167def9a775`) gives the licence `apache-2.0`, and its LICENSE file is the Apache License, Version 2.0.
+- Contributes: the reply streamed with `--reply llm`. `--groups llm` of `tools/fetch_models.py` fetches the deployed file with the three side files, and `--groups all` also the q4 file.
+
+## Qwen2.5-1.5B-Instruct (ONNX export by onnx-community, not deployed)
+
+- URL: `https://huggingface.co/onnx-community/Qwen2.5-1.5B-Instruct/resolve/d54957e3af1be04546436e874a60fe386041b244/<file>` (revision `d54957e3af1be04546436e874a60fe386041b244`).
+
+| kept as (under `models/llm/Qwen2.5-1.5B-Instruct/`) | bytes | sha256 |
+|---|---|---|
+| `onnx/model_int8.onnx` | 1578954293 | `ee8364373c6fb35644c67fd8127cbee6c3d98ac889f8bb32ea4ac04a29650787` |
+| `onnx/model_q4.onnx` | 1787566590 | `70c24509f760fed9a8f50391165c46a87660197028a42c4547763f1c173ddea6` |
+| `tokenizer.json` | 7031673 | `a8506e7111b80c6d8635951a02eab0f4e1a8e4e5772da83846579e97b16f61bf` |
+| `config.json` | 809 | `215eb99c4955b0c42ea9f6e0980d922c228950c5dbc09bde6dc451fbba4d21f3` |
+| `generation_config.json` | 242 | `f7e7ce458658b2d40d9eb213b91b77a8bf698845ab89360976722d7ac46928a3` |
+
+- Licence: the onnx-community model card names no licence, and its `base_model` is `Qwen/Qwen2.5-1.5B-Instruct`. The model card of `Qwen/Qwen2.5-1.5B-Instruct` (revision `989aa7980e4cf806f80c7fef2b1adb7bc71aa306`) gives the licence `apache-2.0`, and its LICENSE file is the Apache License, Version 2.0.
+- Contributes: only the generator bench ([results/generator_bench_vm_1.5b.json](results/generator_bench_vm_1.5b.json)). Its files miss the decode-rate target of the choice rule, so the model is not deployed. `--groups all` fetches them.
+
 ## MELD annotation CSVs
 
 | file | URL | bytes | sha256 |
@@ -68,18 +113,19 @@ The consequence: MELD audio, or MELD labels through the SER model, may be in Sen
 | `meld/dev_sent_emo.csv` | `https://raw.githubusercontent.com/declare-lab/MELD/master/data/MELD/dev_sent_emo.csv` | 121640 | `2e89c6f8aa182d6f62f8c6331aece905ac7273ca4999660bfb5213e1d0370c1c` |
 | `meld/test_sent_emo.csv` | `https://raw.githubusercontent.com/declare-lab/MELD/master/data/MELD/test_sent_emo.csv` | 294526 | `8d37103938f7067600839fe29d5a114a6cd1bcdafb75bec101e06464c5006888` |
 
-- Licence: the LICENSE file of the repository (github.com/declare-lab/MELD) is the GNU General Public License, version 3. The README asks users to cite the MELD papers. The utterances are dialogue from the TV series Friends, so the CSV files are fetched by `tools/fetch_meld_csv.py` and not committed, and the repository keeps only statistics derived from them ([results/data_stats.md](results/data_stats.md)).
+- Licence: the LICENSE file of the repository (github.com/declare-lab/MELD) is the GNU General Public License, version 3. The README asks users to cite the MELD papers. The utterances are dialogue from the TV series Friends, so the CSV files are fetched by `tools/fetch_meld_csv.py` and not committed. The repository keeps statistics derived from them ([results/data_stats.md](results/data_stats.md)). The two generator bench files also quote CSV text: the prompts of the 100 gold-text states of each run hold their utterances ([results/generator_bench_vm.json](results/generator_bench_vm.json), [results/generator_bench_vm_1.5b.json](results/generator_bench_vm_1.5b.json)).
 - Contributes: the splits, the emotion and sentiment labels, and the gold text for training and evaluation.
 
-## MELD.Raw (audio)
+## MELD.Raw (audio and video)
 
 - Source: the Hugging Face dataset `declare-lab/MELD` at revision `9abc51ee7903424ffb971297608aa6d3d0de3bfa`, file `MELD.Raw.tar.gz`, URL `https://huggingface.co/datasets/declare-lab/MELD/resolve/9abc51ee7903424ffb971297608aa6d3d0de3bfa/MELD.Raw.tar.gz`.
 - File: 10878146150 bytes, LFS sha256 `a56b4407d574195cbce470d86f9c9d72fcfea59b0e34502ecd4babee4a5c613e` (`x-linked-size` and `x-linked-etag` in [results/meld_raw_source.json](results/meld_raw_source.json)).
 - Download: the build container fetched `resolve/main`, which serves revision `9abc51ee7903424ffb971297608aa6d3d0de3bfa` (`x-repo-commit` in [results/meld_raw_source.json](results/meld_raw_source.json)), and checked the size only. The sha256 of the download was not computed before the archive was deleted.
 - Licence: the licence field of the dataset card is `gpl-3.0` (`card_license` in [results/meld_raw_source.json](results/meld_raw_source.json)), which matches the LICENSE file of the GitHub repository above. The clips are cut from Friends, like the CSV text.
 - Use: the archive was downloaded into the build container, `tools/stream_meld_raw.py` streamed its clips through `tools/extract_audio.py` into 16 kHz mono WAV files, `tools/cache_audio_features.py` cached the SenseVoice and prosody features, and the archive was deleted. No audio, video or WAV file is in the repository. `audio/` and `cache/` are not committed.
+- Video use: a second download of `MELD.Raw.tar.gz`, of the same size, was read as a stream by `tools/extract_video_features.py`. It decoded the frames of each clip at 10 frames per second (the rate recorded for train and dev in `vision.video_cache` of [heads/manifest.json](heads/manifest.json)) and ran YuNet and the FER model on them. It kept only face features per frame (boxes, landmarks, scores, track ids, expression logits, mouth and face motion, embeddings) in `cache/video_{split}.npz`, which is not committed. No sha256 of that download is recorded, and the archive was not kept. The MP4 files of the test split were kept in a folder outside the repository for the three-input demo and the replay bench with video. No frame, face crop or video file is in the repository. The replay bench files and the three-input demo log hold the SenseVoice transcripts of the clips they streamed.
 - Missing clips: one train row (`125_3`, an MP4 that ffmpeg could not open) and one dev row (`110_7`, no clip found in the archive) have no audio, and the audio stage leaves them out (`audio_rows_dropped` and `audio_fusion.rows` in [heads/manifest.json](heads/manifest.json)). Every audio row in [results/metrics.json](results/metrics.json) scores all 2610 test utterances.
-- Contributes: the audio for the audio calibrators, the fusion head, the fused sentiment head, the dev JSD threshold, every audio and fused test row, the MELD dev pause statistics and the MELD replay bench.
+- Contributes: the audio for the audio calibrators, the fusion head, the fused sentiment head, the dev JSD threshold, every audio and fused test row, the MELD dev pause statistics and the MELD replay bench. The video gives the face features of the vision calibrator, fusion3, the three-input sentiment head and the commit traces, every three-input test row, the three-input demo and the replay bench with video.
 - The MELD README also links the archive at `http://web.eecs.umich.edu/~mihalcea/downloads/MELD.Raw.tar.gz`. That copy was not used, and the two were not compared.
 
 ## Papers
@@ -93,10 +139,16 @@ These are generated by the tools in this repository, not downloaded.
 | what | made by | committed |
 |---|---|---|
 | `heads/*.npz`, `heads/manifest.json` (sha256 of each head in the manifest) | `tools/train_heads.py` | yes |
+| `heads/vision_cal.npz`, `heads/fusion3.npz`, `heads/sentiment3.npz`, section `vision` of `heads/manifest.json` | `tools/train_vision.py` | yes |
+| `heads/commit_policy.npz` | `tools/train_commit_policy.py` | yes |
 | `models/sensevoice/model_enc.int8.onnx` | `tools/edit_sensevoice_graph.py` | no |
 | `audio/{split}/*.wav` (16 kHz MELD clips) | `tools/extract_audio.py` | no |
 | `cache/text_{split}.npy`, `cache/text_asr_test*.npy` | `tools/embed_text.py` | no |
 | `cache/audio_{split}.npz` | `tools/cache_audio_features.py` | no |
+| `cache/video_{split}.npz` (face features of the MELD clips) | `tools/extract_video_features.py` | no |
+| `cache/envelope_{split}.npz`, `cache/folds/`, `cache/vision_post_{split}.npz` | `tools/train_vision.py` | no |
+| `cache/commit_traces_{split}.npz` | `tools/build_commit_traces.py` | no |
 | `proxy/` (100 Piper clips of MELD dev text) | `tools/make_proxy_clips.py` | no |
 | `bench_clips/` (cuts and tilings of `en.wav`) | `tools/bench_components.py` | no |
 | `meld_rt/response/bank.yaml` (124 reply lines) | written for this repository | yes |
+| `meld_rt/response/lexicon.py` (the emotion words of each class, which the reply generator masks) | written for this repository | yes |

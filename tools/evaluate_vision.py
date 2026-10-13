@@ -68,6 +68,10 @@ CONDITIONS = [
 ]
 NEW_ROWS = ("vision_raw_fer", "vision_cal", "fused3_stacked", "live_asr_fused3", "fused3_stacked_face_rows",
             "live_asr_fused3_face_rows", "face_disagreement_subset")
+FLIPS = [  # name, text input, a (fused3), b (two-way fusion)
+    ("gold", "gold CSV text", "fused3_stacked", "fused_stacked"),
+    ("live", "SenseVoice transcripts, asr gate", "live_asr_fused3", "live_asr_text"),
+]
 COMPARISONS = [  # name, a, b, rows
     ("gold_all", "fused3_stacked", "fused_stacked", "all"),
     ("live_all", "live_asr_fused3", "live_asr_text", "all"),
@@ -106,6 +110,14 @@ def paired_bootstrap_diff(y: np.ndarray, pred_a: np.ndarray, pred_b: np.ndarray,
             "ci95": {m: [round(lo, 6), round(hi, 6)] for m, (lo, hi) in ci.items()},
             "excludes_zero": {m: bool(lo > 0 or hi < 0) for m, (lo, hi) in ci.items()},
             "share_at_or_below_zero": {m: round(float((v <= 0).mean()), 6) for m, v in d.items()}}
+
+
+def label_flips(y: np.ndarray, pred_a: np.ndarray, pred_b: np.ndarray) -> dict:
+    """rows whose label differs between a and b: all, wrong under b and right under a, right under b and wrong under a."""
+    y, pred_a, pred_b = (np.asarray(v, dtype=np.int64) for v in (y, pred_a, pred_b))
+    changed = pred_a != pred_b
+    return {"n": len(y), "changed": int(changed.sum()), "wrong_to_right": int((changed & (pred_a == y)).sum()),
+            "right_to_wrong": int((changed & (pred_b == y)).sum())}
 
 
 def run(cache: Path, heads_dir: Path, meld: Path, audio_dir: Path) -> tuple[dict, dict, dict]:
@@ -177,6 +189,8 @@ def run(cache: Path, heads_dir: Path, meld: Path, audio_dir: Path) -> tuple[dict
             continue
         C[name] = {"a": a, "b": b, "rows": rws, **paired_bootstrap_diff(y[sel], preds[a][sel], preds[b][sel], g[sel],
                                                                        len(labels.EMOTIONS), N_RESAMPLES, SEED)}
+    flips = {name: ({"text": txt, "a": a, "b": b, **label_flips(y, preds[a], preds[b])} if a in preds and b in preds
+                    else {"text": txt, "a": a, "b": b, "status": "pending"}) for name, txt, a, b in FLIPS}
     lo = C["gold_all"]["ci95"]["weighted_f1"][0] if "ci95" in C["gold_all"] else None
     claim = {"rule": CLAIM_RULE, "gold_all_ci95_weighted_f1": C["gold_all"].get("ci95", {}).get("weighted_f1"),
              "face_adds": bool(lo is not None and lo > 0)}
@@ -188,7 +202,7 @@ def run(cache: Path, heads_dir: Path, meld: Path, audio_dir: Path) -> tuple[dict
     for f in ("text_ctx.npz", "audio_cal.npz", "fusion.npz", "vision_cal.npz", "fusion3.npz", "sentiment3.npz"):
         if (heads_dir / f).exists():
             inputs[f"heads/{f}"] = file_record(heads_dir / f)
-    meta = {"inputs": inputs, "claim": claim, "comparisons": C,
+    meta = {"inputs": inputs, "claim": claim, "comparisons": C, "label_flips": flips,
             "vision": {k: vis.get(k) for k in ("rule", "variant", "jsd_face_flag", "thresholds", "face_coverage", "rule_disagreement")},
             "dev": {"rules": {r: {"dev": v["dev"], "dev_face_rows": v["dev_face_rows"], "fallback_rate": v.get("fallback_rate")}
                               for r, v in (vis.get("rules") or {}).items()},
@@ -246,6 +260,12 @@ def render(results: dict, meta: dict, cmd: str) -> str:
     cl = meta["claim"]
     L += ["", "| claim rule | interval | face adds |", "| --- | --- | --- |",
           f"| {cl['rule']} | {interval(cl['gold_all_ci95_weighted_f1'])} | {'yes' if cl['face_adds'] else 'no'} |", ""]
+    L += ["## Label flips (a fused3, b the two-way fusion)", "",
+          "| text input | a | b | n | labels changed | wrong to right | right to wrong |", "| --- | --- | --- | --- | --- | --- | --- |"]
+    for f in meta["label_flips"].values():
+        L.append(f"| {f['text']} | {f['a']} | {f['b']} | " + ("| pending | | |" if "changed" not in f else
+                 f"{f['n']} | {f['changed']} | {f['wrong_to_right']} | {f['right_to_wrong']} |"))
+    L.append("")
     r = results.get("face_disagreement_subset", {})
     if r.get("status") == "done":
         L += ["## Face-disagreement subset", "", f"jsd_face_flag {r['jsd_face_flag']}, {r['n_subset']} of {r['n_face_rows']} clips with a face.", "",
@@ -295,7 +315,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     import threadpoolctl
 
-    cmd = "python tools/evaluate_vision.py " + " ".join(sys.argv[1:] if argv is None else argv)
+    cmd = " ".join(["python tools/evaluate_vision.py", *(sys.argv[1:] if argv is None else argv)])
     t0 = time.perf_counter()
     with threadpoolctl.threadpool_limits(2):
         results, comps, meta = run(args.cache, args.heads, args.meld, args.audio)

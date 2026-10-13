@@ -3,7 +3,7 @@
  "split": "test",
  "n_resamples": 1000,
  "seed": 0,
- "wall_s": 3.3,
+ "wall_s": 4.4,
  "inputs": {
   "cache/video_test.npz": {
    "bytes": 104034302,
@@ -290,6 +290,26 @@
     "macro_f1": 0.841,
     "accuracy": 0.588
    }
+  }
+ },
+ "label_flips": {
+  "gold": {
+   "text": "gold CSV text",
+   "a": "fused3_stacked",
+   "b": "fused_stacked",
+   "n": 2610,
+   "changed": 80,
+   "wrong_to_right": 36,
+   "right_to_wrong": 20
+  },
+  "live": {
+   "text": "SenseVoice transcripts, asr gate",
+   "a": "live_asr_fused3",
+   "b": "live_asr_text",
+   "n": 2610,
+   "changed": 86,
+   "wrong_to_right": 37,
+   "right_to_wrong": 20
   }
  },
  "vision": {

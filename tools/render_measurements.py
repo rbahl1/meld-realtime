@@ -8,7 +8,10 @@ table from results/params.json and every bench json whose recorded host is
 plus results/laptop_notes.md when it exists). the replay sections put the
 real-time targets of design 1.10 next to the measured numbers with a pass/fail
 per bucket. without laptop json files the laptop section is a table whose every
-cell reads [laptop: not yet measured]. no number in the output is typed here.
+cell reads [laptop: not yet measured]. the replay benches with video
+(replay_bench.py --video, config.video true) and the reply generator bench
+(generator_bench_*.json) get their own sections after the audio replay benches.
+no number in the output is typed here.
 
 usage: python tools/render_measurements.py --out results/measurements.md [--container-host vm]
 """
@@ -321,6 +324,157 @@ def replay_section(r: dict, path: Path) -> list[str]:
     return out
 
 
+def is_video(r: dict | None) -> bool:
+    return bool(r and (r.get("config") or {}).get("video"))
+
+
+def raw(v) -> str:
+    """a value as the json holds it."""
+    return "-" if v is None else str(v)
+
+
+def pp(d: dict | None, nd: int | None = None) -> str:
+    """p50 / p95 of a stats dict, as stored (nd None) or with nd decimals."""
+    d = d or {}
+    f = raw if nd is None else (lambda v: fmt(v, nd))
+    return f"{f(d.get('p50'))} / {f(d.get('p95'))}"
+
+
+def video_replay_section(r: dict, path: Path) -> list[str]:
+    """a replay bench with video (three inputs): latency by bucket against the targets, the reply,
+    the commit, the vision thread, compute and memory."""
+    c, res, comp, mem = r["config"], r["results"], r["compute"], r["memory"]
+    sent, vis = r.get("sent") or {}, res.get("vision") or {}
+    rep, com, vid = vis.get("reply") or {}, vis.get("commits") or {}, vis.get("video") or {}
+    llm = c.get("reply") == "llm"
+    modes = Counter(u.get("fused_mode") for u in r.get("utterances", []) if u.get("fused_mode"))
+    out = [f"### Replay bench with video, `--reply {c.get('reply')}` (`{path.name}`, written by `tools/replay_bench.py --video`)", "",
+           f"Generated {r.get('generated_at')} on `{r.get('host')}` by `{r.get('command')}`.", "",
+           (f"- Clips: {c['n_clips']} MP4 files from `{c['clip_source']}` (duration p50 {raw(c['clip_duration_s'].get('p50'))} s, "
+            f"max {raw(c['clip_duration_s'].get('max'))} s). The replay client sends the audio and the frames ({c.get('video_fps')} fps) of each clip "
+            f"on one media clock, {'at real-time pace' if c['realtime'] else 'as fast as possible'}, on one stream, with {c['tail_s']} s of silence "
+            "after each clip. "
+            + ("" if not c["warmup_clips"] else
+               f"Before the measured run, the first {'clip was' if c['warmup_clips'] == 1 else str(c['warmup_clips']) + ' clips were'} "
+               "streamed once on a separate stream as a warm-up. ")
+            + (f"Streaming {sent.get('audio_s')} s of audio and {sent.get('video_frames')} frames took {sent.get('wall_s')} s."
+               if sent.get("audio_s") is not None else "")),
+           (f"- Service: `--vision`, {c['threads']} SenseVoice threads, {c['text_threads']} RoBERTa threads, endpoint silence "
+            f"{c['endpoint_silence_ms']} ms, frame-rate cap {c.get('video_fps_max')} fps, vision lag {c.get('vision_lag_ms')} ms, speaker rule "
+            f"`{c.get('vision_rule')}`, vision heads {', '.join(c.get('vision_heads') or []) or 'none'}, commit policy `{c.get('commit_policy')}`, "
+            f"replies `{c.get('reply')}`" + (f" from `{c.get('generator')}`" if c.get("generator") else "") + "."
+            + (f" The finals report `fused.mode` {', '.join(f'`{k}` ({v})' for k, v in modes.items())}." if modes else "")),
+           f"- Models loaded in {r['load_s']} s. The load average was {r['loadavg_start']} at the start and {r['loadavg_end']} at the end.",
+           (f"- Messages: {res['n_finals']} finals, {res['n_responses']} responses, {res['n_provisionals']} provisionals, "
+            f"errors: {res['errors'] or 'none'}" + ("" if r.get("finished_cleanly", True) else ". The run did not drain cleanly") + "."), "",
+           "#### Final state after the endpoint, by utterance length (targets of design 1.10, at 4 threads)", "",
+           "| bucket | n | service-side p50 / p95 ms | target p50 / p95 | endpoint to response p50 / p95 ms | stages p50 (fe / sv / pros / txt / heads) | pass |",
+           "|---|---|---|---|---|---|---|"]
+    stages = ("frontend", "sensevoice", "prosody", "text_encoder", "heads")
+    for name in BUCKET_ORDER:
+        b = res["by_bucket"].get(name)
+        if b is None:
+            continue
+        t = b["target_ms"]
+        if b["n"] == 0:
+            out.append(f"| {b['description']} | 0 | no utterances in this bucket | {t['p50']:.0f} / {t['p95']:.0f} | - | - | n/a |")
+            continue
+        out.append(f"| {b['description']} | {b['n']} | {pp(b['service_total_ms'], 1)} | {t['p50']:.0f} / {t['p95']:.0f} | {pp(b['response_ms'], 1)} | "
+                   f"{' / '.join(fmt(b['stages_p50_ms'].get(k)) for k in stages)} | {pf(b['pass'])} |")
+    a = res["all"]
+    out += [(f"| all | {a['service_total_ms'].get('n', 0)} | {pp(a['service_total_ms'], 1)} | - | {pp(a['response_ms'], 1)} | "
+             f"{' / '.join(fmt(a['stages_p50_ms'].get(k)) for k in stages)} | - |"), ""]
+    rp = res["reply_after_final_ms"]
+    reply_row = (f"| reply after the final state (p50 / p95 / max ms, n) | {raw(rp.get('p50'))} / {raw(rp.get('p95'))} / "
+                 f"{raw(rp.get('max'))}, n {rp.get('n', 0)} | ")
+    if llm:
+        reply_row += f"none here: the {rp['target_p95_ms']} ms p95 target of design 1.10 is the bank's | n/a |"
+    else:
+        reply_row += f"{rp['target_p95_ms']} ms p95 | {pf(rp['pass'])} |"
+    out += ["#### Reply, commit, vision, compute and memory", "", "| item | measured | target | pass |", "|---|---|---|---|", reply_row]
+    if llm:
+        src = rep.get("sources") or {}
+        out += [(f"| first streamed delta after the endpoint frame (p50 / p95 ms, n) | {pp(rep.get('first_delta_ms'))}, n "
+                 f"{(rep.get('first_delta_ms') or {}).get('n', 0)} | none set before the run | n/a |"),
+                f"| generation (p50 / p95 ms) | {pp(rep.get('gen_ms'))} | none set before the run | n/a |",
+                (f"| reply source | generator {src.get('llm', 0)}, bank {src.get('bank', 0)} of {rep.get('n_responses')} responses, "
+                 f"{rep.get('n_deltas')} deltas, fallbacks: {rep.get('fallbacks') or 'none'} | - | - |")]
+    n_early = (com.get("t_commit_s") or {}).get("n", 0)
+    out += [(f"| label committed before the endpoint | share {raw(com.get('rate_before_endpoint'))} ({com.get('committed_before_endpoint')} of "
+             f"{com.get('finals_with_commit_block')} finals with a commit block) | - | - |"),
+            (f"| commit time of the {n_early} commits before the endpoint (p50 / p95 s after the segment start) | {pp(com.get('t_commit_s'))} "
+             "| - | - |"),
+            (f"| committed label equal to the final's label | share {raw(com.get('matches_final_rate'))} of the "
+             f"{com.get('finals_with_commit_block')} finals with a commit block (an endpoint commit is the final) | - | - |"),
+            f"| vision thread per processed frame (mean ms) | {raw(vid.get('vision_frame_ms_mean'))} over {vid.get('video_frames')} frames | - | - |",
+            (f"| video frames dropped / skipped / bad | {vid.get('dropped_video_frames')} / {vid.get('skipped_video_frames')} / "
+             f"{vid.get('bad_video_frames')}, finals that waited the whole vision lag: {vid.get('vision_lag_finals')} | - | - |"),
+            f"| vision wait at the final (p50 / p95 ms) | {pp(vis.get('vision_wait_ms'))} | - | - |",
+            f"| face evidence at the final (p50 / p95 ms) | {pp(vis.get('vision_aggregate_ms'))} | - | - |",
+            (f"| worker compute per second of audio | {raw(comp['worker_compute_s_per_audio_s'])} s ({raw(comp['worker_compute_s_per_speech_s'])} "
+             f"per speech s) | below {comp['target_max']} s | {pf(comp['pass'])} |"),
+            (f"| whole process cpu per second of audio | {raw(comp['process_cpu_s_per_audio_s'])} cpu s, cpu % sampled mean "
+             f"{raw(comp['process_cpu_percent_sampled'].get('mean'))} max {raw(comp['process_cpu_percent_sampled'].get('max'))} | - | - |"),
+            f"| memory | rss {mem['rss_mb_after_load']} MB after load, peak {mem['peak_rss_mb']} MB during the run | - | - |", ""]
+    out += ["Definitions:", "",
+            "- Service-side latency runs from the arrival of the endpoint frame (`t_service_recv_ns`) to the emission of the final state.",
+            "- Endpoint to response runs from the arrival of the endpoint frame to the emission of the response.",
+            ("- Reply after the final state runs from the emission of the final state to the emission of the response. "
+             + ("With `--reply llm` it includes the whole generation. "
+                "The first streamed delta runs from the arrival of the endpoint frame to the emission of the first `response.delta`, "
+                "so it includes the computation of the final state." if llm else "With `--reply bank` the response is one bank line.")),
+            ("- The commit time counts from the start of the VAD segment. A final without an earlier commit is its own commit, "
+             "at the endpoint."),
+            "- The vision thread time per frame covers the JPEG decode, the face expert and the row building.",
+            ("- Worker compute keeps the rule of the audio benches (the worker's stage timings of every final and provisional). "
+             "It leaves out the vision thread and the reply thread. The process cpu includes every thread."),
+            ("- The service, the replay client and the monitor run in one process, so RSS and CPU include all three, and also the client's "
+             "MP4 decoding and JPEG encoding."), ""]
+    return out
+
+
+def generator_section(g: dict, path: Path) -> list[str]:
+    """the reply generator bench: latency, decode rate and check pass rate per file and thread count, and the run's choice."""
+    st, ch = g.get("states") or {}, g.get("choice") or {}
+    rule = ch.get("rule") or {}
+    meets = {c["file"]: c.get("meets_targets") for c in ch.get("candidates", [])}
+    out = [f"### Reply generator bench (`{path.name}`, written by `tools/bench_generator.py`)", "",
+           (f"Generated {g.get('generated_at')} on `{g.get('host')}` by `{g.get('command')}`. "
+            f"The states are {st.get('n')} {st.get('split')} clips from `{st.get('source')}` (seed {st.get('seed')}): {st.get('n_gold')} on gold text "
+            f"and {st.get('n_live')} on SenseVoice transcripts. Decoding is greedy, with at most {g.get('max_new_tokens')} new tokens. "
+            f"The load average was {g.get('loadavg_start')} at the start and {g.get('loadavg_end')} at the end. The bench took {g.get('wall_s')} s."), "",
+           ("| file | threads | first token p50 / p95 ms | first word p50 / p95 ms | full reply p50 / p95 ms | decode passes per s | "
+            "final-reply tokens per s | check pass rate | meets the targets at 4 threads |"), "|---|---|---|---|---|---|---|---|---|"]
+    for f, by_t in g.get("results", {}).items():
+        for t in sorted((k for k in by_t if k.isdigit()), key=int):
+            sm = by_t[t]["summary"]
+            out.append(f"| `{f}` | {t} | {pp(sm.get('first_token_ms'))} | {pp(sm.get('first_word_ms'))} | {pp(sm.get('full_reply_ms'))} | "
+                       f"{raw(sm.get('decode_passes_per_s'))} | {raw(sm.get('decode_tokens_per_s'))} | {raw(sm.get('check_pass_rate'))} | "
+                       f"{fmt(meets.get(f)) if t == str(rule.get('threads')) else ''} |")
+    out += ["", (f"Targets at {rule.get('threads')} threads (`choice.rule` in the file, defined in the docstring of "
+                 f"`tools/bench_generator.py`): first-token p95 at most "
+                 f"{rule.get('first_token_p95_max_ms')} ms and a decode rate of at least {rule.get('decode_min_passes_per_s')} passes per s. "
+                 f"Among the files of one model, q4 replaces int8 only when it is faster by more than {rule.get('q4_same_length_speedup_over_int8')}x "
+                 f"at the same reply length with a check pass rate no lower. The choice of this run covers its own files only. "
+                 f"It is `{ch.get('deployed')}`, which " + ("meets both targets. " if ch.get("meets_targets") else "does not meet both targets. ")
+                 + f"The reason recorded in the file: \"{ch.get('reason')}\"."), "",
+            "Definitions:", "",
+            "- First token runs from the call to the first chosen token. First word runs to the first word passed to the stream.",
+            ("- Decode passes per s counts every forward pass after the first token (rolled-back tokens and the end token included) over the "
+             "time after the first token. This is the rate the targets use. Final-reply tokens per s counts only the tokens of the final reply."),
+            "- The check pass rate is the share of replies that pass `check_reply` (length, register, emotion words, prompt echo).", ""]
+    return out
+
+
+def deployed_generator_line() -> list[str]:
+    try:
+        from meld_rt.response import generator as G
+    except Exception:  # noqa: BLE001
+        return []
+    return [(f"The deployed reply generator is `{G.DEFAULT_MODEL}/{G.DEFAULT_ONNX}` (`DEFAULT_MODEL` and `DEFAULT_ONNX` in "
+             "`meld_rt/response/generator.py`)."), ""]
+
+
 def laptop_section() -> list[str]:
     out = [("Every cell below reads `[laptop: not yet measured]` until the benches run on the laptop. "
             "When their JSON files are in `results/`, this section shows them in place of the table. "
@@ -366,6 +520,9 @@ def render(root: Path, results: Path, container_host: str = CONTAINER_HOST) -> s
     out += header(root)
     benches, laptop_benches = _by_host(sorted(glob.glob(str(results / "bench_components_*.json"))), container_host)
     replays, laptop_replays = _by_host(sorted(glob.glob(str(results / "replay_bench_*.json"))), container_host)
+    videos, laptop_videos = [x for x in replays if is_video(x[1])], [x for x in laptop_replays if is_video(x[1])]
+    replays, laptop_replays = [x for x in replays if not is_video(x[1])], [x for x in laptop_replays if not is_video(x[1])]
+    gens, laptop_gens = _by_host(sorted(glob.glob(str(results / "generator_bench_*.json"))), container_host)
     out += [f"## Container (host `{container_host}`)", ""]
     out += params_section(load_json(results / "params.json"))
     if benches:
@@ -376,9 +533,13 @@ def render(root: Path, results: Path, container_host: str = CONTAINER_HOST) -> s
         out += _sections(replays, replay_section)
     else:
         out += ["### Replay bench", "", "[not yet measured: run `python tools/replay_bench.py --clips \"proxy/*.wav\" --n 20 --realtime`]", ""]
+    out += _sections(videos, video_replay_section)
+    if gens:
+        out += _sections(gens, generator_section) + deployed_generator_line()
     out += ["## Laptop (user-run)", ""]
-    if laptop_benches or laptop_replays:
-        out += _sections(laptop_benches, bench_section) + _sections(laptop_replays, replay_section)
+    if laptop_benches or laptop_replays or laptop_videos or laptop_gens:
+        out += (_sections(laptop_benches, bench_section) + _sections(laptop_replays, replay_section)
+                + _sections(laptop_videos, video_replay_section) + _sections(laptop_gens, generator_section))
     else:
         out += laptop_section()
     notes = results / LAPTOP_NOTES

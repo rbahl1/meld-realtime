@@ -294,7 +294,7 @@ def render(res: dict, models: Path, heads: Path) -> str:
         out.append(f"| Total including Piper | | | {fmt_m(res['total_with_piper'])} | | |")
     else:
         out.append("| Piper en_US-lessac-medium | TTS for the proxy clips (offline) | - | not on disk | | |")
-    out += ["", "Extension (`--vision --reply llm`, spec 4), on top of the core total above:", "",
+    out += ["", "Extension (`--vision --reply llm`), on top of the core total above:", "",
             "| Component | Role | File | Params | Trained | Note |", "|---|---|---|---|---|---|"]
     for r in res.get("extension_rows", []):
         out.append(f"| {r['component']} | {r['role']} | `{r['file']}` | {fmt_m(r['params'])} | {r['trained']} | {r['note']} |")
