@@ -280,7 +280,7 @@ def main(argv: list[str] | None = None) -> int:
            "label": a.label, "wavs": a.wavs, **res}
     path = a.out or ROOT / f"results/pause_stats_{a.label}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(out, indent=1), encoding="utf-8")
+    path.write_text(json.dumps(out, indent=1), encoding="utf-8", newline="\n")
     print(markdown(res, a.label))
     print(f"\nwrote {rel(path)}", file=sys.stderr)
     return 0

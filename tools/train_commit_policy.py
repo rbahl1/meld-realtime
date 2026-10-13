@@ -516,8 +516,8 @@ def main(argv: list[str] | None = None) -> int:
     res["export"] = {"file": rel(out_npz), **file_record(out_npz), "c": c, "name": pol.name}
     res["wall_s"] = round(time.perf_counter() - t_all, 1)
     args.results.mkdir(parents=True, exist_ok=True)
-    (args.results / "commit_policy.json").write_text(json.dumps(res, indent=1))
-    (args.results / "commit_policy.md").write_text(render(res))
+    (args.results / "commit_policy.json").write_text(json.dumps(res, indent=1), encoding="utf-8", newline="\n")
+    (args.results / "commit_policy.md").write_text(render(res), encoding="utf-8", newline="\n")
     print(f"commit policy c={c:g} ({pol.name}) -> {rel(out_npz)}; {rel(args.results / 'commit_policy.json')}, {rel(args.results / 'commit_policy.md')} "
           f"in {res['wall_s']} s")
     return 0

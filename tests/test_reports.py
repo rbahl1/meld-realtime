@@ -35,7 +35,7 @@ def prose(md: str) -> list[str]:
 
 
 def test_render_results_from_the_committed_files():
-    met, man = json.loads(METRICS.read_text()), json.loads(MANIFEST.read_text())
+    met, man = json.loads(METRICS.read_text(encoding="utf-8")), json.loads(MANIFEST.read_text(encoding="utf-8"))
     md = rr.render(met, man, "python tools/render_results.py", "results/metrics.json", "heads/manifest.json")
     for r in met["conditions"].values():
         assert f"`{r['condition']}`" in md
@@ -53,9 +53,9 @@ def test_render_results_appends_the_extension_sections():
     gens = sorted((ROOT / "results").glob("generator_bench_*.json"))
     if not all(p.exists() for p in files.values()) or not gens:
         pytest.skip("the extension result files are not there")
-    met, man = json.loads(METRICS.read_text()), json.loads(MANIFEST.read_text())
-    ext = {k: (f"results/{p.name}", json.loads(p.read_text())) for k, p in files.items()}
-    ext["generator"] = [(f"results/{p.name}", json.loads(p.read_text())) for p in gens]
+    met, man = json.loads(METRICS.read_text(encoding="utf-8")), json.loads(MANIFEST.read_text(encoding="utf-8"))
+    ext = {k: (f"results/{p.name}", json.loads(p.read_text(encoding="utf-8"))) for k, p in files.items()}
+    ext["generator"] = [(f"results/{p.name}", json.loads(p.read_text(encoding="utf-8"))) for p in gens]
     core = rr.render(met, man, "python tools/render_results.py", "results/metrics.json", "heads/manifest.json")
     md = rr.render(met, man, "python tools/render_results.py", "results/metrics.json", "heads/manifest.json", ext)
     assert md.startswith(core + "\n## Text, voice and face on MELD test")
@@ -82,7 +82,7 @@ def test_render_results_appends_the_extension_sections():
 def test_pending_rows_section_only_while_a_row_is_pending():
     """RESULTS.md has a "Pending rows" section only while a condition is pending. with both sentiment rows
     done, the sentiment section compares the two heads with each other and with the MELD paper rows."""
-    met, man = json.loads(METRICS.read_text()), json.loads(MANIFEST.read_text())
+    met, man = json.loads(METRICS.read_text(encoding="utf-8")), json.loads(MANIFEST.read_text(encoding="utf-8"))
     md = rr.render(met, man, "python tools/render_results.py", "results/metrics.json", "heads/manifest.json")
     waiting = [n for n, r in met["conditions"].items() if r["status"] != "done"]
     assert ("## Pending rows" in md) == bool(waiting) and ("is not scored in this run" in md) == bool(waiting)
@@ -114,7 +114,7 @@ def test_table_cells_with_semicolons_become_sentences():
 
 
 def test_report_text_only_from_the_committed_files():
-    met, man = json.loads(METRICS.read_text()), json.loads(MANIFEST.read_text())
+    met, man = json.loads(METRICS.read_text(encoding="utf-8")), json.loads(MANIFEST.read_text(encoding="utf-8"))
     md = rto.render(man, met, "python tools/report_text_only.py")
     sel = man["selected"]["text_ctx"]
     assert rto.pct(sel["dev"]["weighted_f1"]) in md and sel["grid_point"] in md
@@ -135,7 +135,7 @@ def test_demo_tav_block_follows_its_markers(tmp_path):
     new_readme, new_design = rdd.render(tmp_path)
     assert new_readme.endswith("\n" + marked + "\n") and rdd.blocks(ROOT)[0] in new_readme and new_design == design
     block = new_readme.split(rdd.TAV_START)[1].split(rdd.TAV_END)[0]
-    log = [json.loads(line) for line in (ROOT / "results/demo_tav_log.jsonl").read_text().splitlines() if line.strip()]
+    log = [json.loads(line) for line in (ROOT / "results/demo_tav_log.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
     final = next(r for r in log if r["topic"] == "state.final")
     resp = next(r for r in log if r["topic"] == "response")
     assert json.dumps(final["commit"]) in block and json.dumps(final["discrepancy"]) in block and json.dumps(resp["grounding"]) in block

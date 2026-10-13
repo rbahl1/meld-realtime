@@ -28,7 +28,7 @@ pytestmark = pytest.mark.skipif(not (all(p.exists() for p in MODELS) and PROXY.e
 
 
 def proxy_rows() -> list[dict]:
-    rows = json.loads(PROXY.read_text())[:N_CLIPS]
+    rows = json.loads(PROXY.read_text(encoding="utf-8"))[:N_CLIPS]
     return [{**r, "file": str(ROOT / "proxy" / r["file"])} for r in rows]
 
 
@@ -85,11 +85,11 @@ def test_format(run):
         assert np.allclose(z["duration_s" + sfx], np.minimum(dur, p), atol=1e-6)
         for i in np.flatnonzero(dur <= p):  # a clip no longer than the prefix repeats its full values
             assert np.array_equal(z["emo_probs" + sfx][i], z["emo_probs"][i]) and z["asr_text" + sfx][i] == z["asr_text"][i]
-    meta = json.loads((d / "audio_dev_meta.json").read_text())
+    meta = json.loads((d / "audio_dev_meta.json").read_text(encoding="utf-8"))
     assert meta["rows"] == n + 1 and meta["cached"] == n
     assert meta["missing"] == {"count": 1, "keys": ["999_0"]} and meta["failed"]["count"] == 0
     assert not (d / "audio_dev.partial.npz").exists()
-    wer = json.loads((d / "wer_dev.json").read_text())
+    wer = json.loads((d / "wer_dev.json").read_text(encoding="utf-8"))
     assert wer["n"] == n and wer["gold"] == "manifest text" and 0.0 <= wer["wer"] < 1.0
     assert wer["reference_words"] == wer["hits"] + wer["substitutions"] + wer["deletions"]
 
@@ -131,7 +131,7 @@ def test_resume_from_checkpoint(run, tmp_path, monkeypatch):
     with pytest.raises(SystemExit, match="other settings"):
         caf.main(args(man, out, prefixes="2"))
     assert caf.main(args(man, out)) == 0
-    meta = json.loads((tmp_path / "audio_dev_meta.json").read_text())
+    meta = json.loads((tmp_path / "audio_dev_meta.json").read_text(encoding="utf-8"))
     assert meta["resumed_with"] == 1 and meta["clips_this_run"] == N_CLIPS - 1
     z = load(out)
     assert set(z) == set(ref) and [str(k) for k in z["keys"]] == [str(k) for k in ref["keys"]]

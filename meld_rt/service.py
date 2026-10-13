@@ -738,8 +738,9 @@ class Service:
         by_path = {}
         if c.provenance.exists():
             try:
-                for row in json.loads(c.provenance.read_text()).get("files", []) or []:
-                    by_path[Path(row["path"]).name] = row.get("sha256", "")[:12]
+                for row in json.loads(c.provenance.read_text(encoding="utf-8")).get("files", []) or []:
+                    # the file name after the last slash or backslash (rows that windows wrote with backslashes)
+                    by_path[row["path"].replace("\\", "/").rsplit("/", 1)[-1]] = row.get("sha256", "")[:12]
             except (json.JSONDecodeError, KeyError, TypeError, AttributeError):
                 pass
         out = {}
@@ -1166,7 +1167,7 @@ class Service:
         self.manifest = {}
         if (d / "manifest.json").exists():
             try:
-                self.manifest = json.loads((d / "manifest.json").read_text())
+                self.manifest = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
             except json.JSONDecodeError as e:
                 log.warning("manifest unreadable: %s", e)
         return out
@@ -1912,7 +1913,10 @@ def config_from_args(a: argparse.Namespace) -> ServiceConfig:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from meld_rt.clients import utf8_stdio
+
     a = build_parser().parse_args(argv)
+    utf8_stdio()
     logging.basicConfig(level=getattr(logging, a.log_level.upper(), logging.INFO),
                         format="%(asctime)s %(levelname).1s %(name)s %(message)s", stream=sys.stderr)
     svc = Service(config_from_args(a))

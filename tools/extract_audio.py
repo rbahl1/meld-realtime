@@ -253,7 +253,7 @@ def main(argv: list[str] | None = None) -> int:
     report = {}
     if report_path.exists():
         try:
-            report = json.loads(report_path.read_text())
+            report = json.loads(report_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             report = {}
     per_split = report.get("splits", {}) if isinstance(report.get("splits"), dict) else {}
@@ -275,7 +275,7 @@ def main(argv: list[str] | None = None) -> int:
            "splits": ordered, "raw": str(a.raw), "ffmpeg": ffmpeg_version(ffmpeg),
            "command": "python tools/extract_audio.py " + " ".join(sys.argv[1:] if argv is None else argv)}
     tmp = report_path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(out, indent=1) + "\n")
+    tmp.write_text(json.dumps(out, indent=1) + "\n", encoding="utf-8", newline="\n")
     os.replace(tmp, report_path)
     print(f"{out['count']} rows without audio -> {report_path}")
     if empty:

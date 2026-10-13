@@ -206,7 +206,7 @@ def test_reattribute_rewrites_only_the_attribution(tmp_path):
     path = tmp_path / "bench.json"
     path.write_text(json.dumps(d))
     att = rb.reattribute(path, "python tools/replay_bench.py --reattribute bench.json")
-    out = json.loads(path.read_text())
+    out = json.loads(path.read_text(encoding="utf-8"))
     assert att["clips_without_final"] == [] and att["finals_unattributed"] == [] and att["finals_ending_after_clip"] == 2
     assert [u["clip"] for u in out["utterances"]] == ["a.wav", "b.wav"] and [u["service_total_ms"] for u in out["utterances"]] == [120.0, 130.0]
     assert out["results"]["clip_attribution"] == rb.ATTRIBUTION_RULE and out["results"]["by_bucket"] == {"le5s": {"n": 2}}
@@ -230,7 +230,7 @@ def test_render_puts_other_hosts_under_the_laptop_heading(tmp_path):
     src = sorted((ROOT / "results").glob("replay_bench_*.json"))
     if not src:
         pytest.skip("no committed replay bench json")
-    r = json.loads(src[0].read_text())
+    r = json.loads(src[0].read_text(encoding="utf-8"))
     (tmp_path / "replay_bench_vm.json").write_text(json.dumps(r))
     r["host"] = "laptop1"
     (tmp_path / "replay_bench_laptop1.json").write_text(json.dumps(r))
@@ -245,16 +245,16 @@ def test_render_puts_other_hosts_under_the_laptop_heading(tmp_path):
 def test_render_from_the_committed_json_files():
     md = rm.render(ROOT, ROOT / "results")
     assert "unreadable" not in md and "### Parameters" in md
-    params = json.loads((ROOT / "results/params.json").read_text())
+    params = json.loads((ROOT / "results/params.json").read_text(encoding="utf-8"))
     assert f"{params['total_inference_path'] / 1e6:.3f} M" in md
     for p in (ROOT / "results").glob("replay_bench_*.json"):
-        r = json.loads(p.read_text())
+        r = json.loads(p.read_text(encoding="utf-8"))
         assert p.name in md
         for b in r["results"]["by_bucket"].values():
             if b["n"]:
                 assert f"{b['service_total_ms']['p50']:.1f} / {b['service_total_ms']['p95']:.1f}" in md
     for p in (ROOT / "results").glob("bench_components_*.json"):
-        b = json.loads(p.read_text())
+        b = json.loads(p.read_text(encoding="utf-8"))
         t = max(b["by_threads"], key=int)
         assert f"{b['by_threads'][t]['sensevoice_ms']['2']['p50']:.1f}" in md
 
@@ -262,7 +262,7 @@ def test_render_from_the_committed_json_files():
 def test_render_gives_video_benches_and_the_generator_their_own_sections(tmp_path):
     """replay benches with video are not rendered as audio replay sections; the llm run reports its
     reply numbers without the bank's target; the generator bench has one row per file and thread count."""
-    vids = [p for p in sorted((ROOT / "results").glob("replay_bench_*.json")) if json.loads(p.read_text())["config"].get("video")]
+    vids = [p for p in sorted((ROOT / "results").glob("replay_bench_*.json")) if json.loads(p.read_text(encoding="utf-8"))["config"].get("video")]
     gens = sorted((ROOT / "results").glob("generator_bench_*.json"))
     if not vids or not gens:
         pytest.skip("no committed video or generator bench json")
@@ -271,7 +271,7 @@ def test_render_gives_video_benches_and_the_generator_their_own_sections(tmp_pat
     md = rm.render(ROOT, tmp_path)
     assert "### Replay bench (" not in md and md.count("### Replay bench with video") == len(vids)
     for p in vids:
-        r = json.loads(p.read_text())
+        r = json.loads(p.read_text(encoding="utf-8"))
         sec = md.split(f"(`{p.name}`")[1].split("\n### ")[0]
         rp = r["results"]["reply_after_final_ms"]
         if r["config"]["reply"] == "llm":
@@ -282,7 +282,7 @@ def test_render_gives_video_benches_and_the_generator_their_own_sections(tmp_pat
         assert f"share {r['results']['vision']['commits']['rate_before_endpoint']}" in sec
         assert f"{r['results']['vision']['video']['vision_frame_ms_mean']} over" in sec and f"peak {r['memory']['peak_rss_mb']} MB" in sec
     for p in gens:
-        g = json.loads(p.read_text())
+        g = json.loads(p.read_text(encoding="utf-8"))
         for f, by_t in g["results"].items():
             for t in (k for k in by_t if k.isdigit()):
                 sm = by_t[t]["summary"]

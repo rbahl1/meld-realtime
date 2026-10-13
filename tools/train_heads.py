@@ -89,7 +89,7 @@ def file_record(path: Path) -> dict:
 def load_text_cache(cache: Path, split: str, utts: list[Utt]) -> np.ndarray:
     """(n, 768) float32 in load_split order; the keys file must match the csv order."""
     emb = np.load(cache / f"text_{split}.npy")
-    keys = json.loads((cache / f"text_{split}_keys.json").read_text())
+    keys = json.loads((cache / f"text_{split}_keys.json").read_text(encoding="utf-8"))
     want = [key(u) for u in utts]
     if keys != want:
         raise ValueError(f"cache/text_{split}_keys.json does not match the csv order")
@@ -631,7 +631,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     if sum((args.text_only, args.ablation, args.sentiment_text_only)) > 1:
         ap.error("--text-only, --ablation and --sentiment-text-only exclude each other")
-    cfg = yaml.safe_load(args.config.read_text())
+    cfg = yaml.safe_load(args.config.read_text(encoding="utf-8"))
     seed = int(cfg.get("seed", 0))
     import sklearn
     import threadpoolctl
@@ -681,7 +681,7 @@ def main(argv: list[str] | None = None) -> int:
         "sklearn_version": sklearn.__version__, "numpy_version": np.__version__, "python": platform.python_version(),
         "command": "python tools/train_heads.py " + " ".join(sys.argv[1:] if argv is None else argv),
     }
-    (args.out / "manifest.json").write_text(json.dumps(manifest, indent=1))
+    (args.out / "manifest.json").write_text(json.dumps(manifest, indent=1), encoding="utf-8", newline="\n")
     print(f"selected {sel['grid_point']}: dev weighted f1 {sel['dev']['weighted_f1']:.4f}, T={sel['calibration_dev']['temperature']}, "
           f"thresholds {manifest['thresholds']}; total {manifest['wall_time_s']['total']} s -> {args.out / 'manifest.json'}")
     return 0
@@ -701,7 +701,7 @@ def run_ablation(args: argparse.Namespace, cfg: dict, seed: int, argv: list[str]
     path = args.out / "manifest.json"
     if not path.exists() or not (args.out / "text_ctx.npz").exists():
         raise SystemExit(f"--ablation needs the deployed heads and {path} (run tools/train_heads.py first)")
-    manifest = json.loads(path.read_text())
+    manifest = json.loads(path.read_text(encoding="utf-8"))
     if manifest.get("audio_fusion", {}).get("status") != "trained":
         raise SystemExit("--ablation needs a manifest whose audio stage is trained")
     with threadpoolctl.threadpool_limits(int(cfg.get("threads", 2))):
@@ -710,7 +710,7 @@ def run_ablation(args: argparse.Namespace, cfg: dict, seed: int, argv: list[str]
         section = train_ablations(args.cache, args.out, cfg, utts, emb, manifest, seed)
     section["command"] = "python tools/train_heads.py " + " ".join(sys.argv[1:] if argv is None else argv)
     manifest["ablations"] = section
-    path.write_text(json.dumps(manifest, indent=1))
+    path.write_text(json.dumps(manifest, indent=1), encoding="utf-8", newline="\n")
     print(f"ablations: {', '.join(section['variants'])} in {section['wall_time_s']} s -> {path}")
     return 0
 
@@ -724,7 +724,7 @@ def run_sentiment_text_only(args: argparse.Namespace, cfg: dict, seed: int, argv
     path = args.out / "manifest.json"
     if not path.exists() or not (args.out / "text_ctx.npz").exists():
         raise SystemExit(f"--sentiment-text-only needs the deployed heads and {path} (run tools/train_heads.py first)")
-    manifest = json.loads(path.read_text())
+    manifest = json.loads(path.read_text(encoding="utf-8"))
     # same config, seed and text features as the deployed text head, or the head would not be its text-only counterpart
     if manifest.get("config") != cfg or manifest.get("seed") != seed:
         raise SystemExit(f"{args.config} is not the config recorded in {path}")
@@ -741,7 +741,7 @@ def run_sentiment_text_only(args: argparse.Namespace, cfg: dict, seed: int, argv
     section["files"] = {SENTIMENT_TEXT_ONLY: file_record(args.out / SENTIMENT_TEXT_ONLY)}
     section["command"] = "python tools/train_heads.py " + " ".join(sys.argv[1:] if argv is None else argv)
     manifest["sentiment_text_only"] = section
-    path.write_text(json.dumps(manifest, indent=1))
+    path.write_text(json.dumps(manifest, indent=1), encoding="utf-8", newline="\n")
     print(f"sentiment_text_only: C={section['C']}, class weights {section['class_weight_scheme']}, dev weighted f1 "
           f"{section['dev']['weighted_f1']:.4f}, T={section['calibration_dev']['temperature']} -> {args.out / SENTIMENT_TEXT_ONLY}, {path}")
     return 0

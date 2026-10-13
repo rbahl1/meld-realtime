@@ -2,7 +2,8 @@
 """renders results/measurements.md from the json files the benches wrote
 (design 1.12): a block for the host that renders (lscpu model name and the
 flags that matter for int8 inference, nproc, free -m, python and onnxruntime
-versions, the commit read from .git), then a container section (the parameter
+versions, the commit read from .git; without lscpu, /proc, nproc and free the
+fallbacks of bench_components, os.cpu_count() and psutil), then a container section (the parameter
 table from results/params.json and every bench json whose recorded host is
 --container-host) and a laptop section (every bench json from any other host,
 plus results/laptop_notes.md when it exists). the replay sections put the
@@ -63,38 +64,74 @@ def run(cmd: list[str]) -> str:
         return ""
 
 
-def lscpu_info() -> dict:
+def lscpu_info(cpuinfo: Path = Path("/proc/cpuinfo")) -> dict:
+    """model name and flags from lscpu, else /proc/cpuinfo. with neither (windows, macos) they come
+    from bench_components' fallbacks, a flag it cannot tell is None, and "source" names them."""
     model, flags = "", ""
-    for line in run(["lscpu"]).splitlines():
+    lscpu = run(["lscpu"])
+    for line in lscpu.splitlines():
         if line.startswith("Model name:"):
             model = line.split(":", 1)[1].strip()
         elif line.startswith("Flags:"):
             flags = line.split(":", 1)[1]
     if not model or not flags:
         try:
-            for line in Path("/proc/cpuinfo").read_text().splitlines():
+            for line in cpuinfo.read_text(encoding="utf-8").splitlines():
                 if line.startswith("model name") and not model:
                     model = line.split(":", 1)[1].strip()
                 elif line.startswith("flags") and not flags:
                     flags = line.split(":", 1)[1]
         except OSError:
-            pass
+            if not lscpu:
+                from bench_components import cpu_flags_fallback, cpu_name_fallback
+                name, source = cpu_name_fallback()
+                return {"model_name": name or "unknown", "flags": cpu_flags_fallback(FLAGS), "source": source, "flags_source": "numpy"}
     fs = set(flags.split())
     return {"model_name": model or "unknown", "flags": {f: f in fs for f in FLAGS}}
 
 
-def free_m() -> str:
+def yes_no(v) -> str:
+    """a flag: True yes, False no, None (not known on this host) unknown."""
+    return {True: "yes", False: "no"}.get(v, "unknown")
+
+
+def load_avg(v) -> str:
+    """a recorded load average. an empty list is a host without one (windows)."""
+    return "not available on that OS" if v == [] else str(v)
+
+
+def memory(meminfo: Path = Path("/proc/meminfo")) -> tuple[str, str]:
+    """(source, text) of the memory line: free -m, else /proc/meminfo, else psutil (windows, macos)."""
     out = run(["free", "-m"]).strip()
     if out:
-        return out
+        return "free -m", out
     try:
         mem = {}
-        for line in Path("/proc/meminfo").read_text().splitlines():
+        for line in meminfo.read_text(encoding="utf-8").splitlines():
             k, v = line.split(":", 1)
             mem[k] = int(v.split()[0]) // 1024
-        return f"MemTotal {mem.get('MemTotal')} MB, MemAvailable {mem.get('MemAvailable')} MB (from /proc/meminfo)"
-    except (OSError, ValueError):
-        return "unknown"
+        return "/proc/meminfo", f"MemTotal {mem.get('MemTotal')} MB, MemAvailable {mem.get('MemAvailable')} MB (from /proc/meminfo)"
+    except OSError:
+        try:
+            from bench_components import mem_fallback
+            mem = mem_fallback()
+        except Exception:  # noqa: BLE001
+            return "psutil", "unknown"
+        return "psutil", f"MemTotal {mem['MemTotal']} MB, MemAvailable {mem['MemAvailable']} MB"
+    except ValueError:
+        return "/proc/meminfo", "unknown"
+
+
+def cpu_count() -> tuple[str, str]:
+    """(source, value): nproc, else os.cpu_count() where nproc is missing (windows, macos)."""
+    out = run(["nproc"]).strip()
+    return ("nproc", out) if out else ("os.cpu_count()", str(os.cpu_count()))
+
+
+def host_sources(cpu: dict, count: tuple[str, str], mem: tuple[str, str]) -> str:
+    """the sources of the host block for the intro, on linux "`lscpu`, `nproc`, `free -m`" as before."""
+    return ", ".join([f"`{cpu.get('source', 'lscpu')}`"] + (["numpy's CPU detection"] if cpu.get("flags_source") else [])
+                     + [f"`{count[0]}`", "psutil" if mem[0] == "psutil" else "`free -m`"])
 
 
 def commit_hash(root: Path) -> str:
@@ -102,17 +139,17 @@ def commit_hash(root: Path) -> str:
     git = root / ".git"
     try:
         if git.is_file():  # worktree: "gitdir: <path>"
-            git = Path(git.read_text().split(":", 1)[1].strip())
-        head = (git / "HEAD").read_text().strip()
+            git = Path(git.read_text(encoding="utf-8").split(":", 1)[1].strip())
+        head = (git / "HEAD").read_text(encoding="utf-8").strip()
         if not head.startswith("ref:"):
             return head[:12]
         ref = head.split(":", 1)[1].strip()
         p = git / ref
         if p.exists():
-            return p.read_text().strip()[:12] + f" ({ref.rsplit('/', 1)[-1]})"
+            return p.read_text(encoding="utf-8").strip()[:12] + f" ({ref.rsplit('/', 1)[-1]})"
         common = git / "commondir"
-        base = (git / common.read_text().strip()).resolve() if common.exists() else git
-        for line in (base / "packed-refs").read_text().splitlines() if (base / "packed-refs").exists() else []:
+        base = (git / common.read_text(encoding="utf-8").strip()).resolve() if common.exists() else git
+        for line in (base / "packed-refs").read_text(encoding="utf-8").splitlines() if (base / "packed-refs").exists() else []:
             if line.endswith(" " + ref):
                 return line.split()[0][:12] + f" ({ref.rsplit('/', 1)[-1]})"
     except (OSError, ValueError, IndexError):
@@ -120,18 +157,22 @@ def commit_hash(root: Path) -> str:
     return "unknown"
 
 
-def header(root: Path) -> list[str]:
+def header(root: Path, cpu: dict | None = None, count: tuple[str, str] | None = None,
+           mem: tuple[str, str] | None = None) -> list[str]:
+    """the host block. each label names the source of its value: nproc and free -m on linux as before,
+    the cpu count of os.cpu_count() and the memory of psutil where those commands and /proc are missing."""
     import onnxruntime as ort
-    cpu = lscpu_info()
-    nproc = run(["nproc"]).strip() or str(os.cpu_count())
-    flags = ", ".join(f"{f} {'yes' if v else 'no'}" for f, v in cpu["flags"].items())
+    cpu = cpu or lscpu_info()
+    count = count or cpu_count()
+    mem = mem or memory()
+    flags = ", ".join(f"{f} {yes_no(v)}" for f, v in cpu["flags"].items())
     return ["## Host that rendered this file", "",
             f"- host `{socket.gethostname()}`, rendered {datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')}, commit `{commit_hash(root)}`",
-            f"- CPU (lscpu): {cpu['model_name']}",
-            f"- nproc: {nproc}",
-            f"- flags of interest: {flags}",
+            f"- CPU ({cpu.get('source', 'lscpu')}): {cpu['model_name']}",
+            f"- nproc: {count[1]}" if count[0] == "nproc" else f"- CPU count ({count[0]}): {count[1]}",
+            f"- flags of interest{' (from numpy)' if cpu.get('flags_source') else ''}: {flags}",
             f"- python {platform.python_version()} ({platform.platform()}), onnxruntime {ort.__version__}",
-            "- free -m:", "", "```", free_m(), "```", ""]
+            "- memory (psutil):" if mem[0] == "psutil" else "- free -m:", "", "```", mem[1], "```", ""]
 
 
 # -- tables ----------------------------------------------------------------
@@ -199,7 +240,7 @@ def bench_section(b: dict, path: Path) -> list[str]:
     out = [f"### Component bench (`{path.name}`, written by `tools/bench_components.py`)", "",
            (f"Generated {b.get('generated_at')} on `{b.get('host')}` by `{b.get('command')}`. "
             f"Each cell is the p50 or p95 in ms of {b.get('runs')} timed runs after {b.get('warmup')} warm-up run. "
-            f"The load average was {b.get('loadavg_start')} at the start and {b.get('loadavg_end')} at the end. "
+            f"The load average was {load_avg(b.get('loadavg_start'))} at the start and {load_avg(b.get('loadavg_end'))} at the end. "
             f"The bench took {b.get('wall_s')} s. "
             f"Clips: {', '.join(f'{c['label']} s ({c['source']})' for c in b.get('clips', []))} from `{b.get('source_wav')}`."), ""]
     th = sorted(b.get("by_threads", {}), key=int)
@@ -233,12 +274,13 @@ def bench_section(b: dict, path: Path) -> list[str]:
             + "." + ((" Heads: " + ", ".join(f"`{k}` {v / 1024:.0f} KB" for k, v in b["head_files"].items()) + ".") if b.get("head_files") else ""), ""]
     if m:
         cpu = m.get("cpu", {})
-        flags = ", ".join(f"{f} {'yes' if v else 'no'}" for f, v in cpu.get("flags", {}).items())
+        flags = ", ".join(f"{f} {yes_no(v)}" for f, v in cpu.get("flags", {}).items())
         mem = m.get("mem_mb", {})
-        out += [(f"Machine recorded by the bench: {cpu.get('model_name')}, nproc {cpu.get('nproc')}"
+        out += [(f"Machine recorded by the bench: {cpu.get('model_name')}"
+                 + (f" (from {cpu['model_source']})" if cpu.get("model_source") else "") + f", nproc {cpu.get('nproc')}"
                  + (f", MemTotal {mem.get('MemTotal')} MB" if mem.get("MemTotal") else "")
                  + f", python {m.get('python')}, onnxruntime {m.get('onnxruntime')}, numpy {m.get('numpy')}."
-                 + (f" Flags of interest: {flags}." if flags else "")), ""]
+                 + (f" Flags of interest{' (from numpy)' if cpu.get('flags_source') else ''}: {flags}." if flags else "")), ""]
     return out
 
 
@@ -266,7 +308,8 @@ def replay_section(r: dict, path: Path) -> list[str]:
             f"fusion mode `{c.get('fusion_mode_requested', c['fusion_mode'])}` resolved to `{c['fusion_mode']}`, "
             f"head files in `heads/`: {', '.join(c['heads']) or 'none'}."
             + (f" The finals report `fused.mode` {', '.join(f'`{k}` ({v})' for k, v in modes.items())}." if modes else "")),
-           (f"- Models loaded in {r['load_s']} s. The load average was {r['loadavg_start']} at the start and {r['loadavg_end']} at the end."),
+           (f"- Models loaded in {r['load_s']} s. The load average was {load_avg(r['loadavg_start'])} at the start and "
+            f"{load_avg(r['loadavg_end'])} at the end."),
            (f"- Messages: {res['n_finals']} finals, {res['n_responses']} responses, {res['n_provisionals']} provisionals, "
             f"errors: {res['errors'] or 'none'}" + ("" if r.get("finished_cleanly", True) else ". The run did not drain cleanly") + "."), "",
            "#### Final state after the endpoint, by utterance length (targets of design 1.10, at 4 threads)", "",
@@ -364,7 +407,8 @@ def video_replay_section(r: dict, path: Path) -> list[str]:
             f"`{c.get('vision_rule')}`, vision heads {', '.join(c.get('vision_heads') or []) or 'none'}, commit policy `{c.get('commit_policy')}`, "
             f"replies `{c.get('reply')}`" + (f" from `{c.get('generator')}`" if c.get("generator") else "") + "."
             + (f" The finals report `fused.mode` {', '.join(f'`{k}` ({v})' for k, v in modes.items())}." if modes else "")),
-           f"- Models loaded in {r['load_s']} s. The load average was {r['loadavg_start']} at the start and {r['loadavg_end']} at the end.",
+           f"- Models loaded in {r['load_s']} s. The load average was {load_avg(r['loadavg_start'])} at the start and "
+           f"{load_avg(r['loadavg_end'])} at the end.",
            (f"- Messages: {res['n_finals']} finals, {res['n_responses']} responses, {res['n_provisionals']} provisionals, "
             f"errors: {res['errors'] or 'none'}" + ("" if r.get("finished_cleanly", True) else ". The run did not drain cleanly") + "."), "",
            "#### Final state after the endpoint, by utterance length (targets of design 1.10, at 4 threads)", "",
@@ -442,7 +486,8 @@ def generator_section(g: dict, path: Path) -> list[str]:
            (f"Generated {g.get('generated_at')} on `{g.get('host')}` by `{g.get('command')}`. "
             f"The states are {st.get('n')} {st.get('split')} clips from `{st.get('source')}` (seed {st.get('seed')}): {st.get('n_gold')} on gold text "
             f"and {st.get('n_live')} on SenseVoice transcripts. Decoding is greedy, with at most {g.get('max_new_tokens')} new tokens. "
-            f"The load average was {g.get('loadavg_start')} at the start and {g.get('loadavg_end')} at the end. The bench took {g.get('wall_s')} s."), "",
+            f"The load average was {load_avg(g.get('loadavg_start'))} at the start and {load_avg(g.get('loadavg_end'))} at the end. "
+            f"The bench took {g.get('wall_s')} s."), "",
            ("| file | threads | first token p50 / p95 ms | first word p50 / p95 ms | full reply p50 / p95 ms | decode passes per s | "
             "final-reply tokens per s | check pass rate | meets the targets at 4 threads |"), "|---|---|---|---|---|---|---|---|---|"]
     for f, by_t in g.get("results", {}).items():
@@ -511,13 +556,14 @@ def _sections(files: list[tuple[Path, dict | None]], fn) -> list[str]:
 
 
 def render(root: Path, results: Path, container_host: str = CONTAINER_HOST) -> str:
+    cpu, count, mem = lscpu_info(), cpu_count(), memory()
     out = ["# Measurements", "",
            ("Rendered by `python tools/render_measurements.py --out results/measurements.md` from the JSON files under `results/`. "
-            "The first block describes the machine that rendered this file, from `lscpu`, `nproc`, `free -m`, the running interpreter and `.git`. "
+            f"The first block describes the machine that rendered this file, from {host_sources(cpu, count, mem)}, the running interpreter and `.git`. "
             "Each bench section names the host that ran it and the machine it recorded. "
             "The targets are the real-time definition of design 1.10 (docs/design.md). "
             "Every measured number was written by the script named in its section."), ""]
-    out += header(root)
+    out += header(root, cpu, count, mem)
     benches, laptop_benches = _by_host(sorted(glob.glob(str(results / "bench_components_*.json"))), container_host)
     replays, laptop_replays = _by_host(sorted(glob.glob(str(results / "replay_bench_*.json"))), container_host)
     videos, laptop_videos = [x for x in replays if is_video(x[1])], [x for x in laptop_replays if is_video(x[1])]
@@ -544,7 +590,8 @@ def render(root: Path, results: Path, container_host: str = CONTAINER_HOST) -> s
         out += laptop_section()
     notes = results / LAPTOP_NOTES
     if notes.exists():
-        out += [f"### Notes from the laptop (`results/{LAPTOP_NOTES}`, typed by the user)", "", notes.read_text(encoding="utf-8").strip(), ""]
+        # utf-8-sig: an editor on windows may save the notes with a byte order mark
+        out += [f"### Notes from the laptop (`results/{LAPTOP_NOTES}`, typed by the user)", "", notes.read_text(encoding="utf-8-sig").strip(), ""]
     return "\n".join(out)
 
 
@@ -559,7 +606,7 @@ def main(argv: list[str] | None = None) -> int:
     results = a.results or a.out.parent
     md = render(a.root, results, a.container_host)
     a.out.parent.mkdir(parents=True, exist_ok=True)
-    a.out.write_text(md, encoding="utf-8")
+    a.out.write_text(md, encoding="utf-8", newline="\n")
     print(f"wrote {a.out} ({len(md.splitlines())} lines)", file=sys.stderr)
     return 0
 

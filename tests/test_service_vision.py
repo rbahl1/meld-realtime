@@ -11,6 +11,7 @@ and one the real vision_features module when it exists."""
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 import threading
 import time
@@ -222,8 +223,11 @@ def write_heads(d: Path, core: bool = True) -> Path:
     if core:
         for f in CORE_HEADS:
             if (ROOT / "heads" / f).exists():
-                (d / f).symlink_to(ROOT / "heads" / f)
-    man = json.loads((ROOT / "heads/manifest.json").read_text()) if (ROOT / "heads/manifest.json").exists() else {}
+                try:
+                    (d / f).symlink_to(ROOT / "heads" / f)
+                except OSError:   # windows without developer mode cannot make symlinks
+                    shutil.copy(ROOT / "heads" / f, d / f)
+    man = json.loads((ROOT / "heads/manifest.json").read_text(encoding="utf-8")) if (ROOT / "heads/manifest.json").exists() else {}
     man["vision"] = {"rule": "largest", "thresholds": {"low_conf": 0.2, "high_conf": 0.9}, "jsd_face_flag": 0.25}
     (d / "manifest.json").write_text(json.dumps(man))
     eye = np.eye(7)

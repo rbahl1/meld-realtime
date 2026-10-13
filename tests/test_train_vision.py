@@ -110,7 +110,7 @@ def ws(tmp_path_factory):
         write_csv(utts, meld / f"{split}_sent_emo.csv")
         synth_caches(utts, split, cache, rng, centers_t, centers_e)
         synth_video(utts, split, cache, audio, {"train": 1, "dev": 2, "test": 3}[split])
-    cfg = yaml.safe_load((ROOT / "configs" / "heads.yaml").read_text())
+    cfg = yaml.safe_load((ROOT / "configs" / "heads.yaml").read_text(encoding="utf-8"))
     cfg["text_ctx"]["grid"] = {"k": [0], "class_weight": ["none", "balanced"], "learning_rate_init": [0.001]}
     cfg["text_ctx"]["mlp"].update({"max_epochs": 6, "patience": 3})
     cfg["lr"]["C"] = [0.1, 1]
@@ -118,11 +118,11 @@ def ws(tmp_path_factory):
     (root / "heads.yaml").write_text(yaml.safe_dump(cfg))
     base = ["--cache", str(cache), "--config", str(root / "heads.yaml"), "--meld", str(meld)]
     assert train_heads.main([*base, "--out", str(out)]) == 0
-    before = json.loads((out / "manifest.json").read_text())
+    before = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
     deployed = {p.name: p.read_bytes() for p in out.glob("*.npz")}
     assert train_vision.main([*base, "--heads", str(out), "--audio", str(audio)]) == 0
     return {"root": root, "meld": meld, "cache": cache, "out": out, "audio": audio, "cfg": cfg, "before": before,
-            "deployed": deployed, "manifest": json.loads((out / "manifest.json").read_text())}
+            "deployed": deployed, "manifest": json.loads((out / "manifest.json").read_text(encoding="utf-8"))}
 
 
 def test_heads_and_manifest_section(ws):
@@ -166,7 +166,7 @@ def test_folds_are_train_heads_folds(ws):
     _, fold_id, _ = train_heads.cross_fit(lambda X, yy: heads.NpzHead(heads.head_params(
         heads.lr_params(np.zeros((7, 1)), np.zeros(7)), np.zeros(1), np.ones(1), labels.EMOTIONS)),
         np.zeros((len(kept), 1)), y, train_heads.groups_of(kept), ws["cfg"]["fusion"]["cross_fit_folds"], ws["cfg"]["seed"])
-    fold_of = json.loads((ws["cache"] / "folds" / "fold_of_train.json").read_text())
+    fold_of = json.loads((ws["cache"] / "folds" / "fold_of_train.json").read_text(encoding="utf-8"))
     assert [fold_of[key(u)] for u in kept] == fold_id.tolist()
 
 
@@ -253,7 +253,7 @@ def test_evaluate_vision(ws):
     md, js = root / "RESULTS_vision.md", root / "metrics_vision.json"
     args = ["--cache", str(ws["cache"]), "--heads", str(ws["out"]), "--meld", str(ws["meld"]), "--audio", str(ws["audio"]), "--out", str(md), str(js)]
     assert evaluate_vision.main(args) == 0
-    met = json.loads(js.read_text())
+    met = json.loads(js.read_text(encoding="utf-8"))
     C = met["conditions"]
     test = load_split("test", ws["meld"])
     y = emotion_ids(test)
@@ -286,7 +286,7 @@ def test_evaluate_vision(ws):
         f = met["label_flips"][name]
         assert (f["n"], f["changed"], f["wrong_to_right"], f["right_to_wrong"]) == (
             len(yy), int((pa != pb).sum()), int(((pa != pb) & (pa == yy)).sum()), int(((pa != pb) & (pb == yy)).sum())), name
-    text = md.read_text()
+    text = md.read_text(encoding="utf-8")
     for header in ("## Emotion (7 classes)", "## Paired differences", "## Label flips", "## Per-class F1", "## Speaker rules on dev"):
         assert header in text
     assert "| asd |" in text

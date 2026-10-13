@@ -101,7 +101,7 @@ def finished(out: Path, n: int, source: dict | None = None) -> bool:
         return False
     if source is None:
         return True
-    old = json.loads(meta_path(out).read_text()).get("source", {}) if meta_path(out).exists() else {}
+    old = json.loads(meta_path(out).read_text(encoding="utf-8")).get("source", {}) if meta_path(out).exists() else {}
     return all(old.get(f) == source[f] for f in ("field", "sha256"))
 
 
@@ -143,7 +143,7 @@ def embed_rows(split: str, utts: list[tuple[str, str]], out: Path, onnx: Path, t
     out.parent.mkdir(parents=True, exist_ok=True)
     if finished(out, n, source):
         print(f"{split}: {out} already has {n} rows, skipping")
-        return json.loads(meta_path(out).read_text()) if meta_path(out).exists() else {"split": split, "n": n}
+        return json.loads(meta_path(out).read_text(encoding="utf-8")) if meta_path(out).exists() else {"split": split, "n": n}
     tag = "" if source is None else f"{source['field']}:{source['sha256']}"
 
     t_load = time.perf_counter()
@@ -164,7 +164,7 @@ def embed_rows(split: str, utts: list[tuple[str, str]], out: Path, onnx: Path, t
     wall_s = time.perf_counter() - t0
 
     np.save(out, emb)
-    keys_path(out).write_text(json.dumps([k for k, _ in utts]))
+    keys_path(out).write_text(json.dumps([k for k, _ in utts]), encoding="utf-8", newline="\n")
     partial_path(out).unlink(missing_ok=True)
     meta = {"split": split, "n": n, "dim": HIDDEN, "threads": threads, "max_tokens": max_tokens,
             "rows_embedded_this_run": n - done, "n_truncated_this_run": int(n_trunc),
@@ -173,7 +173,7 @@ def embed_rows(split: str, utts: list[tuple[str, str]], out: Path, onnx: Path, t
             "loader": "meld_rt.data" if "meld_rt.data" in sys.modules else "csv"}
     if source is not None:
         meta.update(loader="audio cache", source=source, n_empty_text=n_empty)
-    meta_path(out).write_text(json.dumps(meta, indent=1))
+    meta_path(out).write_text(json.dumps(meta, indent=1), encoding="utf-8", newline="\n")
     print(f"{split}: {n} rows -> {out} in {wall_s:.1f} s ({meta['ms_per_row']} ms per row, "
           f"{threads} threads, {n_trunc} truncated)")
     return meta

@@ -2,6 +2,89 @@
 
 These are the steps to run on the laptop, in order. Each step says how long it took in the build container, where that was recorded. The laptop will differ, and a step that was never timed says so. Run everything from the repository root.
 
+## Windows
+
+The laptop runs Windows 11. The numbered steps below are written for bash on Ubuntu. On Windows, run them in PowerShell with the commands of this section in place of the ones that differ. The text of each step applies as it is, except where this section says otherwise. [README.md](../README.md) ("Windows") lists what differs on Windows and what is not measured there.
+
+### Setup (step 1)
+
+Open a new PowerShell window after the first three commands, so that `uv` and `ffmpeg` are on the path:
+
+```
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+winget install --id Gyan.FFmpeg -e
+winget install --id Microsoft.VCRedist.2015+.x64 -e
+uv sync --extra mic
+uv run python tools/fetch_models.py --dest models/
+uv run python tools/fetch_meld_csv.py
+uv run python tools/make_proxy_clips.py
+uv run pytest -q
+```
+
+Keep the repository in a folder that OneDrive does not sync, because the model files are large.
+
+The test suite has not run on Windows as of yet. A failing test there can come from a Windows difference in the code, not from the install.
+
+### Measurements (step 2)
+
+`$(hostname)` works inside double quotes:
+
+```
+uv run python tools/count_params.py --models models/ --heads heads/ --out results/params.md
+uv run python tools/bench_components.py --threads 1,2,4 --clips bench_clips/ --out "results/bench_components_$(hostname).json"
+uv run python tools/replay_bench.py --clips "proxy/*.wav" --n 20 --realtime --out "results/replay_bench_$(hostname).json"
+uv run python tools/bench_components.py --build-only --trim-silence --durations 6,9,12,15 --clips bench_clips/long
+uv run python tools/replay_bench.py --clips "bench_clips/long/*.wav" --n 0 --repeat 3 --realtime --endpoint-silence-ms 500 --out "results/replay_bench_$(hostname)_long.json"
+```
+
+### Live microphone session (step 3)
+
+```
+uv run python -m meld_rt.service --preload
+uv run python -m meld_rt.clients.monitor --jsonl "$HOME\mic_session.jsonl"
+uv run python -m meld_rt.clients.mic --list-devices
+uv run python -m meld_rt.clients.mic --device N --seconds 180
+```
+
+`$HOME\` takes the place of `~/`, which Windows PowerShell passes to Python as it is. `--list-devices` ends with the default sample rate of each input. If the device refuses 16 kHz, add `--samplerate` with that rate. The client's first line names the audio API and the input latency. Copy it into `results/laptop_notes.md` with the closing line. If the microphone gives no input, check that desktop apps may use the microphone in the Windows privacy settings.
+
+### Disagreement audit (step 5)
+
+`curl.exe` and `tar.exe` take the place of `curl` and `tar` (in Windows PowerShell, `curl` names another command):
+
+```
+curl.exe -L -o MELD.Raw.tar.gz https://huggingface.co/datasets/declare-lab/MELD/resolve/9abc51ee7903424ffb971297608aa6d3d0de3bfa/MELD.Raw.tar.gz
+tar.exe -xzf MELD.Raw.tar.gz MELD.Raw/test.tar.gz
+tar.exe -xzf MELD.Raw/test.tar.gz -C MELD.Raw
+```
+
+The other commands of step 5 are the same. `ffplay` comes with the ffmpeg of step 1. If the CSV file is edited in Excel, save it in the CSV UTF-8 format, because the tally reads UTF-8.
+
+### Camera session and benches with video (step 6)
+
+```
+uv sync --extra mic --extra vision
+uv run python tools/fetch_models.py --dest models/ --groups core,vision,llm
+uv run pytest -q
+uv run python -m meld_rt.service --vision --reply llm --preload
+uv run python -m meld_rt.clients.monitor --jsonl "$HOME\camera_session.jsonl"
+uv run python -m meld_rt.clients.mic --device N --camera 0 --fps 10 --seconds 180
+```
+
+If the camera opens slowly or not at all, add `--camera-backend dshow`. If camera 0 is not the front camera, try `--camera 1`. The camera summary names the backend that opened it. Then the benches and the three-input demo, one at a time:
+
+```
+$TEST_MP4 = Get-ChildItem MELD.Raw -Recurse -Directory -Filter output_repeated_splits_test | Select-Object -First 1 | Resolve-Path -Relative
+uv run python tools/replay_bench.py --video --clips "$TEST_MP4/dia*.mp4" --n 200 --realtime --reply llm --llm-dir models/llm/Qwen2.5-0.5B-Instruct --out "results/replay_bench_$(hostname)_tav.json"
+uv run python tools/replay_bench.py --video --clips "$TEST_MP4/dia*.mp4" --n 200 --realtime --reply bank --out "results/replay_bench_$(hostname)_tav_bank.json"
+$env:DEMO_MP4 = "$TEST_MP4\dia4_utt7.mp4"
+$env:DEMO_LOG = "$HOME\demo_tav_laptop.jsonl"
+uv run python demo.py --tav
+Remove-Item Env:\DEMO_MP4, Env:\DEMO_LOG
+```
+
+`Resolve-Path -Relative` keeps the folder relative, so the bench files do not record the user folder. `demo.py --tav` runs the steps of `demo_tav.sh`. The two `$env:` lines last for the PowerShell session, and the last line clears them.
+
 ## 1. Setup
 
 ```

@@ -773,7 +773,7 @@ def test_bench_main_with_a_tiny_model(bench, vision_ws, tmp_path, monkeypatch):
     out = tmp_path / "bench.json"
     assert bench.main(["--synthetic", "6", "--models", "fake-llm/model_int8.onnx", "--threads", "1", "2", "--cache", str(ws["cache"]),
                        "--heads", str(ws["out"]), "--meld", str(ws["meld"]), "--out", str(out)]) == 0
-    r = json.loads(out.read_text())
+    r = json.loads(out.read_text(encoding="utf-8"))
     res = r["results"]["fake-llm/model_int8.onnx"]
     assert set(res) == {"1", "2", "same_text_across_threads"} and res["same_text_across_threads"] == 1.0
     s = res["2"]["summary"]
@@ -807,17 +807,17 @@ def test_fetch_models_default_is_core_and_keeps_other_rows(tmp_path, monkeypatch
     args = ["--dest", str(dest), "--dl-dir", str(tmp_path / "dl"), "--provenance", str(prov), "--check"]
     # the default checks the core group only: its row is rewritten, the vision and llm rows are kept as they were
     assert fm.main(args) == 0
-    out = json.loads(prov.read_text())
+    out = json.loads(prov.read_text(encoding="utf-8"))
     assert [r["asset"] for r in out["files"]] == ["a", "b", "c"] and out["all_ok"] is True
     assert out["files"][0]["sha256"] == sha and out["files"][1:] == earlier[1:3]
     # a group that is checked and missing makes the exit status and all_ok false; the unchecked row stays
     assert fm.main([*args, "--groups", "core,vision"]) == 1
-    out = json.loads(prov.read_text())
+    out = json.loads(prov.read_text(encoding="utf-8"))
     assert [r["asset"] for r in out["files"]] == ["a", "b", "c"] and out["all_ok"] is False
     assert out["files"][1]["exists"] is False and out["files"][2] == earlier[2]
     # no earlier file: only the checked rows
     prov.unlink()
-    assert fm.main(args) == 0 and [r["asset"] for r in json.loads(prov.read_text())["files"]] == ["a"]
+    assert fm.main(args) == 0 and [r["asset"] for r in json.loads(prov.read_text(encoding="utf-8"))["files"]] == ["a"]
 
 
 # ---------------------------------------------------------------- parameter count of a quantized LLM

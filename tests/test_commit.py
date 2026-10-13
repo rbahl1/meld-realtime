@@ -109,8 +109,8 @@ def synth(tmp_path_factory):
         synth_traces(traces / f"commit_traces_{split}.npz", n, seed)
     out_heads, out_res = root / "heads", root / "results"
     assert tcp.main(["--traces", str(traces), "--heads", str(out_heads), "--results", str(out_res), "--costs", "0.05,0.2"]) == 0
-    return {"root": root, "traces": traces, "heads": out_heads, "res": json.loads((out_res / "commit_policy.json").read_text()),
-            "md": (out_res / "commit_policy.md").read_text()}
+    return {"root": root, "traces": traces, "heads": out_heads, "res": json.loads((out_res / "commit_policy.json").read_text(encoding="utf-8")),
+            "md": (out_res / "commit_policy.md").read_text(encoding="utf-8")}
 
 
 def test_fqi_beats_or_matches_the_baselines_where_the_answer_is_known(synth):
@@ -318,7 +318,7 @@ def tav(tmp_path_factory):
         write_csv(utts, meld / f"{split}_sent_emo.csv")
         synth_caches(utts, split, cache, rng, centers_t, centers_e)
         synth_video(utts, split, cache, audio, {"train": 1, "dev": 2, "test": 3}[split])
-    cfg = yaml.safe_load((ROOT / "configs" / "heads.yaml").read_text())
+    cfg = yaml.safe_load((ROOT / "configs" / "heads.yaml").read_text(encoding="utf-8"))
     cfg["text_ctx"]["grid"] = {"k": [0], "class_weight": ["none"], "learning_rate_init": [0.001]}
     cfg["text_ctx"]["mlp"].update({"max_epochs": 4, "patience": 2})
     cfg["lr"]["C"] = [1]
@@ -390,9 +390,9 @@ def test_traces_vision_mode_with_fold_heads(tav, tmp_path):
 
     sv, _ = run_builder(tav, tmp_path)
     cache, hd = tav["cache"], tav["heads"]
-    manifest = json.loads((hd / "manifest.json").read_text())
+    manifest = json.loads((hd / "manifest.json").read_text(encoding="utf-8"))
     rule = manifest["vision"]["rule"]
-    fold_of = json.loads((cache / "folds" / "fold_of_train.json").read_text())
+    fold_of = json.loads((cache / "folds" / "fold_of_train.json").read_text(encoding="utf-8"))
     timing = bct.endpoint_timing(bct.BENCH)
     assert timing["vad_tail_s"] == 0.512 and timing["final_p50_s"] == 0.152
     seen = {"tail": 0, "cached_ok": 0, "end_ok": 0}
@@ -517,7 +517,7 @@ def test_builder_output_trains_a_policy(tav, tmp_path):
     run_builder(tav, tmp_path)
     assert tcp.main(["--traces", str(tmp_path), "--heads", str(tmp_path / "h"), "--results", str(tmp_path / "r"), "--costs", "0.05",
                      "--skip-test"]) == 0
-    res = json.loads((tmp_path / "r" / "commit_policy.json").read_text())
+    res = json.loads((tmp_path / "r" / "commit_policy.json").read_text(encoding="utf-8"))
     assert "test" not in res and res["inputs"]["train"]["mode"] == "vision"
     pol = CommitPolicy.load(tmp_path / "h" / "commit_policy.npz")
     assert pol.summary["test"] is None and pol.c == 0.05

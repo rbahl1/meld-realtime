@@ -1,0 +1,7 @@
+# lf in the repository and in every checkout, windows included (git for windows defaults to
+# core.autocrlf=true, and bash stops at the first line of a crlf demo.sh)
+* text=auto eol=lf
+*.npz binary
+*.onnx binary
+*.wav binary
+*.mp4 binary

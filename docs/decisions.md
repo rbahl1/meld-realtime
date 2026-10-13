@@ -196,6 +196,16 @@ One dependency behaves the same in the container and on the laptop, int8 kernels
 
 What would change it: a failure of the parity test that the front end could not fix. The transcript would then come from sherpa-onnx, and the encoder-state readout would be lost.
 
+## Windows
+
+The laptop runs Windows 11. The code runs there through small platform branches, and on Linux it takes the same path as before. Python stays at 3.12 on Windows, and the wall clock of `meld_rt/protocol.py` reads the performance counter there. `demo.py` runs the steps of `demo.sh` and `demo_tav.sh` without bash.
+
+Alternatives considered: Python 3.13 on Windows, and the demos rewritten in Python in place of the bash scripts.
+
+Python 3.13 reads the performance counter for its monotonic clock on Windows, but the container results came from 3.12. One version on both machines keeps the laptop column comparable, and `.python-version` cannot name a second version for Windows. The bash scripts stay because the committed demo logs came from them and `tools/render_demo_docs.py` reads the summary from them. `demo.py` runs that same summary, so it has one source.
+
+What would change it: a laptop run that shows a difference between the two clocks, or a step of the runbook that fails on Windows.
+
 ## Reinforcement learning
 
 The RL component is a commit policy. At each full-window provisional of an utterance it commits the fused label now or waits for the next one, and without a commit the final is the commit. It is trained offline by fitted Q-iteration on logged prefixes and runs in the service with `--vision` (`meld_rt/commit.py`, `heads/commit_policy.npz`).

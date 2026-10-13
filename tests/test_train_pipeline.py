@@ -148,7 +148,7 @@ def workspace(tmp_path_factory):
         utts = subset(split, n)
         write_csv(utts, meld / f"{split}_sent_emo.csv")
         synth_caches(utts, split, cache, rng, centers_t, centers_e)
-    cfg = yaml.safe_load((ROOT / "configs" / "heads.yaml").read_text())
+    cfg = yaml.safe_load((ROOT / "configs" / "heads.yaml").read_text(encoding="utf-8"))
     cfg["text_ctx"]["grid"] = {"k": [0, 1], "class_weight": ["none", "balanced"], "learning_rate_init": [0.001]}
     cfg["text_ctx"]["mlp"].update({"max_epochs": 6, "patience": 3})
     cfg["lr"]["C"] = [0.1, 1]
@@ -160,7 +160,7 @@ def workspace(tmp_path_factory):
 def test_train_full_stage_and_evaluate(workspace):
     root, meld, cache, out = workspace
     assert train_heads.main(["--cache", str(cache), "--out", str(out), "--config", str(root / "heads.yaml"), "--meld", str(meld)]) == 0
-    man = json.loads((out / "manifest.json").read_text())
+    man = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
     for name in ("text_ctx.npz", "text_ctx_k0.npz", "audio_cal_A.npz", "audio_cal_B.npz", "audio_cal.npz", "fusion.npz", "sentiment.npz"):
         assert (out / name).exists(), name
     assert man["audio_fusion"]["status"] == "trained" and man["audio_rows_dropped"] == {"train": 0, "dev": 0}
@@ -178,7 +178,7 @@ def test_train_full_stage_and_evaluate(workspace):
 
     md, js = root / "RESULTS.md", root / "metrics.json"
     assert evaluate.main(["--cache", str(cache), "--heads", str(out), "--meld", str(meld), "--out", str(md), str(js)]) == 0
-    met = json.loads(js.read_text())
+    met = json.loads(js.read_text(encoding="utf-8"))
     done = {n for n, r in met["conditions"].items() if r["status"] == "done"}
     assert {"majority", "text_k0", "text_best_k", "text_runtime_regime", "audio_raw_tag", "audio_cal_A", "audio_cal_B",
             "fused_stacked", "fused_poe", "fused_poe_uncalibrated", "sentiment_fused"} <= done
@@ -189,7 +189,7 @@ def test_train_full_stage_and_evaluate(workspace):
     r = met["conditions"]["fused_stacked"]
     assert r["n"] == len(load_split("test", meld)) and len(r["confusion"]) == 7 and 0 <= r["ece"] <= 1
     assert "abstain_rate" in met["conditions"]["audio_raw_tag"]
-    text = md.read_text()
+    text = md.read_text(encoding="utf-8")
     assert "| fused_stacked | done |" in text and "pending" in text
 
 
@@ -202,11 +202,11 @@ def test_ablation_heads_and_experiment_rows(workspace):
         assert train_heads.main(args) == 0
     md0, js0 = root / "RESULTS_before.md", root / "metrics_before.json"
     assert evaluate.main(["--cache", str(cache), "--heads", str(out), "--meld", str(meld), "--out", str(md0), str(js0)]) == 0
-    before = json.loads((out / "manifest.json").read_text())
+    before = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
     deployed = {p.name: p.read_bytes() for p in out.glob("*.npz") if not p.name.startswith("ablation_")}
 
     assert train_heads.main([*args, "--ablation"]) == 0
-    man = json.loads((out / "manifest.json").read_text())
+    man = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
     ab = man.pop("ablations")
     assert man == before
     assert {p.name: p.read_bytes() for p in out.glob("*.npz") if not p.name.startswith("ablation_")} == deployed
@@ -225,8 +225,8 @@ def test_ablation_heads_and_experiment_rows(workspace):
 
     md, js = root / "RESULTS_exp.md", root / "metrics_exp.json"
     assert evaluate.main(["--cache", str(cache), "--heads", str(out), "--meld", str(meld), "--out", str(md), str(js)]) == 0
-    met = json.loads(js.read_text())["conditions"]
-    old = json.loads(js0.read_text())["conditions"]
+    met = json.loads(js.read_text(encoding="utf-8"))["conditions"]
+    old = json.loads(js0.read_text(encoding="utf-8"))["conditions"]
     for name, r in old.items():
         if r["status"] == "done":
             assert {k: v for k, v in met[name].items() if k != "wall_s"} == {k: v for k, v in r.items() if k != "wall_s"}, name
@@ -324,7 +324,7 @@ def test_ablation_heads_and_experiment_rows(workspace):
         p_prov = np.exp(cal.predict_log_proba_batch(train_heads.audio_matrix(pv, cal.uses_encoder_states)))
         assert met[f"early_commit_audio_{p}s"]["provisional_inputs"] == {**summary3(y, p_prov), "cut": summary3(y[~short], p_prov[~short])}
         assert "provisional_inputs" not in met[f"early_commit_fused_{p}s"]
-    text = md.read_text()
+    text = md.read_text(encoding="utf-8")
     for title in ("## Ablations", "## Live ASR text", "## Disagreement subset", "## Early commit"):
         assert title in text
     assert "| ablation_no_events | done |" in text and "| early_commit_fused_4s | done |" in text
@@ -374,7 +374,7 @@ def test_early_commit_provisional_inputs_with_calibrator_a(workspace, tmp_path):
     md, js = tmp_path / "RESULTS.md", tmp_path / "metrics.json"
     assert evaluate.main(["--cache", str(cache), "--heads", str(heads_a), "--meld", str(meld), "--out", str(md), str(js),
                           "--conditions", "early_commit_audio_2s", "early_commit_audio_4s"]) == 0
-    met = json.loads(js.read_text())["conditions"]
+    met = json.loads(js.read_text(encoding="utf-8"))["conditions"]
     test = load_split("test", meld)
     y = emotion_ids(test)
     z = dict(np.load(cache / "audio_test.npz"))
@@ -395,7 +395,7 @@ def test_train_text_only_on_subset(workspace):
     root, meld, cache, _ = workspace
     out = root / "heads_text_only"
     assert train_heads.main(["--cache", str(cache), "--out", str(out), "--config", str(root / "heads.yaml"), "--meld", str(meld), "--text-only"]) == 0
-    man = json.loads((out / "manifest.json").read_text())
+    man = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
     assert man["text_only"] and man["sentiment"]["variant"] == "text_only" and man["thresholds"]["jsd_flag"] is None
     assert man["audio_rows_dropped"] is None
     assert man["thresholds_pending"] == {"jsd_flag": "needs MELD audio"}
@@ -417,20 +417,20 @@ def test_sentiment_text_only_mode_leaves_the_deployed_heads(workspace, tmp_path)
     args = ["--cache", str(cache), "--out", str(hd), "--config", str(root / "heads.yaml"), "--meld", str(meld)]
     md0, js0 = tmp_path / "RESULTS_before.md", tmp_path / "metrics_before.json"
     assert evaluate.main(["--cache", str(cache), "--heads", str(hd), "--meld", str(meld), "--out", str(md0), str(js0)]) == 0
-    text_before = (hd / "manifest.json").read_text()
+    text_before = (hd / "manifest.json").read_text(encoding="utf-8")
     before = json.loads(text_before)
     assert before["sentiment"]["variant"] == "fused" and "sentiment_text_only" not in before
     others = {p.name: p.read_bytes() for p in hd.iterdir() if p.name != "manifest.json"}
 
     # another config is refused before anything is written
-    cfg = yaml.safe_load((root / "heads.yaml").read_text())
+    cfg = yaml.safe_load((root / "heads.yaml").read_text(encoding="utf-8"))
     (tmp_path / "other.yaml").write_text(yaml.safe_dump({**cfg, "seed": 1}))
     with pytest.raises(SystemExit, match="not the config"):
         train_heads.main([*args[:4], "--config", str(tmp_path / "other.yaml"), *args[6:], "--sentiment-text-only"])
-    assert (hd / "manifest.json").read_text() == text_before and not (hd / "sentiment_text_only.npz").exists()
+    assert (hd / "manifest.json").read_text(encoding="utf-8") == text_before and not (hd / "sentiment_text_only.npz").exists()
 
     assert train_heads.main([*args, "--sentiment-text-only"]) == 0
-    text_after = (hd / "manifest.json").read_text()
+    text_after = (hd / "manifest.json").read_text(encoding="utf-8")
     man = json.loads(text_after)
     sec = man.pop("sentiment_text_only")
     assert man == before and list(man) == list(before)
@@ -450,7 +450,7 @@ def test_sentiment_text_only_mode_leaves_the_deployed_heads(workspace, tmp_path)
 
     md, js = tmp_path / "RESULTS.md", tmp_path / "metrics.json"
     assert evaluate.main(["--cache", str(cache), "--heads", str(hd), "--meld", str(meld), "--out", str(md), str(js)]) == 0
-    met, old = json.loads(js.read_text()), json.loads(js0.read_text())
+    met, old = json.loads(js.read_text(encoding="utf-8")), json.loads(js0.read_text(encoding="utf-8"))
     assert old["conditions"]["sentiment_text_only"]["status"].startswith("pending")
     r = met["conditions"]["sentiment_text_only"]
     assert r["status"] == "done" and r["note"].startswith("heads/sentiment_text_only.npz, k=")
@@ -462,13 +462,13 @@ def test_sentiment_text_only_mode_leaves_the_deployed_heads(workspace, tmp_path)
         if name != "sentiment_text_only":
             assert {x: v for x, v in met["conditions"][name].items() if x != "wall_s"} == {x: v for x, v in r0.items() if x != "wall_s"}, name
     assert [x for x in met["inputs"] if x not in old["inputs"]] == ["heads/sentiment_text_only.npz"]
-    assert "| sentiment_text_only | done |" in md.read_text()
+    assert "| sentiment_text_only | done |" in md.read_text(encoding="utf-8")
 
     # a file that no longer matches its manifest record is not scored
     (hd / "sentiment_text_only.npz").write_bytes((tmp_path / "sentiment.npz").read_bytes() + b"\0")
     assert evaluate.main(["--cache", str(cache), "--heads", str(hd), "--meld", str(meld), "--out", str(md), str(js),
                           "--conditions", "sentiment_text_only"]) == 0
-    assert "differs from heads/manifest.json" in json.loads(js.read_text())["conditions"]["sentiment_text_only"]["status"]
+    assert "differs from heads/manifest.json" in json.loads(js.read_text(encoding="utf-8"))["conditions"]["sentiment_text_only"]["status"]
 
 
 def test_audio_stage_drops_rows_without_a_clip(workspace):
@@ -492,13 +492,13 @@ def test_audio_stage_drops_rows_without_a_clip(workspace):
         d["enc_pooled"] = np.zeros_like(d["enc_pooled"])
         np.savez(drop_cache / f"audio_{split}.npz", **d)
         dropped[split] = [str(k) for i, k in enumerate(np.load(cache / f"audio_{split}.npz")["keys"]) if i in gone]
-    cfg = yaml.safe_load((root / "heads.yaml").read_text())
+    cfg = yaml.safe_load((root / "heads.yaml").read_text(encoding="utf-8"))
     cfg["text_ctx"]["grid"] = {"k": [0], "class_weight": ["none"], "learning_rate_init": [0.001]}
     cfg["lr"]["C"] = [1]
     (root / "heads_drop.yaml").write_text(yaml.safe_dump(cfg))
     assert train_heads.main(["--cache", str(drop_cache), "--out", str(out), "--config", str(root / "heads_drop.yaml"),
                              "--meld", str(meld)]) == 0
-    man = json.loads((out / "manifest.json").read_text())
+    man = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
     af = man["audio_fusion"]
     assert man["audio_rows_dropped"] == {"train": 3, "dev": 2} and af["status"] == "trained"
     for split in ("train", "dev"):
@@ -511,7 +511,7 @@ def test_audio_stage_drops_rows_without_a_clip(workspace):
     # with A deployed, the ablation code path with nothing dropped refits exactly the deployed A and fusion heads
     assert train_heads.main(["--cache", str(drop_cache), "--out", str(out), "--config", str(root / "heads_drop.yaml"),
                              "--meld", str(meld), "--ablation"]) == 0
-    ab = json.loads((out / "manifest.json").read_text())["ablations"]
+    ab = json.loads((out / "manifest.json").read_text(encoding="utf-8"))["ablations"]
     assert ab["reference"]["reproduces_deployed"] == {"audio_cal_A.npz": True, "fusion.npz": True}
     assert ab["rows"] == {s: af["rows"][s]["cached"] for s in ("train", "dev")}
 
@@ -532,7 +532,7 @@ def test_evaluate_leaves_out_test_rows_without_a_clip(workspace):
     np.savez(ev_cache / "audio_test.npz", **{k: v[2:] for k, v in d.items()})
     md, js = root / "RESULTS_drop.md", root / "metrics_drop.json"
     assert evaluate.main(["--cache", str(ev_cache), "--heads", str(out), "--meld", str(meld), "--out", str(md), str(js)]) == 0
-    met = json.loads(js.read_text())["conditions"]
+    met = json.loads(js.read_text(encoding="utf-8"))["conditions"]
     for name in ("audio_raw_tag", "fused_stacked", "fused_poe_uncalibrated", "sentiment_fused"):
         r = met[name]
         assert r["status"] == "done" and r["n"] == n - 2 and r["n_no_audio"] == 2, name
@@ -564,7 +564,7 @@ def test_audit_sample_and_tally(workspace, tmp_path):
     no_cal.mkdir()
     for name in ("text_ctx.npz", "manifest.json"):
         (no_cal / name).write_bytes((out / name).read_bytes())
-    thr = json.loads((out / "manifest.json").read_text())["thresholds"]["jsd_flag"]
+    thr = json.loads((out / "manifest.json").read_text(encoding="utf-8"))["thresholds"]["jsd_flag"]
     assert audit.main(["sample", "--n", "5", "--cache", str(cache), "--heads", str(no_cal), "--meld", str(meld),
                        "--audio", str(tmp_path), "--out", str(sheet)]) == 0
     with sheet.open(newline="", encoding="utf-8") as f:
@@ -586,7 +586,7 @@ def test_audit_sample_and_tally(workspace, tmp_path):
         w.writerows(rows)
     md = tmp_path / "audit.md"
     assert audit.main(["tally", "--csv", str(sheet), "--out", str(md)]) == 0
-    text = md.read_text()
+    text = md.read_text(encoding="utf-8")
     assert f"{len(rows)} of {len(rows)} rows are marked" in text and f"threshold was {thr:g}" in text
     assert not any(r["utterance"] in text for r in rows if len(r["utterance"]) > 12)
 

@@ -99,7 +99,7 @@ CLIP_FIELDS = ("dialogue", "utterance", "gold", "fold", "duration_s", "t_end", "
 def endpoint_timing(bench: Path) -> dict:
     """the endpoint's extra time over the clip: the vad tail and the p50 service latency of finals
     of utterances up to 5 s, both from the MELD replay bench."""
-    d = json.loads(Path(bench).read_text())
+    d = json.loads(Path(bench).read_text(encoding="utf-8"))
     p50_ms = float(d["results"]["by_bucket"]["le5s"]["service_total_ms"]["p50"])
     tails = Counter(float(u["vad_tail_ms"]) for u in d.get("utterances", []) if u.get("vad_tail_ms") is not None)
     tail_ms = tails.most_common(1)[0][0] if tails else DEFAULT_TAIL_MS   # a forced final has no tail; the mode is the setting
@@ -142,7 +142,7 @@ def deployed_heads(heads_dir: Path, vision: bool) -> HeadSet:
 
 
 def fold_heads(folds_dir: Path) -> tuple[dict[int, HeadSet], dict[str, int]]:
-    fold_of = json.loads(need(folds_dir / "fold_of_train.json", "tools/train_vision.py").read_text())
+    fold_of = json.loads(need(folds_dir / "fold_of_train.json", "tools/train_vision.py").read_text(encoding="utf-8"))
     sets = {}
     for f in sorted({int(v) for v in fold_of.values()}):
         p = {n: need(folds_dir / f"fold{f}_{n}.npz", "tools/train_vision.py") for n in ("text_ctx", "audio_cal", "vision_cal", "fusion3")}
@@ -364,7 +364,7 @@ class SplitBuild:
         self.aud, self.keep, self.no_audio = loaded
         self.vision = not a.no_vision
         folds_dir = a.cache / "folds"
-        manifest = json.loads((a.heads / "manifest.json").read_text()) if (a.heads / "manifest.json").exists() else {}
+        manifest = json.loads((a.heads / "manifest.json").read_text(encoding="utf-8")) if (a.heads / "manifest.json").exists() else {}
         self.deployed = deployed_heads(a.heads, self.vision)
         self.rule, self.fold_sets, self.fold_of, self.video = "largest", None, None, None
         if self.vision:
@@ -468,7 +468,7 @@ class SplitBuild:
                           done_now=self.done_now, wall=wall, in_sample=not self.vision and self.split == "train", config=self.config)
         meta["wall_s_total"] = round(time.perf_counter() - t_split, 1)
         save_npz(self.out, {**arrays, "meta": np.array(json.dumps(meta))})
-        self.out.with_name(self.out.stem + "_meta.json").write_text(json.dumps(meta, indent=1) + "\n")
+        self.out.with_name(self.out.stem + "_meta.json").write_text(json.dumps(meta, indent=1) + "\n", encoding="utf-8", newline="\n")
         self.partial.unlink(missing_ok=True)
         return meta
 

@@ -279,7 +279,7 @@ def main(argv: list[str] | None = None) -> int:
            **corpus_wer([gold[k] for k in keys], [rows[k]["asr_text"] for k in keys])}
     wer["jiwer"] = importlib.metadata.version("jiwer")
     wer_path = out.parent / f"wer_{a.split}.json"
-    wer_path.write_text(json.dumps(wer, indent=1) + "\n")
+    wer_path.write_text(json.dumps(wer, indent=1) + "\n", encoding="utf-8", newline="\n")
 
     meta = {"split": a.split, "rows": len(work), "cached": len(keys),
             "missing": {"count": len(missing), "keys": missing},
@@ -292,7 +292,7 @@ def main(argv: list[str] | None = None) -> int:
             "ms_per_clip": round(wall_s / done_now * 1000, 1) if done_now else None,
             "session_load_s": round(load_s, 2), "wer_file": wer_path.name,
             "command": "python tools/cache_audio_features.py " + " ".join(sys.argv[1:] if argv is None else argv)}
-    meta_path(out).write_text(json.dumps(meta, indent=1) + "\n")
+    meta_path(out).write_text(json.dumps(meta, indent=1) + "\n", encoding="utf-8", newline="\n")
     print(f"{a.split}: {len(keys)}/{len(work)} clips -> {out} ({len(missing)} missing, {len(failed)} unreadable, "
           f"{done_now} run now in {wall_s:.1f} s), wer {wer['wer']} over {wer['n']} -> {wer_path}")
     return 0

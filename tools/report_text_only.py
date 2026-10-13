@@ -157,10 +157,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--metrics", type=Path, default=ROOT / "results" / "metrics.json")
     ap.add_argument("--out", type=Path, default=ROOT / "results" / "01_text_only.md")
     args = ap.parse_args(argv)
-    man, met = json.loads(args.manifest.read_text()), json.loads(args.metrics.read_text())
+    man, met = json.loads(args.manifest.read_text(encoding="utf-8")), json.loads(args.metrics.read_text(encoding="utf-8"))
     cmd = "python tools/report_text_only.py " + " ".join(sys.argv[1:] if argv is None else argv)
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(render(man, met, cmd))
+    args.out.write_text(render(man, met, cmd), encoding="utf-8", newline="\n")
     print(f"wrote {args.out}")
     return 0
 

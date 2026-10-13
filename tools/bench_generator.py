@@ -85,7 +85,7 @@ def pct(v, q) -> float | None:
 
 def _manifest(heads_dir: Path) -> dict:
     p = heads_dir / "manifest.json"
-    return json.loads(p.read_text()) if p.exists() else {}
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
 
 
 def thresholds(manifest: dict, vision: bool) -> tuple[float, float]:
@@ -496,7 +496,7 @@ def main(argv: list[str] | None = None) -> int:
     out["loadavg_end"] = loadavg()
     out["wall_s"] = round(time.perf_counter() - t_all, 1)
     a.out.parent.mkdir(parents=True, exist_ok=True)
-    a.out.write_text(json.dumps(out, indent=1))
+    a.out.write_text(json.dumps(out, indent=1), encoding="utf-8", newline="\n")
     c = out["choice"]
     print(f"choice: {c.get('deployed')} (meets targets: {c.get('meets_targets')}; {c.get('reason')})")
     if c.get("edit"):

@@ -1,7 +1,14 @@
 """microphone client: sounddevice capture, pushed as 512-sample pcm16 frames
 exactly like the replay client. the device is opened at 16 khz mono when it
 allows it; otherwise at --samplerate and resampled. needs the `mic` extra
-(sounddevice) and libportaudio2 on linux.
+(sounddevice) and libportaudio2 on linux. the windows and macos wheels of
+sounddevice bring portaudio with them.
+
+windows: a wasapi device is opened with wasapi's sample rate converter
+(auto_convert), which shared mode needs for a rate other than the mixer's. the
+start line also names the host api and the input latency portaudio reports for
+the stream (sounddevice opens it at its "high" latency). that is the audio
+callback's latency in the clock note below, not measured on windows.
 
 --camera N (spec 3.3) adds a capture thread on cv2.VideoCapture(N) at 640x480
 that sends at most --fps jpeg frames per second on its own push socket. a frame
@@ -17,13 +24,19 @@ the device dropped) skips sequence numbers for the frames lost, measured on the
 same clock (frames_lost); the service in vision mode advances the audio media
 clock over a sequence gap, and both streams stay on one clock. without --camera
 the audio is sent as before. needs the `vision` extra (opencv).
+--camera-backend picks opencv's capture api (default: opencv's own order, which
+on windows tries media foundation before directshow). on windows the camera is
+opened with media foundation's hardware transforms off
+(OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS=0 unless it is set), because opencv
+says they may slow down camera probing, and the summary names the backend used.
 
-usage: python -m meld_rt.clients.mic [--list-devices] [--device N] [--camera 0 [--fps 10]]
+usage: python -m meld_rt.clients.mic [--list-devices] [--device N] [--camera 0 [--fps 10] [--camera-backend dshow]]
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import queue
 import sys
 import threading
@@ -33,7 +46,7 @@ from collections.abc import Callable
 import numpy as np
 
 from meld_rt import protocol as P
-from meld_rt.clients import connect_push
+from meld_rt.clients import connect_push, utf8_stdio
 from meld_rt.clients.replay import send_frames
 
 try:
@@ -42,6 +55,7 @@ except (ImportError, OSError) as e:  # OSError: libportaudio missing
     sd = None
     _SD_ERROR = e
 
+CAMERA_BACKENDS = ("any", "msmf", "dshow")
 
 class Resampler:
     """stateful polyphase resampling of a block stream to 16 khz (scipy)."""
@@ -66,9 +80,14 @@ class CameraSender(threading.Thread):
     `capture` replaces cv2.VideoCapture (an object with read() and release())."""
 
     def __init__(self, addr: str, stream_id: str, index: int = 0, fps: float = 10.0, width: int = 640,
-                 height: int = 480, quality: int = P.JPEG_QUALITY, capture=None, max_failures: int = 50):
+                 height: int = 480, quality: int = P.JPEG_QUALITY, capture=None, max_failures: int = 50,
+                 backend: str = "any"):
         super().__init__(name="camera", daemon=True)
         self.addr, self.stream_id, self.index = addr, stream_id, int(index)
+        if backend not in CAMERA_BACKENDS:
+            raise ValueError(f"camera backend {backend!r} is not one of {CAMERA_BACKENDS}")
+        self.backend = backend
+        self.backend_name: str | None = None
         self.period = 1.0 / float(fps)
         self.width, self.height, self.quality = int(width), int(height), int(quality)
         self.capture = capture
@@ -91,11 +110,18 @@ class CameraSender(threading.Thread):
             return self.capture
         import cv2
 
-        cap = cv2.VideoCapture(self.index)
+        if self.backend == "any":
+            cap = cv2.VideoCapture(self.index)
+        else:
+            cap = cv2.VideoCapture(self.index, {"msmf": cv2.CAP_MSMF, "dshow": cv2.CAP_DSHOW}[self.backend])
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         if not cap.isOpened():
-            raise RuntimeError(f"camera {self.index} did not open")
+            raise RuntimeError(f"camera {self.index} did not open" + ("" if self.backend == "any" else f" with {self.backend}"))
+        try:
+            self.backend_name = cap.getBackendName()
+        except (cv2.error, AttributeError):
+            self.backend_name = None
         return cap
 
     def run(self) -> None:
@@ -142,6 +168,25 @@ def frames_lost(t_block_ns: int, t_audio0_ns: int, samples_in: int, samplerate: 
     return max(0, int(lost_s * P.SR) // P.FRAME_SAMPLES)
 
 
+def host_api_name(device: int | None) -> str:
+    """the portaudio host api of the input device (ex. MME, Windows WASAPI), '' when unknown."""
+    try:
+        return str(sd.query_hostapis(sd.query_devices(device, "input")["hostapi"])["name"])
+    except Exception:  # noqa: BLE001 - only a label
+        return ""
+
+
+def stream_options(device: int | None, platform: str | None = None) -> tuple[dict, str]:
+    """(extra InputStream keywords, host api name). windows: a wasapi input gets auto_convert, which
+    shared mode needs when the rate differs from the mixer's. other platforms: ({}, '')."""
+    if (platform or sys.platform) != "win32":
+        return {}, ""
+    api = host_api_name(device)
+    if "WASAPI" in api.upper():
+        return {"extra_settings": sd.WasapiSettings(auto_convert=True)}, api
+    return {}, api
+
+
 def capture(push, stream_id: str, device: int | None, samplerate: int, seconds: float, block_ms: float = 32.0,
             out=sys.stderr, on_audio0: Callable[[int], None] | None = None, skip_lost: bool = False) -> int:
     """stream from the device until ctrl-c or `seconds`; returns frames sent. on_audio0 gets
@@ -163,9 +208,13 @@ def capture(push, stream_id: str, device: int | None, samplerate: int, seconds: 
     t_audio0 = None
     push.send_multipart(P.ctl_msg(stream_id, "start"))
     t_end = time.monotonic() + seconds if seconds > 0 else None
+    extra, api = stream_options(device)
     with sd.InputStream(device=device, channels=1, samplerate=samplerate, dtype="float32",
-                        blocksize=int(samplerate * block_ms / 1000), callback=cb):
-        print(f"capturing device={device} sr={samplerate} -> {stream_id}; ctrl-c to stop", file=out, flush=True)
+                        blocksize=int(samplerate * block_ms / 1000), callback=cb, **extra) as stream:
+        where = ""
+        if sys.platform == "win32":
+            where = f" host_api={api or '?'} input_latency={getattr(stream, 'latency', None)} s"
+        print(f"capturing device={device} sr={samplerate}{where} -> {stream_id}; ctrl-c to stop", file=out, flush=True)
         try:
             while t_end is None or time.monotonic() < t_end:
                 try:
@@ -211,17 +260,30 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--addr", default=P.IN_ADDR)
     ap.add_argument("--camera", type=int, default=None, metavar="N", help="also send frames of cv2.VideoCapture(N)")
     ap.add_argument("--fps", type=float, default=10.0, help="video frames per second with --camera")
+    ap.add_argument("--camera-backend", choices=CAMERA_BACKENDS, default="any",
+                    help="opencv capture api with --camera (any: opencv's own order)")
     a = ap.parse_args(argv)
+    utf8_stdio()
     if sd is None:
-        print(f"sounddevice is not available ({_SD_ERROR}); install the `mic` extra and libportaudio2", file=sys.stderr)
+        need = "the `mic` extra" + (" and libportaudio2" if sys.platform.startswith("linux") else "")
+        print(f"sounddevice is not available ({_SD_ERROR}); install {need}", file=sys.stderr)
         return 2
     if a.list_devices:
         print(sd.query_devices())
+        if sys.platform == "win32":
+            # windows lists a microphone once per audio api. --samplerate takes the default rate shown here
+            apis = [h["name"] for h in sd.query_hostapis()]
+            for d in sd.query_devices():
+                if d["max_input_channels"] > 0:
+                    print(f"input {d['index']}: {apis[d['hostapi']]}, default {d['default_samplerate']:g} Hz")
         return 0
     push = connect_push(a.addr)
     cam = None
     if a.camera is not None:
-        cam = CameraSender(a.addr, a.stream_id, a.camera, fps=a.fps)
+        if sys.platform == "win32":
+            # opencv: media foundation's hardware transforms "may slow down camera probing"
+            os.environ.setdefault("OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS", "0")
+        cam = CameraSender(a.addr, a.stream_id, a.camera, fps=a.fps, backend=a.camera_backend)
         cam.start()
     try:
         capture(push, a.stream_id, a.device, a.samplerate, a.seconds, on_audio0=cam.set_audio0 if cam else None,
@@ -230,6 +292,7 @@ def main(argv: list[str] | None = None) -> int:
         if cam is not None:
             cam.stop()
             print(f"camera: sent {cam.sent} frames, {cam.before_audio} before the audio started"
+                  + (f", backend {cam.backend_name}" if sys.platform == "win32" else "")
                   + (f", error {cam.error}" if cam.error else ""), file=sys.stderr, flush=True)
         push.close()
     return 0
