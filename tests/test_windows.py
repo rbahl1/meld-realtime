@@ -76,7 +76,8 @@ def test_utf8_stdio_on_windows_only(monkeypatch):
     assert out.encoding == "utf-8" and err.encoding == "utf-8"
     out.write("transcript 你好\n")
     out.flush()
-    assert out.buffer.getvalue() == "transcript 你好\n".encode()
+    # the wrapper keeps newline translation, so "\n" is written as os.linesep (\r\n on windows)
+    assert out.buffer.getvalue() == ("transcript 你好" + os.linesep).encode()
 
 
 # -- ffmpeg ------------------------------------------------------------------

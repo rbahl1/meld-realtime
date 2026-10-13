@@ -23,9 +23,11 @@ jobs:
         with:
           path: models
           key: meld-models-${{ hashFiles('tools/fetch_models.py') }}
+      - name: ffmpeg
+        run: choco install ffmpeg -y --no-progress
       - name: fetch models and data
         run: |
-          uv run python tools/fetch_models.py --dest models/
+          uv run python tools/fetch_models.py --dest models/ --groups core,vision,llm
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           uv run python tools/fetch_meld_csv.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
