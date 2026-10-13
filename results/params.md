@@ -1,6 +1,6 @@
 # Parameter count
 
-Written by `python tools/count_params.py --models models --heads heads` on 2026-10-13T04:21:04Z, from the files on disk. An ONNX row is the sum of the element counts of the graph initializers. An int8 initializer counts one parameter per element, which is its dequantized count. A head row is the sum of the weight and bias arrays in its `.npz` file. The standardizer mean and scale are not parameters and are listed in the note. Tensors held by Constant nodes are not initializers and are not counted.
+Written by `python tools/count_params.py --models models --heads heads` on 2026-10-13T17:04:43Z, from the files on disk. An ONNX row is the sum of the element counts of the graph initializers. An int8 initializer counts one parameter per element, which is its dequantized count. A head row is the sum of the weight and bias arrays in its `.npz` file. The standardizer mean and scale are not parameters and are listed in the note. Tensors held by Constant nodes are not initializers and are not counted.
 
 | Component | Role | File | Params | Trained | Note |
 |---|---|---|---|---|---|
@@ -31,7 +31,7 @@ Extension (`--vision --reply llm`), on top of the core total above:
 
 Other LLM candidates on disk (not deployed): `llm/Qwen2.5-0.5B-Instruct/onnx/model_q4.onnx` (494.033 M), `llm/Qwen2.5-1.5B-Instruct/onnx/model_int8.onnx` (1543.714 M), `llm/Qwen2.5-1.5B-Instruct/onnx/model_q4.onnx` (1543.714 M).
 
-Other files in `heads/` (not on the inference path): `heads/ablation_no_events_audio_cal.npz` (0.000 M), `heads/ablation_no_events_fusion.npz` (0.000 M), `heads/ablation_no_events_no_prosody_audio_cal.npz` (0.000 M), `heads/ablation_no_events_no_prosody_fusion.npz` (0.000 M), `heads/ablation_no_prosody_audio_cal.npz` (0.000 M), `heads/ablation_no_prosody_fusion.npz` (0.000 M), `heads/audio_cal_A.npz` (0.000 M), `heads/audio_cal_B.npz` (0.007 M), `heads/text_ctx_k0.npz` (0.200 M).
+Other files in `heads/` (not on the inference path): `heads/ablation_no_events_audio_cal.npz` (0.000 M), `heads/ablation_no_events_fusion.npz` (0.000 M), `heads/ablation_no_events_no_prosody_audio_cal.npz` (0.000 M), `heads/ablation_no_events_no_prosody_fusion.npz` (0.000 M), `heads/ablation_no_prosody_audio_cal.npz` (0.000 M), `heads/ablation_no_prosody_fusion.npz` (0.000 M), `heads/audio_cal_A.npz` (0.000 M), `heads/audio_cal_B.npz` (0.007 M), `heads/sentiment_text_only.npz` (0.002 M), `heads/text_ctx_k0.npz` (0.200 M).
 
 Exact counts:
 

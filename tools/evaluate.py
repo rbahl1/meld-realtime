@@ -4,7 +4,10 @@ this script reads the test split once per condition and never touches dev.
 
 now computable: majority floor, text only k=0, text only best k, text only with
 the runtime-regime window (same-speaker previous utterances, flags 1, turn index
-= own earlier utterances), sentiment (text_only head). with cache/audio_test.npz
+= own earlier utterances), sentiment from the text-only head
+(heads/sentiment_text_only.npz from train_heads.py --sentiment-text-only, checked
+against its manifest record, or a text-only heads/sentiment.npz from --text-only).
+with cache/audio_test.npz
 and the audio heads: raw sensevoice tag, calibrator A/B, stacked fusion, poe,
 poe_uncalibrated, fused sentiment, the disagreement subset (needs the dev jsd
 threshold) and the audio-only early-commit rows. with the ablation heads
@@ -47,7 +50,8 @@ from meld_rt.data import emotion_counts, emotion_ids, key, load_split, sentiment
 from meld_rt.discrepancy import discrepancy  # noqa: E402
 
 sys.path.insert(0, str(ROOT / "tools"))
-from train_heads import audio_matrix, file_record, fusion_rows, groups_of, read_audio_cache, load_text_cache, text_matrix  # noqa: E402
+from train_heads import (SENTIMENT_TEXT_ONLY, audio_matrix, file_record, fusion_rows, groups_of, read_audio_cache,  # noqa: E402
+                         load_text_cache, text_matrix)
 
 N_RESAMPLES = 1000
 SEED = 0
@@ -55,6 +59,10 @@ PENDING = "pending (needs MELD audio)"
 SR = 16000  # sample rate of the cached clips (tools/cache_audio_features.py)
 AUDIO_FIELDS = ("emo_probs", "event_probs", "enc_pooled", "prosody", "asr_text", "asr_conf", "tokens_per_s", "duration_s")
 ABLATION_ROWS = ("ablation_no_events", "ablation_no_prosody", "ablation_no_events_no_prosody")
+# the heads this script reads (with the ablation heads), recorded under "inputs". the extension heads in heads/
+# (vision_cal, fusion3, sentiment3, commit_policy) are scored by evaluate_vision.py and train_commit_policy.py
+EVAL_HEADS = ("text_ctx.npz", "text_ctx_k0.npz", "sentiment.npz", SENTIMENT_TEXT_ONLY, "audio_cal.npz", "audio_cal_A.npz",
+              "audio_cal_B.npz", "fusion.npz")
 EARLY_ROWS = {"early_commit_audio_2s": ("audio", 2), "early_commit_fused_2s": ("fused", 2),
               "early_commit_audio_4s": ("audio", 4), "early_commit_fused_4s": ("fused", 4)}
 
@@ -142,6 +150,22 @@ def head_or_none(cls, path: Path):
     return cls.load(path) if path.exists() else None
 
 
+def text_only_sentiment(heads_dir: Path, manifest: dict, sent_head) -> tuple:
+    """(head, file) for the sentiment_text_only row, or (None, why it is pending). heads/sentiment_text_only.npz
+    (train_heads.py --sentiment-text-only) when it exists and matches its manifest record, else heads/sentiment.npz
+    when it is the text-only variant (--text-only)."""
+    path = heads_dir / SENTIMENT_TEXT_ONLY
+    if path.exists():
+        rec = ((manifest.get("sentiment_text_only") or {}).get("files") or {}).get(path.name)
+        if rec is not None and file_record(path) != rec:
+            return None, (f"pending ({path.name} differs from heads/manifest.json, "
+                          "rerun tools/train_heads.py --sentiment-text-only)")
+        return heads.SentimentHead.load(path), f"heads/{path.name}"
+    if sent_head is not None and sent_head.variant == "text_only":
+        return sent_head, "heads/sentiment.npz"
+    return None, "pending (run tools/train_heads.py --sentiment-text-only first)"
+
+
 def run_conditions(cache: Path, heads_dir: Path, meld: Path, wanted: set[str] | None) -> tuple[dict, dict]:
     test = load_split("test", meld)
     train = load_split("train", meld)
@@ -151,6 +175,7 @@ def run_conditions(cache: Path, heads_dir: Path, meld: Path, wanted: set[str] | 
     text_head = head_or_none(heads.TextContextHead, heads_dir / "text_ctx.npz")
     text_k0 = head_or_none(heads.TextContextHead, heads_dir / "text_ctx_k0.npz")
     sent_head = head_or_none(heads.SentimentHead, heads_dir / "sentiment.npz")
+    sent_text, sent_text_file = text_only_sentiment(heads_dir, manifest, sent_head)
     # rows without a cached clip are left out of the audio and fused conditions; each of those rows
     # reports n_no_audio and the text head's weighted f1 on exactly the same rows, so the comparison stays fair
     ra = read_audio_cache(cache, "test", test)
@@ -161,7 +186,8 @@ def run_conditions(cache: Path, heads_dir: Path, meld: Path, wanted: set[str] | 
     if aud is not None:
         inputs["cache/audio_test.npz"] = file_record(cache / "audio_test.npz")
     for p in sorted(heads_dir.glob("*.npz")):
-        inputs[f"heads/{p.name}"] = file_record(p)
+        if p.name in EVAL_HEADS or p.name.startswith("ablation_"):
+            inputs[f"heads/{p.name}"] = file_record(p)
     for p in sorted(cache.glob("text_asr_test*.npy")):
         inputs[f"cache/{p.name}"] = file_record(p)
     ctx = None if aud is None else Experiments(cache, heads_dir, manifest, test, y[keep], groups[keep], aud, keep, text_head,
@@ -185,9 +211,10 @@ def run_conditions(cache: Path, heads_dir: Path, meld: Path, wanted: set[str] | 
             lp = text_head.predict_log_proba_batch(text_matrix(emb, test, text_head.k, same_speaker_only=True))
             note = "same head as text_best_k, same-speaker window" + (" (k=0: differs from text_best_k only through the turn-index flags)" if text_head.k == 0 else "")
             r = scored(name, task, y, np.exp(lp), groups, note)
-        elif name == "sentiment_text_only" and sent_head is not None and sent_head.variant == "text_only":
-            lp = sent_head.predict_log_proba_batch(text_matrix(emb, test, sent_head.k))
-            r = scored(name, task, ys, np.exp(lp), groups, f"k={sent_head.k}, C={sent_head.params.get('C', '?')}, T={sent_head.temperature:.3f}")
+        elif name == "sentiment_text_only" and sent_text is not None:
+            lp = sent_text.predict_log_proba_batch(text_matrix(emb, test, sent_text.k))
+            r = scored(name, task, ys, np.exp(lp), groups,
+                       f"{sent_text_file}, k={sent_text.k}, C={sent_text.params.get('C', '?')}, T={sent_text.temperature:.3f}")
         elif name == "sentiment_fused" and sent_head is not None and sent_head.variant == "fused" and aud is not None:
             r = _fused_sentiment(name, task, ys[keep], groups[keep], sent_head, heads_dir, _rows(lp_text, keep), aud)
             r = _audio_rows_note(r, no_audio, ys[keep], None)
@@ -211,8 +238,10 @@ def run_conditions(cache: Path, heads_dir: Path, meld: Path, wanted: set[str] | 
                 why = PENDING + "; needs the _p2/_p4 prefix features of cache/audio_test.npz"
             elif name == "disagreement_subset":
                 why = PENDING + "; needs the jsd threshold chosen on dev with audio"
-            elif name in ("text_k0", "text_best_k", "text_runtime_regime", "sentiment_text_only"):
+            elif name in ("text_k0", "text_best_k", "text_runtime_regime"):
                 why = "pending (run tools/train_heads.py --text-only first)"
+            elif name == "sentiment_text_only":
+                why = sent_text_file
             r = pending(name, task, why)
         r["description"] = desc
         r["wall_s"] = round(time.perf_counter() - t0, 2)

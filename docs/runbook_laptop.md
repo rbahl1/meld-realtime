@@ -30,7 +30,7 @@ uv run python tools/replay_bench.py --clips "bench_clips/long/*.wav" --n 0 --rep
 
 | step | container time | where it was recorded |
 |---|---|---|
-| `count_params.py` | 1.15 s | `wall_s` in [results/params.json](../results/params.json) |
+| `count_params.py` | 18.4 s, with the files of the three-input mode on disk | `wall_s` in [results/params.json](../results/params.json) |
 | `bench_components.py` | 78.8 s | `wall_s` in [results/bench_components_vm.json](../results/bench_components_vm.json) |
 | `replay_bench.py` on the proxy clips | 2.67 s to load the models, then 73.504 s to stream 73.536 s of audio | `load_s` and `sent` in [results/replay_bench_vm.json](../results/replay_bench_vm.json) |
 | `bench_components.py --build-only` | not timed | |

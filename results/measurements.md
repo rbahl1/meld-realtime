@@ -4,7 +4,7 @@ Rendered by `python tools/render_measurements.py --out results/measurements.md` 
 
 ## Host that rendered this file
 
-- host `vm`, rendered 2026-10-13T04:21:09Z, commit `710402915647 (extension)`
+- host `vm`, rendered 2026-10-13T17:04:44Z, commit `906279e5dd2e (extension)`
 - CPU (lscpu): Intel(R) Xeon(R) Processor @ 2.10GHz
 - nproc: 4
 - flags of interest: avx2 yes, fma yes, avx512f yes, avx512bw yes, avx512_vnni yes, amx_tile yes, amx_int8 yes, amx_bf16 yes
@@ -13,7 +13,7 @@ Rendered by `python tools/render_measurements.py --out results/measurements.md` 
 
 ```
 total        used        free      shared  buff/cache   available
-Mem:           16093        1268        6553          14        8613       14825
+Mem:           16093         659        8549          14        7172       15433
 Swap:              0           0           0
 ```
 
@@ -21,7 +21,7 @@ Swap:              0           0           0
 
 ### Parameters (`results/params.json`, written by `tools/count_params.py`)
 
-Generated 2026-10-13T04:21:04Z.
+Generated 2026-10-13T17:04:43Z.
 
 | Component | File | Params | Trained | Note |
 |---|---|---|---|---|

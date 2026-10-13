@@ -1,10 +1,12 @@
 """train_heads.py and evaluate.py end to end on csv subsets with synthetic text
-and audio caches: the audio and fusion stage, the ablations (--ablation) and the
+and audio caches: the audio and fusion stage, the ablations (--ablation), the
+text-only sentiment head next to the deployed ones (--sentiment-text-only) and the
 conditions of experiments 6 to 9 (live asr text, disagreement subset, early commit).
 the rows of experiments 7 and 9 are recomputed here from the caches and heads."""
 
 import csv
 import json
+import shutil
 import sys
 from itertools import pairwise
 from pathlib import Path
@@ -21,7 +23,7 @@ import evaluate  # noqa: E402
 import train_heads  # noqa: E402
 
 from meld_rt import heads, labels, metrics  # noqa: E402
-from meld_rt.data import MELD_DIR, dialogues, emotion_ids, key, load_split  # noqa: E402
+from meld_rt.data import MELD_DIR, dialogues, emotion_ids, key, load_split, sentiment_ids  # noqa: E402
 from meld_rt.discrepancy import discrepancy  # noqa: E402
 from meld_rt.service import ServiceConfig  # noqa: E402
 
@@ -401,6 +403,72 @@ def test_train_text_only_on_subset(workspace):
     assert sent.variant == "text_only" and sent.input_dim == heads.TextContextHead.input_dim_for(sent.k)
     assert float(sent.params["C"]) in (0.1, 1.0)
     assert not (out / "fusion.npz").exists()
+
+
+def test_sentiment_text_only_mode_leaves_the_deployed_heads(workspace, tmp_path):
+    """--sentiment-text-only writes heads/sentiment_text_only.npz and a "sentiment_text_only" manifest section,
+    with the function, config, seed and k of the deployed text head. every other head file and manifest entry stays
+    byte for byte. evaluate.py then scores sentiment_text_only from that file, and no other row moves."""
+    root, meld, cache, out = workspace
+    if not (out / "fusion.npz").exists():
+        assert train_heads.main(["--cache", str(cache), "--out", str(out), "--config", str(root / "heads.yaml"), "--meld", str(meld)]) == 0
+    hd = tmp_path / "heads"
+    shutil.copytree(out, hd)  # a copy, so the workspace heads stay as the other tests expect them
+    args = ["--cache", str(cache), "--out", str(hd), "--config", str(root / "heads.yaml"), "--meld", str(meld)]
+    md0, js0 = tmp_path / "RESULTS_before.md", tmp_path / "metrics_before.json"
+    assert evaluate.main(["--cache", str(cache), "--heads", str(hd), "--meld", str(meld), "--out", str(md0), str(js0)]) == 0
+    text_before = (hd / "manifest.json").read_text()
+    before = json.loads(text_before)
+    assert before["sentiment"]["variant"] == "fused" and "sentiment_text_only" not in before
+    others = {p.name: p.read_bytes() for p in hd.iterdir() if p.name != "manifest.json"}
+
+    # another config is refused before anything is written
+    cfg = yaml.safe_load((root / "heads.yaml").read_text())
+    (tmp_path / "other.yaml").write_text(yaml.safe_dump({**cfg, "seed": 1}))
+    with pytest.raises(SystemExit, match="not the config"):
+        train_heads.main([*args[:4], "--config", str(tmp_path / "other.yaml"), *args[6:], "--sentiment-text-only"])
+    assert (hd / "manifest.json").read_text() == text_before and not (hd / "sentiment_text_only.npz").exists()
+
+    assert train_heads.main([*args, "--sentiment-text-only"]) == 0
+    text_after = (hd / "manifest.json").read_text()
+    man = json.loads(text_after)
+    sec = man.pop("sentiment_text_only")
+    assert man == before and list(man) == list(before)
+    assert text_after.startswith(text_before.rstrip("}\n"))  # the earlier entries keep their text, the section comes last
+    assert {p.name: p.read_bytes() for p in hd.iterdir() if p.name not in ("manifest.json", "sentiment_text_only.npz")} == others
+    k = before["selected"]["text_ctx"]["k"]
+    assert sec["variant"] == "text_only" and sec["file"] == "sentiment_text_only.npz" and sec["text_head"]["k"] == k
+    assert sec["seed"] == before["seed"] and sec["command"].endswith("--sentiment-text-only")
+    assert sec["files"] == {"sentiment_text_only.npz": train_heads.file_record(hd / "sentiment_text_only.npz")}
+    h = heads.SentimentHead.load(hd / "sentiment_text_only.npz")
+    assert h.variant == "text_only" and h.k == k and h.input_dim == heads.TextContextHead.input_dim_for(k)
+    # the same head that --text-only fits as heads/sentiment.npz
+    utts = {s: load_split(s, meld) for s in ("train", "dev")}
+    emb = {s: train_heads.load_text_cache(cache, s, utts[s]) for s in ("train", "dev")}
+    ref = train_heads.train_sentiment_text_only(tmp_path, cfg, utts, emb, k, cfg["seed"])
+    assert train_heads.same_weights(h, tmp_path / "sentiment.npz") and (ref["C"], ref["dev"]) == (sec["C"], sec["dev"])
+
+    md, js = tmp_path / "RESULTS.md", tmp_path / "metrics.json"
+    assert evaluate.main(["--cache", str(cache), "--heads", str(hd), "--meld", str(meld), "--out", str(md), str(js)]) == 0
+    met, old = json.loads(js.read_text()), json.loads(js0.read_text())
+    assert old["conditions"]["sentiment_text_only"]["status"].startswith("pending")
+    r = met["conditions"]["sentiment_text_only"]
+    assert r["status"] == "done" and r["note"].startswith("heads/sentiment_text_only.npz, k=")
+    test = load_split("test", meld)
+    ys = sentiment_ids(test)
+    p = np.exp(h.predict_log_proba_batch(train_heads.text_matrix(np.load(cache / "text_test.npy"), test, k)))
+    assert r["confusion"] == metrics.confusion(ys, p.argmax(axis=1), 3).tolist() and r["ece"] == round(metrics.ece(p, ys), 6)
+    for name, r0 in old["conditions"].items():
+        if name != "sentiment_text_only":
+            assert {x: v for x, v in met["conditions"][name].items() if x != "wall_s"} == {x: v for x, v in r0.items() if x != "wall_s"}, name
+    assert [x for x in met["inputs"] if x not in old["inputs"]] == ["heads/sentiment_text_only.npz"]
+    assert "| sentiment_text_only | done |" in md.read_text()
+
+    # a file that no longer matches its manifest record is not scored
+    (hd / "sentiment_text_only.npz").write_bytes((tmp_path / "sentiment.npz").read_bytes() + b"\0")
+    assert evaluate.main(["--cache", str(cache), "--heads", str(hd), "--meld", str(meld), "--out", str(md), str(js),
+                          "--conditions", "sentiment_text_only"]) == 0
+    assert "differs from heads/manifest.json" in json.loads(js.read_text())["conditions"]["sentiment_text_only"]["status"]
 
 
 def test_audio_stage_drops_rows_without_a_clip(workspace):

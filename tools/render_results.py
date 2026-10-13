@@ -3,9 +3,10 @@ tools/evaluate.py), heads/manifest.json (written by tools/train_heads.py) and th
 published rows that evaluate.py embeds in results/metrics.json: the main tables,
 gold text next to the live asr transcripts, the ablations, the disagreement
 subset, early commit, per-class f1, the published rows with their sources, the
-pending rows with what each needs, the dev choices, and sentences of observation
-computed from the numbers, the negative ones included. a sentence whose inputs are
-missing is skipped. nothing in the output is typed by hand.
+pending rows with what each needs (only while a row is pending), the dev choices,
+and sentences of observation computed from the numbers, the negative ones
+included. a sentence whose inputs are missing is skipped. nothing in the output
+is typed by hand.
 
 usage: python tools/render_results.py [--metrics results/metrics.json] [--manifest heads/manifest.json] [--out RESULTS.md]
 """
@@ -52,9 +53,8 @@ NEEDS = {
     "early_commit_audio_4s": "the 4 s prefix features of `cache/audio_test.npz` (`--prefixes 2,4`)",
     "early_commit_fused_2s": "the 2 s prefix features and `cache/text_asr_test_p2.npy` (`tools/embed_text.py --split test --from-asr asr_text_p2`)",
     "early_commit_fused_4s": "the 4 s prefix features and `cache/text_asr_test_p4.npy` (`tools/embed_text.py --split test --from-asr asr_text_p4`)",
-    "sentiment_text_only": ("a text-only `heads/sentiment.npz` (`tools/train_heads.py --text-only`). The committed sentiment head is the fused one, "
-                            "which the service uses, so this row is not scored in this run. The earlier text-only run is in "
-                            "[results/01_text_only.md](results/01_text_only.md)"),
+    "sentiment_text_only": ("`heads/sentiment_text_only.npz` (`tools/train_heads.py --sentiment-text-only`, next to the fused "
+                            "`heads/sentiment.npz` that the service uses), or a text-only `heads/sentiment.npz` (`tools/train_heads.py --text-only`)"),
     "sentiment_fused": "`cache/audio_test.npz`, `heads/audio_cal.npz` and a fused `heads/sentiment.npz` (`tools/train_heads.py` without `--text-only`)",
 }
 TABLE_HEAD = ["| condition | what it is | n | weighted F1 [95 % CI] | macro F1 | accuracy | ECE |", "|---|---|---|---|---|---|---|"]
@@ -304,10 +304,20 @@ def sentiment_notes(met: dict) -> list[str]:
     c = met["conditions"]
     pub = {p["row"]: p["weighted_f1"] for p in met.get("published", [])}
     out = []
-    for name, label in (("sentiment_text_only", "text-only"), ("sentiment_fused", "fused")):
-        if done(c, name) and TEXT_ROWS["s_drnn_t"] in pub and TEXT_ROWS["s_drnn_ta"] in pub:
-            out.append(f"The {label} sentiment head scores {pct(c[name]['weighted_f1'])}, next to {pub[TEXT_ROWS['s_drnn_t']]:.2f} for "
-                       f"DialogueRNN on text and {pub[TEXT_ROWS['s_drnn_ta']]:.2f} on text and audio (MELD paper, Table 13).")
+    paper = TEXT_ROWS["s_drnn_t"] in pub and TEXT_ROWS["s_drnn_ta"] in pub
+    ref = (f"{pub[TEXT_ROWS['s_drnn_t']]:.2f} for DialogueRNN on text and {pub[TEXT_ROWS['s_drnn_ta']]:.2f} on text and audio "
+           "(MELD paper, Table 13)") if paper else ""
+    if done(c, "sentiment_text_only") and done(c, "sentiment_fused"):
+        t, f = c["sentiment_text_only"], c["sentiment_fused"]
+        if paper:
+            out.append(f"The text-only sentiment head scores {pct(t['weighted_f1'])} and the fused one {pct(f['weighted_f1'])}, next to {ref}.")
+        (tlo, thi), (flo, fhi) = ci(t), ci(f)
+        out.append(f"The fused head scores {pts(f['weighted_f1'], t['weighted_f1'])} points {side(f['weighted_f1'], t['weighted_f1'])} "
+                   "the text-only head, and the two intervals " + ("overlap." if flo <= thi and tlo <= fhi else "do not overlap."))
+    else:
+        for name, label in (("sentiment_text_only", "text-only"), ("sentiment_fused", "fused")):
+            if done(c, name) and paper:
+                out.append(f"The {label} sentiment head scores {pct(c[name]['weighted_f1'])}, next to {ref}.")
     for name in ("sentiment_text_only", "sentiment_fused"):
         if name in c and not done(c, name):
             out.append(f"`{name}` is not scored in this run (see the pending rows).")
@@ -847,9 +857,9 @@ def extension(met: dict, ext: dict) -> list[str]:
 
 
 def render(met: dict, man: dict, cmd: str, metrics_path: str, manifest_path: str, ext: dict | None = None) -> str:
-    ab_cmd = man.get("ablations", {}).get("command")
+    writers = [f"`{x}`" for x in (man["command"], man.get("ablations", {}).get("command"), man.get("sentiment_text_only", {}).get("command")) if x]
     intro = (f"Rendered by `{cmd}` from `{metrics_path}` (written by `{met['command']}`) and `{manifest_path}` "
-             f"(written by `{man['command']}`" + (f" and `{ab_cmd}`" if ab_cmd else "") + "). "
+             "(written by " + (", ".join(writers[:-1]) + " and " + writers[-1] if len(writers) > 1 else writers[0]) + "). "
              "The full report with the confusion matrices is [results/RESULTS.md](results/RESULTS.md), "
              "and the dev grid of the text head is in [results/01_text_only.md](results/01_text_only.md). Model selection, temperature and thresholds were chosen on dev. "
              "The test split was read once per condition. Weighted F1 is the primary metric, as in the published rows. "
@@ -867,7 +877,8 @@ def render(met: dict, man: dict, cmd: str, metrics_path: str, manifest_path: str
     L += [f"| {sentences(p['row'])} | {p['task']} | {'' if p['weighted_f1'] is None else f'{p['weighted_f1']:.2f}'} | {sentences(p['source'])} |"
           for p in published(met)]
     L += [""] + published_notes(met)
-    L += ["## Pending rows", ""] + pending(met)
+    if any(r["status"] != "done" for r in met["conditions"].values()):
+        L += ["## Pending rows", ""] + pending(met)
     L += ["## Choices made on dev (`heads/manifest.json`)", ""] + dev_choices(man)
     if ext is not None:
         L += extension(met, ext)

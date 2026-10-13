@@ -163,6 +163,11 @@
    "note": "not on the inference path"
   },
   {
+   "file": "heads/sentiment_text_only.npz",
+   "params": 2319,
+   "note": "not on the inference path"
+  },
+  {
    "file": "heads/text_ctx_k0.npz",
    "params": 199687,
    "note": "not on the inference path"
@@ -312,7 +317,7 @@
  "total_extension_only": 495284091,
  "total_with_extension": 854285506,
  "cap": 6000000000,
- "generated_at": "2026-10-13T04:21:04Z",
- "wall_s": 8.26,
+ "generated_at": "2026-10-13T17:04:43Z",
+ "wall_s": 18.4,
  "command": "python tools/count_params.py --models models --heads heads --out results/params.md"
 }

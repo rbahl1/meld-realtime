@@ -6459,5 +6459,76 @@
   },
   "wall_time_s": 336.1,
   "command": "python tools/train_vision.py --cache cache/ --heads heads/ --config configs/heads.yaml --audio audio/ --meld meld/"
+ },
+ "sentiment_text_only": {
+  "variant": "text_only",
+  "input": "TextContextHead features, k=0 (768*(k+1)+4)",
+  "file": "sentiment_text_only.npz",
+  "C": 0.1,
+  "class_weight_scheme": "none",
+  "dev": {
+   "weighted_f1": 0.6525,
+   "macro_f1": 0.6343,
+   "accuracy": 0.6583
+  },
+  "dev_scores": {
+   "C=0.1,cw=none": {
+    "weighted_f1": 0.6525,
+    "macro_f1": 0.6343,
+    "accuracy": 0.6583,
+    "wall_s": 1.4
+   },
+   "C=1,cw=none": {
+    "weighted_f1": 0.6483,
+    "macro_f1": 0.6307,
+    "accuracy": 0.6537,
+    "wall_s": 1.5
+   },
+   "C=10,cw=none": {
+    "weighted_f1": 0.6473,
+    "macro_f1": 0.6297,
+    "accuracy": 0.6528,
+    "wall_s": 1.6
+   },
+   "C=0.1,cw=balanced": {
+    "weighted_f1": 0.6412,
+    "macro_f1": 0.6235,
+    "accuracy": 0.6393,
+    "wall_s": 1.4
+   },
+   "C=1,cw=balanced": {
+    "weighted_f1": 0.6412,
+    "macro_f1": 0.6234,
+    "accuracy": 0.6393,
+    "wall_s": 1.6
+   },
+   "C=10,cw=balanced": {
+    "weighted_f1": 0.6413,
+    "macro_f1": 0.6234,
+    "accuracy": 0.6393,
+    "wall_s": 1.7
+   }
+  },
+  "calibration_dev": {
+   "temperature": 1.4197,
+   "nll_before": 0.8195,
+   "nll_after": 0.7917,
+   "ece_before": 0.0647,
+   "ece_after": 0.0259
+  },
+  "wall_time_s": 9.9,
+  "text_head": {
+   "file": "text_ctx.npz",
+   "grid_point": "k=0,cw=none,lr=0.0001",
+   "k": 0
+  },
+  "seed": 0,
+  "files": {
+   "sentiment_text_only.npz": {
+    "bytes": 18328,
+    "sha256": "65c6614faa7a553bf62897048bb807eb52173e4ec873a036d50903b95225b78d"
+   }
+  },
+  "command": "python tools/train_heads.py --cache cache/ --out heads/ --config configs/heads.yaml --sentiment-text-only"
  }
 }

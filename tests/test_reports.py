@@ -79,6 +79,29 @@ def test_render_results_appends_the_extension_sections():
     assert ch["deployed"] == f"{generator.DEFAULT_MODEL}/{generator.DEFAULT_ONNX}"
 
 
+def test_pending_rows_section_only_while_a_row_is_pending():
+    """RESULTS.md has a "Pending rows" section only while a condition is pending. with both sentiment rows
+    done, the sentiment section compares the two heads with each other and with the MELD paper rows."""
+    met, man = json.loads(METRICS.read_text()), json.loads(MANIFEST.read_text())
+    md = rr.render(met, man, "python tools/render_results.py", "results/metrics.json", "heads/manifest.json")
+    waiting = [n for n, r in met["conditions"].items() if r["status"] != "done"]
+    assert ("## Pending rows" in md) == bool(waiting) and ("is not scored in this run" in md) == bool(waiting)
+    c = met["conditions"]
+    if not waiting:
+        t, f = c["sentiment_text_only"], c["sentiment_fused"]
+        assert (f"The text-only sentiment head scores {rr.pct(t['weighted_f1'])} and the fused one {rr.pct(f['weighted_f1'])}, "
+                "next to ") in md
+        assert f"The fused head scores {rr.pts(f['weighted_f1'], t['weighted_f1'])} points {rr.side(f['weighted_f1'], t['weighted_f1'])}" in md
+    met2 = json.loads(json.dumps(met))
+    row = met2["conditions"]["sentiment_text_only"]
+    met2["conditions"]["sentiment_text_only"] = {"condition": row["condition"], "task": row["task"], "description": row["description"],
+                                                 "status": "pending (run tools/train_heads.py --sentiment-text-only first)"}
+    md2 = rr.render(met2, man, "python tools/render_results.py", "results/metrics.json", "heads/manifest.json")
+    assert "## Pending rows" in md2 and "| `sentiment_text_only` |" in md2.split("## Pending rows")[1]
+    assert "`sentiment_text_only` is not scored in this run (see the pending rows)." in md2
+    assert md2.count("## Pending rows") == 1 and md2.index("## Pending rows") < md2.index("## Choices made on dev")
+
+
 def test_gaps_come_from_the_printed_values():
     """60.9149 and 60.7651 print as 60.91 and 60.77, so the gap reads 0.14, not 0.15."""
     assert rr.pts(0.609149, 0.607651) == "0.14" and rr.side(0.609149, 0.607651) == "above"

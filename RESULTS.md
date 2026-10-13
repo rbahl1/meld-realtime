@@ -1,6 +1,6 @@
 # Results
 
-Rendered by `python tools/render_results.py` from `results/metrics.json` (written by `python tools/evaluate.py --cache cache/ --heads heads/ --out results/RESULTS.md results/metrics.json`) and `heads/manifest.json` (written by `python tools/train_heads.py --cache cache/ --out heads/ --config configs/heads.yaml` and `python tools/train_heads.py --cache cache/ --out heads/ --config configs/heads.yaml --ablation`). The full report with the confusion matrices is [results/RESULTS.md](results/RESULTS.md), and the dev grid of the text head is in [results/01_text_only.md](results/01_text_only.md). Model selection, temperature and thresholds were chosen on dev. The test split was read once per condition. Weighted F1 is the primary metric, as in the published rows. The intervals are 95 % percentile bootstrap intervals over test dialogues (1000 resamples, seed 0). ECE uses 10 equal-width confidence bins. All metrics are in percent.
+Rendered by `python tools/render_results.py` from `results/metrics.json` (written by `python tools/evaluate.py --cache cache/ --heads heads/ --out results/RESULTS.md results/metrics.json`) and `heads/manifest.json` (written by `python tools/train_heads.py --cache cache/ --out heads/ --config configs/heads.yaml`, `python tools/train_heads.py --cache cache/ --out heads/ --config configs/heads.yaml --ablation` and `python tools/train_heads.py --cache cache/ --out heads/ --config configs/heads.yaml --sentiment-text-only`). The full report with the confusion matrices is [results/RESULTS.md](results/RESULTS.md), and the dev grid of the text head is in [results/01_text_only.md](results/01_text_only.md). Model selection, temperature and thresholds were chosen on dev. The test split was read once per condition. Weighted F1 is the primary metric, as in the published rows. The intervals are 95 % percentile bootstrap intervals over test dialogues (1000 resamples, seed 0). ECE uses 10 equal-width confidence bins. All metrics are in percent.
 
 ## Observations
 
@@ -77,9 +77,10 @@ On the 1685 clips longer than 2 s, the audio label from the prefix scores 43.15 
 
 | condition | what it is | n | weighted F1 [95 % CI] | macro F1 | accuracy | ECE |
 |---|---|---|---|---|---|---|
+| `sentiment_text_only` | sentiment, text-only head (logistic regression over the text context features) | 2610 | 66.24 [64.41, 68.20] | 63.33 | 66.70 | 2.04 |
 | `sentiment_fused` | sentiment, fused head over the 19 fusion features | 2610 | 69.17 [67.37, 70.96] | 66.45 | 69.46 | 1.88 |
 
-The fused sentiment head scores 69.17, next to 66.10 for DialogueRNN on text and 67.56 on text and audio (MELD paper, Table 13). `sentiment_text_only` is not scored in this run (see the pending rows).
+The text-only sentiment head scores 66.24 and the fused one 69.17, next to 66.10 for DialogueRNN on text and 67.56 on text and audio (MELD paper, Table 13). The fused head scores 2.93 points above the text-only head, and the two intervals overlap.
 
 ## Per-class F1 (emotion, test)
 
@@ -136,12 +137,6 @@ The text head's macro F1 is 41.22, and its two lowest per-class scores are disgu
 | MELD paper Table 13, DialogueRNN, text+audio | sentiment | 67.56 | Poria et al., ACL 2019, Table 13 |
 
 The best text-only row of the MELD paper, 57.03 (Table 11), is below the lower end of the text head's interval. Fine-tuned RoBERTa-large without context reaches 63.46 in EmoBERTa (Table 2), above the upper end of that interval. DialogueRNN on text and audio, 60.25 (Table 11), is inside the stacked fusion's interval. The FunAudioLLM report gives SenseVoice-S 57.70 weighted F1 on MELD (Table 8), above the upper end of the interval of the raw SenseVoice tag measured here (48.52 [46.33, 50.96]). On 97.51 % of the test clips, more than half of the tag's emotion mass is on OTHER or EMO_UNKNOWN. The report does not state its MELD protocol (the split, the class mapping, how OTHER and unknown are scored) in enough detail to reproduce it.
-
-## Pending rows
-
-| condition | what it measures | what it needs |
-|---|---|---|
-| `sentiment_text_only` | sentiment, text-only head (logistic regression over the text context features) | a text-only `heads/sentiment.npz` (`tools/train_heads.py --text-only`). The committed sentiment head is the fused one, which the service uses, so this row is not scored in this run. The earlier text-only run is in [results/01_text_only.md](results/01_text_only.md) |
 
 ## Choices made on dev (`heads/manifest.json`)
 

@@ -182,7 +182,7 @@ Alternatives considered: accuracy alone, macro F1 as primary, or selection on te
 
 Weighted F1 is what every published MELD row uses (MELD paper, EmoBERTa), so it is the only number that can be compared. The selector consumes the confidence, so calibration has to be measured. The laugh track and the subtitle cuts in MELD can leak into the event and prosody features, so those ablations are the artifact check. On dev, choosing by weighted F1 picked no class weights and cost 0.90 macro-F1 points against the best macro-F1 point ([results/01_text_only.md](../results/01_text_only.md)).
 
-What would change it: nothing in the protocol. Every condition is scored except the text-only sentiment row, which needs a text-only sentiment head ([RESULTS.md](../RESULTS.md), "Pending rows").
+What would change it: nothing in the protocol. Every condition is scored. The text-only sentiment row reads its own head file (`heads/sentiment_text_only.npz`), so the fused sentiment head that the service uses did not change ([RESULTS.md](../RESULTS.md), "Sentiment on MELD test").
 
 Outcome of the artifact check: without the event and prosody inputs the stacked fusion scores 60.82 against 60.77 for the deployed one, and the two single ablations also stay inside the deployed fusion's interval ([RESULTS.md](../RESULTS.md), "Ablations"). The event and prosody inputs add nothing measurable on MELD test, so the fused score does not rest on a laugh-track signal in them. Without them the calibrator reads 9 inputs instead of 24 and the fusion 18 instead of 19, at no measured cost. The deployed heads were not changed and still read those inputs.
 

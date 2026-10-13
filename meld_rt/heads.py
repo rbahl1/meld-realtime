@@ -220,7 +220,8 @@ class Fusion(NpzHead):
 
 class SentimentHead(NpzHead):
     """19 fused features, or the TextContextHead layout when variant == "text_only"
-    (written by train_heads.py --text-only so sentiment exists before audio does)."""
+    (written by train_heads.py --text-only as sentiment.npz so sentiment exists before audio does,
+    and by --sentiment-text-only as sentiment_text_only.npz for the text-only test row)."""
 
     INPUT = FUSION_DIM
     CLASSES = SENTIMENTS

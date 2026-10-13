@@ -162,6 +162,7 @@ All numbers are on MELD test, in percent. [RESULTS.md](RESULTS.md) has every row
 | audio only, calibrator A (deployed) | 48.02 [45.66, 50.64] | 26.92 |
 | product of experts, dev weight | 58.26 [55.91, 60.69] | 35.86 |
 | stacked fusion without events and prosody | 60.82 [58.73, 63.08] | 39.40 |
+| sentiment, text-only head (3 classes) | 66.24 [64.41, 68.20] | 63.33 |
 | sentiment, fused head (3 classes) | 69.17 [67.37, 70.96] | 66.45 |
 
 | published row | weighted F1 | source |
@@ -171,11 +172,12 @@ All numbers are on MELD test, in percent. [RESULTS.md](RESULTS.md) has every row
 | DialogueRNN, text and audio | 60.25 | MELD paper, Table 11 |
 | EmoBERTa, RoBERTa-large, no context | 63.46 | EmoBERTa, Table 2 |
 | SenseVoice-S, audio, no fine-tuning on MELD | 57.7 | FunAudioLLM report, Table 8 |
+| DialogueRNN sentiment, text | 66.10 | MELD paper, Table 13 |
 | DialogueRNN sentiment, text and audio | 67.56 | MELD paper, Table 13 |
 
 The stacked fusion gains 1.15 points of weighted F1 over the text head on gold text ([RESULTS.md](RESULTS.md)). The gain is small, and the two intervals overlap. Its macro F1 is lower (39.24 against 41.22), and it scores 0.00 on fear, against 20.29 for the text head ([RESULTS.md](RESULTS.md), "Per-class F1"). On the 489 test utterances where the text posterior and the raw SenseVoice posterior disagree most (JSD above the dev threshold), the fusion scores 49.62 against 51.44 for the text head alone, so the audio branch shows no gain where words and tone disagree. Dropping the event and prosody inputs leaves the fused score inside the deployed fusion's interval, so those inputs add nothing measurable on MELD. The SenseVoice transcripts have a corpus WER of 0.348488 on test (`cache/wer_test.json`), and on them the text head trained on gold text drops from 59.62 to 42.61. The next step would be to train the text head on SenseVoice transcripts of train and dev. It was not done.
 
-The raw SenseVoice tag scores 48.52, below the 57.7 that the FunAudioLLM report gives for MELD (Table 8). On 97.51 % of the test clips, more than half of its emotion mass is on OTHER or EMO_UNKNOWN. The report does not describe its MELD protocol in enough detail to reproduce it, and it does not list the corpora behind SenseVoice's emotion labels, so MELD may be among them and the SenseVoice row is not a zero-shot number ([PROVENANCE.md](PROVENANCE.md)). The text-only sentiment head is not scored in this run, because the committed sentiment head is the fused one ([results/01_text_only.md](results/01_text_only.md) has the earlier text-only run).
+The raw SenseVoice tag scores 48.52, below the 57.7 that the FunAudioLLM report gives for MELD (Table 8). On 97.51 % of the test clips, more than half of its emotion mass is on OTHER or EMO_UNKNOWN. The report does not describe its MELD protocol in enough detail to reproduce it, and it does not list the corpora behind SenseVoice's emotion labels, so MELD may be among them and the SenseVoice row is not a zero-shot number ([PROVENANCE.md](PROVENANCE.md)). The text-only sentiment head scores 66.24, 2.93 points below the fused head, and the two intervals overlap ([RESULTS.md](RESULTS.md), "Sentiment on MELD test"). The DialogueRNN row on text (66.10, MELD paper, Table 13) lies inside the text-only head's interval, and the row on text and audio (67.56) lies inside both intervals.
 
 ## Text, voice and face
 
@@ -380,6 +382,7 @@ uv run python tools/embed_text.py --split test --from-asr asr_text_p2
 uv run python tools/embed_text.py --split test --from-asr asr_text_p4
 uv run python tools/train_heads.py --cache cache/ --out heads/ --config configs/heads.yaml
 uv run python tools/train_heads.py --cache cache/ --out heads/ --config configs/heads.yaml --ablation
+uv run python tools/train_heads.py --cache cache/ --out heads/ --config configs/heads.yaml --sentiment-text-only
 uv run python tools/evaluate.py --cache cache/ --heads heads/ --out results/RESULTS.md results/metrics.json
 uv run python tools/render_results.py
 uv run python tools/replay_bench.py --clips "audio/test/*.wav" --n 200 --realtime --out results/replay_bench_vm_meld.json
@@ -388,7 +391,7 @@ uv run python tools/count_params.py --models models/ --heads heads/ --out result
 uv run python tools/render_measurements.py --out results/measurements.md
 ```
 
-The sha256 printed by the second command should be the LFS hash (`x-linked-etag` in [results/meld_raw_source.json](results/meld_raw_source.json)). `extract_audio.py` writes 16 kHz mono WAV files under `audio/` and lists missing or failed clips in `audio/missing.json`: train clip `125_3` is an MP4 that ffmpeg could not open and dev clip `110_7` was not found (`audio_rows_dropped` in [heads/manifest.json](heads/manifest.json)). `cache_audio_features.py` runs the service's own SenseVoice and prosody code on every clip, with the 2 s and 4 s prefixes for the early-commit rows. `embed_text.py --from-asr` embeds the SenseVoice transcripts for the live ASR rows. `train_heads.py` without `--text-only` adds the audio calibrators, the fusion head, the fused sentiment head and the dev JSD threshold, and the service then runs in `stacked` mode. `--ablation` trains the ablation heads and leaves the deployed heads as they are. The text and audio caches are not committed. [docs/runbook_laptop.md](docs/runbook_laptop.md) describes the listening audit that follows.
+The sha256 printed by the second command should be the LFS hash (`x-linked-etag` in [results/meld_raw_source.json](results/meld_raw_source.json)). `extract_audio.py` writes 16 kHz mono WAV files under `audio/` and lists missing or failed clips in `audio/missing.json`: train clip `125_3` is an MP4 that ffmpeg could not open and dev clip `110_7` was not found (`audio_rows_dropped` in [heads/manifest.json](heads/manifest.json)). `cache_audio_features.py` runs the service's own SenseVoice and prosody code on every clip, with the 2 s and 4 s prefixes for the early-commit rows. `embed_text.py --from-asr` embeds the SenseVoice transcripts for the live ASR rows. `train_heads.py` without `--text-only` adds the audio calibrators, the fusion head, the fused sentiment head and the dev JSD threshold, and the service then runs in `stacked` mode. `--ablation` trains the ablation heads and leaves the deployed heads as they are. `--sentiment-text-only` fits the text-only sentiment head with the deployed text head's k, config and seed, writes it to `heads/sentiment_text_only.npz` and also leaves the deployed heads as they are. The text and audio caches are not committed. [docs/runbook_laptop.md](docs/runbook_laptop.md) describes the listening audit that follows.
 
 ## Laptop runbook
 
